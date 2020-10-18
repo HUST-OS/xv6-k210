@@ -4,10 +4,10 @@ ENTRY( _entry )
 SECTIONS
 {
   /*
-   * ensure that entry.S / _entry is at 0x80000000,
+   * ensure that entry.S / _entry is at 0x80200000,
    * where qemu's -kernel jumps.
    */
-  . = 0x80000000;
+  . = 0x80200000;
 
   .text : {
     *(.text .text.*)
@@ -40,5 +40,5 @@ SECTIONS
     *(.bss .bss.*)
   }
 
-  PROVIDE(end = .);
+  PROVIDE(kernel_end = .);
 }

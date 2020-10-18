@@ -17,14 +17,15 @@ main(unsigned long hartid, unsigned long dtb_pa)
     printf("xv6-k210 kernel is booting\n");
     printf("\n");
     kinit();         // physical page allocator
-
-    char *mem = kalloc();
-    printf("mem: %p\n", mem);
+    kvminit();       // create kernel page table
+    kvminithart();   // turn on paging
+    test_kalloc();
 
     for(int i = 1; i < NCPU; i++) {
       unsigned long mask = 1 << i;
       sbi_send_ipi(&mask);
     }
+
   }
   while (1);
   

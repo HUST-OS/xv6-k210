@@ -24,8 +24,9 @@ struct {
 void
 kinit()
 {
-  printf("kernel_end: %p, phystop: %p\n", kernel_end, (void*)PHYSTOP);
-  freerange(kernel_end, (void*)PHYSTOP);
+
+  printf("kernel_end: %p, phystop: %p\n", kernel_end - 0xffffffff00000000, (void*)PHYSTOP);
+  freerange(kernel_end - 0xffffffff00000000, (void*)PHYSTOP);
   printf("kinit\n");
 }
 
@@ -47,7 +48,7 @@ kfree(void *pa)
 {
   struct run *r;
   
-  if(((uint64)pa % PGSIZE) != 0 || (char*)pa < kernel_end || (uint64)pa >= PHYSTOP)
+  if(((uint64)pa % PGSIZE) != 0 || (char*)pa < kernel_end - 0xffffffff00000000 || (uint64)pa >= PHYSTOP)
     panic("kfree");
 
   // Fill with junk to catch dangling refs.

@@ -1,6 +1,6 @@
     .section .text.entry
-    .globl _entry
-_:
+    .globl _start
+_start:
     add t0, a0, 1
     slli t0, t0, 14
     lui sp, %hi(boot_stack)
