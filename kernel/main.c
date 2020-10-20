@@ -20,14 +20,24 @@ main(unsigned long hartid, unsigned long dtb_pa)
     kvminit();       // create kernel page table
     kvminithart();   // turn on paging
     test_kalloc();
-
+    procinit();
+    trapinit();      // trap vectors
+    trapinithart();  // install kernel trap vector
+    plicinit();      // set up interrupt controller
+    plicinithart();  // ask PLIC for device interrupts
+    binit();         // buffer cache
+    iinit();         // inode cache
+    fileinit();      // file table
+    // virtio_disk_init(); // emulated hard disk
+    userinit();      // first user process
     for(int i = 1; i < NCPU; i++) {
       unsigned long mask = 1 << i;
       sbi_send_ipi(&mask);
     }
 
   }
-  while (1);
+  // while (1);
+  scheduler();
   
   /* if(cpuid() == 0){
     consoleinit();
