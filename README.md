@@ -10,11 +10,18 @@ Run xv6-riscv on k210 board
 >\$ git clone https://github.com/SKTT1Ryze/xv6-k210
 
 ## Build
+First you need to connect your k210 board to your PC.  
+And check the USB port:  
+>\$ ls /dev/ | grep USB  
+
+In my situation it will be `ttyUSB0`  
+
 >\$ cd xv6-k210  
+>\$ mkdir target  
 >\$ make build
 
 ## Run
->\$ make run-k210
+>\$ make run-k210 k210-serialport=`Your-USB-port`(default by ttyUSB0)
 
 ## What I have done
 + Multicore boot

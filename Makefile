@@ -65,7 +65,7 @@ $K/kernel: $(OBJS) $(linker)
 	$(LD) $(LDFLAGS) -T $(linker) -o $T/kernel $(OBJS) 
 	$(OBJDUMP) -S $T/kernel > $T/kernel.asm
 	$(OBJDUMP) -t $T/kernel | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$$/d' > $T/kernel.sym
-	@rm -f $K/*.o $K/*.d
+	# @rm -f $K/*.o $K/*.d
 
 build: $K/kernel
 
