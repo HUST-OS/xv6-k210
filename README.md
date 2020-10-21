@@ -1,5 +1,6 @@
 # XV6-RISCV On K210
 Run xv6-riscv on k210 board
+![run-k210](./img/run-k210.png)  
 
 ## Dependencies
 + k210 board
