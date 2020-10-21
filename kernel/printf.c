@@ -5,13 +5,24 @@
 #include <stdarg.h>
 #include "types.h"
 #include "param.h"
+#include "spinlock.h"
+#include "sleeplock.h"
+#include "fs.h"
+#include "file.h"
 #include "memlayout.h"
 #include "riscv.h"
 #include "defs.h"
+#include "proc.h"
 
 volatile int panicked = 0;
 
 static char digits[] = "0123456789abcdef";
+
+// lock to avoid interleaving concurrent printf's.
+static struct {
+  struct spinlock lock;
+  int locking;
+} pr;
 
 void printstring(const char* s) {
     while (*s)
@@ -60,9 +71,13 @@ void
 printf(char *fmt, ...)
 {
   va_list ap;
-  int i, c;
+  int i, c, locking;
   char *s;
 
+  locking = pr.locking;
+  if(locking)
+    acquire(&pr.lock);
+  
   if (fmt == 0)
     panic("null fmt");
 
@@ -101,6 +116,8 @@ printf(char *fmt, ...)
       break;
     }
   }
+  if(locking)
+    release(&pr.lock);
 }
 
 void
@@ -112,4 +129,11 @@ panic(char *s)
   panicked = 1; // freeze uart output from other CPUs
   for(;;)
     ;
+}
+
+void
+printfinit(void)
+{
+  initlock(&pr.lock, "pr");
+  pr.locking = 1;
 }
