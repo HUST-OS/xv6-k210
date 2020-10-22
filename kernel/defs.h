@@ -31,7 +31,7 @@ void            consputc(int);
 // timer.c
 void timerinit();
 void supervisor_timer();
-void set_next_timeout();
+// static inline void set_next_timeout();
 uint64 read_time();
 void timer_tick();
 // exec.c

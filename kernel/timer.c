@@ -18,9 +18,9 @@ void supervisor_timer() {
     timer_tick();
 }
 
-void set_next_timeout() {
-    printf("[Timer]read_time: %d\n", r_time());
-    // printf("[Timer]read_time: %d\n", read_time());
+static inline void
+set_next_timeout() {
+    // printf("[Timer]read_time: %d\n", r_time());
     sbi_set_timer(r_time() + INTERVAL);
 }
 
@@ -30,8 +30,7 @@ uint64 read_time() {
 }
 
 void timer_tick() {
-    printf("[Timer]tick\n");
     set_next_timeout();
     tick++;
-    if(tick % 100 == 0) printf("[Timer]tick\n");
+    if((tick % 10) == 0) printf("[Timer]tick: %d\n", tick);
 }

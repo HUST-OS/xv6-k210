@@ -138,7 +138,7 @@ usertrapret(void)
 void 
 kerneltrap()
 {
-  printf("run in kerneltrap...\n");
+  // printf("run in kerneltrap...\n");
   int which_dev = 0;
   uint64 sepc = r_sepc();
   uint64 sstatus = r_sstatus();
@@ -154,12 +154,19 @@ kerneltrap()
     printf("sepc=%p stval=%p\n", r_sepc(), r_stval());
     panic("kerneltrap");
   }
-  printf("which_dev: %d\n", which_dev);
+  // printf("which_dev: %d\n", which_dev);
   
   // give up the CPU if this is a timer interrupt.
-  if(which_dev == 2 && myproc() != 0 && myproc()->state == RUNNING) {
+  /* if(which_dev == 2 && myproc() != 0 && myproc()->state == RUNNING) {
     supervisor_timer();
     yield();
+  } */
+  if(which_dev == 2) {
+    // printf("[Trap]timer interrupt\n");
+    timer_tick();
+    if(myproc() != 0 && myproc()->state == RUNNING) {
+      yield();
+    }
   }
   // the yield() may have caused some traps to occur,
   // so restore trap registers for use by kernelvec.S's sepc instruction.
@@ -208,9 +215,8 @@ devintr()
       plic_complete(irq);
 
     return 1;
-  } else if(scause == 0x8000000000000001L){
-    // software interrupt from a machine-mode timer interrupt,
-    // forwarded by timervec in kernelvec.S.
+  } else if(scause == 0x8000000000000005L){
+    // software interrupt from a supervisor-mode timer interrupt,
 
     if(cpuid() == 0){
       clockintr();

@@ -72,7 +72,8 @@ void
 printf(char *fmt, ...)
 {
   va_list ap;
-  int i, c, locking;
+  int i, c;
+  int locking;
   char *s;
 
   locking = pr.locking;
