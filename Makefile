@@ -32,6 +32,7 @@ OBJS = \
   $K/plic.o \
   $K/virtio_disk.o \
   $K/sbi.o \
+  $K/timer.o \
   $K/test.o \
 
 

@@ -16,6 +16,7 @@ main(unsigned long hartid, unsigned long dtb_pa)
     printf("\n");
     printf("xv6-k210 kernel is booting\n");
     printf("\n");
+    
     kinit();         // physical page allocator
     kvminit();       // create kernel page table
     kvminithart();   // turn on paging
@@ -23,21 +24,22 @@ main(unsigned long hartid, unsigned long dtb_pa)
     procinit();
     trapinit();      // trap vectors
     trapinithart();  // install kernel trap vector
-    plicinit();      // set up interrupt controller
-    plicinithart();  // ask PLIC for device interrupts
-    binit();         // buffer cache
-    iinit();         // inode cache
-    fileinit();      // file table
+    timerinit();     // set up timer interrupt handler
+    // plicinit();      // set up interrupt controller
+    // plicinithart();  // ask PLIC for device interrupts
+    // binit();         // buffer cache
+    // iinit();         // inode cache
+    // fileinit();      // file table
     // virtio_disk_init(); // emulated hard disk
-    userinit();      // first user process
+    // userinit();      // first user process
     for(int i = 1; i < NCPU; i++) {
       unsigned long mask = 1 << i;
       sbi_send_ipi(&mask);
     }
 
   }
-  // while (1);
-  scheduler();
+  while (1);
+  // scheduler();
   
   /* if(cpuid() == 0){
     consoleinit();

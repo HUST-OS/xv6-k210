@@ -1,5 +1,5 @@
 // SBI Call Implementation
-typedef unsigned long long uint64_t;
+#include "types.h"
 
 #define SBI_SET_TIMER 0
 #define SBI_CONSOLE_PUTCHAR 1
@@ -36,7 +36,7 @@ int sbi_console_getchar() {
     return sbi_call(SBI_CONSOLE_GETCHAR, 0, 0, 0);
 }
 
-void sbi_set_timer(uint64_t stime_value) {
+void sbi_set_timer(uint64 stime_value) {
     sbi_call(SBI_SET_TIMER, (unsigned long)stime_value, 0, 0);
 }
 

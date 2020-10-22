@@ -28,6 +28,7 @@ void
 trapinithart(void)
 {
   w_stvec((uint64)kernelvec);
+  w_sie(r_sie() | SIE_SEIE | SIE_SSIE);
   printf("trapinithart\n");
 }
 
@@ -135,6 +136,7 @@ usertrapret(void)
 void 
 kerneltrap()
 {
+  printf("run in kerneltrap...\n");
   int which_dev = 0;
   uint64 sepc = r_sepc();
   uint64 sstatus = r_sstatus();
@@ -150,10 +152,12 @@ kerneltrap()
     printf("sepc=%p stval=%p\n", r_sepc(), r_stval());
     panic("kerneltrap");
   }
-
+  printf("which_dev: %d\n", which_dev);
   // give up the CPU if this is a timer interrupt.
-  if(which_dev == 2 && myproc() != 0 && myproc()->state == RUNNING)
+  if(which_dev == 2 && myproc() != 0 && myproc()->state == RUNNING) {
+    supervisor_timer();
     yield();
+  }
 
   // the yield() may have caused some traps to occur,
   // so restore trap registers for use by kernelvec.S's sepc instruction.
