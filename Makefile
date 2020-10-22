@@ -31,7 +31,6 @@ OBJS = \
   $K/kernelvec.o \
   $K/plic.o \
   $K/virtio_disk.o \
-  $K/sbi.o \
   $K/timer.o \
   $K/test.o \
 
@@ -83,7 +82,7 @@ qemu: build
 
 image = $T/kernel.bin
 k210 = $T/k210.bin
-k210-serialport := /dev/ttyUSB0
+k210-serialport := /dev/ttyUSB1
 
 k210: build
 	@riscv64-unknown-elf-objcopy $T/kernel --strip-all -O binary $(image)

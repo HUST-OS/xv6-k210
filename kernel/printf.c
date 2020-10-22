@@ -13,6 +13,7 @@
 #include "riscv.h"
 #include "defs.h"
 #include "proc.h"
+#include "sbi.h"
 
 volatile int panicked = 0;
 

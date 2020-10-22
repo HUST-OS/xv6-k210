@@ -3,6 +3,7 @@
 #include "memlayout.h"
 #include "riscv.h"
 #include "defs.h"
+#include "sbi.h"
 
 volatile static int started = 0;
 
@@ -16,15 +17,15 @@ main(unsigned long hartid, unsigned long dtb_pa)
     printf("\n");
     printf("xv6-k210 kernel is booting\n");
     printf("\n");
-    
+
     kinit();         // physical page allocator
     kvminit();       // create kernel page table
     kvminithart();   // turn on paging
     test_kalloc();
-    procinit();
     trapinit();      // trap vectors
     trapinithart();  // install kernel trap vector
     timerinit();     // set up timer interrupt handler
+    procinit();
     // plicinit();      // set up interrupt controller
     // plicinithart();  // ask PLIC for device interrupts
     // binit();         // buffer cache

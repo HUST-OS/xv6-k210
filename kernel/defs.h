@@ -23,15 +23,16 @@ void            consoleintr(int);
 void            consputc(int);
 
 // sbi.c
-void sbi_console_putchar(int ch);
-int sbi_console_getchar();
-void sbi_send_ipi(const unsigned long *hart_mask);
-void sbi_set_timer(uint64 stime_value);
+// void sbi_console_putchar(int ch);
+// int sbi_console_getchar();
+// void sbi_send_ipi(const unsigned long *hart_mask);
+// void sbi_set_timer(uint64 stime_value);
 
 // timer.c
 void timerinit();
 void supervisor_timer();
 void set_next_timeout();
+uint64 read_time();
 void timer_tick();
 // exec.c
 int             exec(char*, char**);

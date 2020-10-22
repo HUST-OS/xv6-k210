@@ -20,6 +20,7 @@
 #include "riscv.h"
 #include "defs.h"
 #include "proc.h"
+#include "sbi.h"
 
 #define BACKSPACE 0x100
 #define C(x)  ((x)-'@')  // Control-x
