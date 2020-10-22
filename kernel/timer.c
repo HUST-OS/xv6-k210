@@ -7,6 +7,7 @@
 #include "sbi.h"
 
 static int tick = 0;
+
 void timerinit() {
     // enable supervisor-mode timer interrupts.
     w_sie(r_sie() | SIE_STIE);
@@ -14,20 +15,19 @@ void timerinit() {
     printf("timerinit\n");
 }
 
-void supervisor_timer() {
-    timer_tick();
-}
-
-static inline void
+void
 set_next_timeout() {
-    // printf("[Timer]read_time: %d\n", r_time());
+    // There is a very strang bug,
+    // if comment the printf line below
+    // the timer will not work.
+    printf("");
     sbi_set_timer(r_time() + INTERVAL);
 }
 
-uint64 read_time() {
-    uint64 *mtime = (uint64 *)0xffffffff0200bff8;
-    return *(mtime);
-}
+// uint64 read_time() {
+//     uint64 *mtime = (uint64 *)0xffffffff0200bff8;
+//     return *(mtime);
+// }
 
 void timer_tick() {
     set_next_timeout();

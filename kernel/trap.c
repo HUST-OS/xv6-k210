@@ -13,7 +13,6 @@ extern char trampoline[], uservec[], userret[];
 
 // in kernelvec.S, calls kerneltrap().
 void kernelvec();
-void __interrupt();
 
 extern int devintr();
 
