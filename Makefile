@@ -61,12 +61,11 @@ linker = ./linker/k210.ld
 # LINK				:= $(CC) $(LDFLAGS)
 
 $K/kernel: $(OBJS) $(linker)
-	# $(LINK) -o $T/kernel $(OBJS) $(LIBS) -Wl,--defsym=MEM_START=0x80000000,-T,$(linker)
-	$(LD) $(LDFLAGS) -T $(linker) -o $T/kernel $(OBJS) 
-	$(OBJDUMP) -S $T/kernel > $T/kernel.asm
-	$(OBJDUMP) -t $T/kernel | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$$/d' > $T/kernel.sym
+	@$(LD) $(LDFLAGS) -T $(linker) -o $T/kernel $(OBJS)
+	@$(OBJDUMP) -S $T/kernel > $T/kernel.asm
+	@$(OBJDUMP) -t $T/kernel | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$$/d' > $T/kernel.sym
 	# @rm -f $K/*.o $K/*.d
-
+  
 build: $K/kernel
 
 ifndef CPUS
