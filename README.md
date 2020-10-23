@@ -31,6 +31,7 @@ may help you: [maixpy-doc](https://maixpy.sipeed.com/zh/get_started/env_install_
 + Implement bare-metal printf
 + Memory alloc
 + Page Table
++ Timer interrupt
 
 ## TODO
 The rest part of xv6-kernel and xv6-fs
