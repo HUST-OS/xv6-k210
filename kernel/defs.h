@@ -191,6 +191,8 @@ void            virtio_disk_intr(void);
 
 // test.c
 void            test_kalloc(void);
+void            ptesprintf(pagetable_t, int);
+int             vmprint(pagetable_t);
 
 // number of elements in fixed-size array
 #define NELEM(x) (sizeof(x)/sizeof((x)[0]))
