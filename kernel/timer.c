@@ -17,8 +17,8 @@ void timerinit() {
 
 void
 set_next_timeout() {
-    // There is a very strang bug,
-    // if comment the printf line below
+    // There is a very strange bug,
+    // if comment the `printf` line below
     // the timer will not work.
     printf("");
     sbi_set_timer(r_time() + INTERVAL);

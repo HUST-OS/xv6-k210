@@ -46,9 +46,11 @@ kvminit()
   // map the trampoline for trap entry/exit to
   // the highest virtual address in the kernel.
   kvmmap(TRAMPOLINE, trampoline_addr, PGSIZE, PTE_R | PTE_X);
-  printf("kvminit\n");
+  
+  // test kernel pagetable
+  test_vm(kernel_pagetable);
 
-  vmprint(kernel_pagetable);
+  printf("kvminit\n");
 }
 
 // Switch h/w page table register to the kernel's page table,

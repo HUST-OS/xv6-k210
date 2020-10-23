@@ -18,7 +18,7 @@ void ptesprint(pagetable_t pagetable, int level){
   for(int i = 0; i < 512; i++){
     pte_t pte = pagetable[i];
     if(pte & PTE_V){
-      for(int j=0; j< level-1; j++)
+      for(int j = 0; j < level-1; j++)
         printf(".. ");
       printf("..%d: pte %p pa %p\n", i, pte, PTE2PA(pte));
     }
@@ -36,4 +36,10 @@ int vmprint(pagetable_t pagetable){
   ptesprint(pagetable, 1);
 
   return 0;
+}
+
+void test_vm(pagetable_t kernel_pt) {
+  printf("va: %p, pa: %p\n", KERNBASE + 0x1000, walkaddr(kernel_pt, KERNBASE + 0x1000));
+  printf("va: %p, pa: %p\n", KERNBASE + 0x2000, walkaddr(kernel_pt, KERNBASE + 0x2000));
+  printf("va: %p, pa: %p\n", KERNBASE + 0x3000, walkaddr(kernel_pt, KERNBASE + 0x3000));
 }
