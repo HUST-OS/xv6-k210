@@ -47,6 +47,8 @@ kvminit()
   // the highest virtual address in the kernel.
   kvmmap(TRAMPOLINE, trampoline_addr, PGSIZE, PTE_R | PTE_X);
   printf("kvminit\n");
+
+  vmprint(kernel_pagetable);
 }
 
 // Switch h/w page table register to the kernel's page table,
