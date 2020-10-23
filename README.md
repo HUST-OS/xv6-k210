@@ -14,14 +14,17 @@ First you need to connect your k210 board to your PC.
 And check the USB port:  
 >\$ ls /dev/ | grep USB  
 
-In my situation it will be `ttyUSB0`  
+In my situation it will be `ttyUSB1`  
 
 >\$ cd xv6-k210  
 >\$ mkdir target  
 >\$ make build
 
 ## Run
->\$ make run-k210 k210-serialport=`Your-USB-port`(default by ttyUSB0)
+>\$ make run-k210 k210-serialport=`Your-USB-port`(default by ttyUSB1)  
+
+Ps: Most of the k210-port in Linux is ttyUSB0, if you use Windows or Mac OS, this doc 
+may help you: [maixpy-doc](https://maixpy.sipeed.com/zh/get_started/env_install_driver.html#)  
 
 ## What I have done
 + Multicore boot
