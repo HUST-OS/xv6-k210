@@ -6,11 +6,13 @@
 #include "riscv.h"
 #include "defs.h"
 
+extern uint64 etext_addr;
+
 void test_kalloc() {
     char *mem = kalloc();
     memset(mem, 0, PGSIZE);
     strncpy(mem, "Hello, xv6-k210", 16);
-    printf("[test]mem: %s\n", mem);
+    printf("[test_kalloc]mem: %s\n", mem);
 }
 
 void ptesprint(pagetable_t pagetable, int level){
@@ -38,8 +40,11 @@ int vmprint(pagetable_t pagetable){
   return 0;
 }
 
-void test_vm(pagetable_t kernel_pt) {
-  printf("va: %p, pa: %p\n", KERNBASE + 0x1000, walkaddr(kernel_pt, KERNBASE + 0x1000));
-  printf("va: %p, pa: %p\n", KERNBASE + 0x2000, walkaddr(kernel_pt, KERNBASE + 0x2000));
-  printf("va: %p, pa: %p\n", KERNBASE + 0x3000, walkaddr(kernel_pt, KERNBASE + 0x3000));
+void test_vm() {
+  printf("[test_vm](kvmpa) va: %p, pa: %p\n", KERNBASE + 0x1000, kvmpa(KERNBASE + 0x1000));
+  printf("[test_vm](kvmpa) va: %p, pa: %p\n", KERNBASE + 0x2000, kvmpa(KERNBASE + 0x2000));
+  printf("[test_vm](kvmpa) va: %p, pa: %p\n", KERNBASE + 0x3000, kvmpa(KERNBASE + 0x3000));
+  printf("[test_vm](kvmpa) va: %p, pa: %p\n", etext_addr + 0x1000, kvmpa(etext_addr + 0x1000));
+  printf("[test_vm](kvmpa) va: %p, pa: %p\n", etext_addr + 0x2000, kvmpa(etext_addr + 0x2000));
+  printf("[test_vm](kvmpa) va: %p, pa: %p\n", etext_addr + 0x3000, kvmpa(etext_addr + 0x3000));
 }

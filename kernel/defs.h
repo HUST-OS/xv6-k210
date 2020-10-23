@@ -191,7 +191,7 @@ void            virtio_disk_intr(void);
 
 // test.c
 void            test_kalloc(void);
-void            test_vm(pagetable_t kernel_pt);
+void            test_vm();
 // void            ptesprintf(pagetable_t, int);
 // int             vmprint(pagetable_t);
 

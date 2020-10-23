@@ -39,16 +39,12 @@ kvminit()
   printf("kernel_base: %p, etext: %p, etext - kernel_base: %p\n", KERNBASE, etext_addr, etext_addr - KERNBASE);
   // map kernel text executable and read-only.
   kvmmap(KERNBASE, KERNBASE, etext_addr - KERNBASE, PTE_R | PTE_X);
-
   // map kernel data and the physical RAM we'll make use of.
   kvmmap(etext_addr, etext_addr, PHYSTOP - etext_addr, PTE_R | PTE_W);
 
   // map the trampoline for trap entry/exit to
   // the highest virtual address in the kernel.
   kvmmap(TRAMPOLINE, trampoline_addr, PGSIZE, PTE_R | PTE_X);
-  
-  // test kernel pagetable
-  test_vm(kernel_pagetable);
 
   printf("kvminit\n");
 }

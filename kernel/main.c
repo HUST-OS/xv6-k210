@@ -21,7 +21,6 @@ main(unsigned long hartid, unsigned long dtb_pa)
     kinit();         // physical page allocator
     kvminit();       // create kernel page table
     kvminithart();   // turn on paging
-    test_kalloc();
     trapinit();      // trap vectors
     trapinithart();  // install kernel trap vector
     timerinit();     // set up timer interrupt handler
@@ -33,6 +32,10 @@ main(unsigned long hartid, unsigned long dtb_pa)
     // fileinit();      // file table
     // virtio_disk_init(); // emulated hard disk
     // userinit();      // first user process
+
+    test_kalloc();    // test kalloc
+    test_vm();       // test kernel pagetable
+
     for(int i = 1; i < NCPU; i++) {
       unsigned long mask = 1 << i;
       sbi_send_ipi(&mask);
