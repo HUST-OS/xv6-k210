@@ -5,6 +5,7 @@
 #include "memlayout.h"
 #include "riscv.h"
 #include "defs.h"
+#include "sbi.h"
 
 extern uint64 etext_addr;
 
@@ -82,4 +83,13 @@ void test_vm(unsigned long hart_id) {
   }
   printf("[test_vm](walkaddr) va: %p, pa: %p\n", 0, walkaddr(test_pagetable, 0));
   printf("[test_vm](walkaddr) va: %p, pa: %p\n", PGSIZE - 1, walkaddr(test_pagetable, PGSIZE - 1) + (PGSIZE - 1) % PGSIZE);
+}
+
+void test_getchar() {
+  printf("[test_getchar]sbi_console_getchar:");
+  int ch = sbi_console_getchar();
+  printf("\n");
+  printf("[test_getchar]getchar return:");
+  sbi_console_putchar(ch);
+  printf("\n");
 }
