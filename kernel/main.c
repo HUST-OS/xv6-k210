@@ -34,7 +34,7 @@ main(unsigned long hartid, unsigned long dtb_pa)
     // userinit();      // first user process
 
     test_kalloc();    // test kalloc
-    test_vm();       // test kernel pagetable
+    test_vm(hartid);       // test kernel pagetable
 
     for(int i = 1; i < NCPU; i++) {
       unsigned long mask = 1 << i;

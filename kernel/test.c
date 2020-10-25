@@ -40,11 +40,37 @@ int vmprint(pagetable_t pagetable){
   return 0;
 }
 
-void test_vm() {
+void test_vm(unsigned long hart_id) {
+  printf("UART:\n");
+  printf("[test_vm](kvmpa) va: %p, pa: %p\n", UART0, kvmpa(UART0));
+  printf("virto mmio:\n");
+  printf("[test_vm](kvmpa) va: %p, pa: %p\n", VIRTIO0, kvmpa(VIRTIO0));
+  printf("CLINT:\n");
+  printf("[test_vm](kvmpa) va: %p, pa: %p\n", CLINT, kvmpa(CLINT));
+  printf("[test_vm](kvmpa) va: %p, pa: %p\n", CLINT_MTIMECMP(hart_id), kvmpa(CLINT_MTIMECMP(hart_id)));
+  printf("[test_vm](kvmpa) va: %p, pa: %p\n", CLINT_MTIME, kvmpa(CLINT_MTIME));
+  printf("PLIC\n");
+  printf("[test_vm](kvmpa) va: %p, pa: %p\n", PLIC, kvmpa(PLIC));
+  printf("[test_vm](kvmpa) va: %p, pa: %p\n", PLIC_PRIORITY, kvmpa(PLIC_PRIORITY));
+  printf("[test_vm](kvmpa) va: %p, pa: %p\n", PLIC_PENDING, kvmpa(PLIC_PENDING));
+  printf("[test_vm](kvmpa) va: %p, pa: %p\n", PLIC_MENABLE(hart_id), kvmpa(PLIC_MENABLE(hart_id)));
+  printf("[test_vm](kvmpa) va: %p, pa: %p\n", PLIC_SENABLE(hart_id), kvmpa(PLIC_SENABLE(hart_id)));
+  printf("[test_vm](kvmpa) va: %p, pa: %p\n", PLIC_MPRIORITY(hart_id), kvmpa(PLIC_MPRIORITY(hart_id)));
+  printf("[test_vm](kvmpa) va: %p, pa: %p\n", PLIC_SPRIORITY(hart_id), kvmpa(PLIC_SPRIORITY(hart_id)));
+  printf("[test_vm](kvmpa) va: %p, pa: %p\n", PLIC_MCLAIM(hart_id), kvmpa(PLIC_MCLAIM(hart_id)));
+  printf("[test_vm](kvmpa) va: %p, pa: %p\n", PLIC_SCLAIM(hart_id), kvmpa(PLIC_SCLAIM(hart_id)));
+  printf("kernel base:\n");
+  printf("[test_vm](kvmpa) va: %p, pa: %p\n", KERNBASE, kvmpa(KERNBASE));
   printf("[test_vm](kvmpa) va: %p, pa: %p\n", KERNBASE + 0x1000, kvmpa(KERNBASE + 0x1000));
   printf("[test_vm](kvmpa) va: %p, pa: %p\n", KERNBASE + 0x2000, kvmpa(KERNBASE + 0x2000));
   printf("[test_vm](kvmpa) va: %p, pa: %p\n", KERNBASE + 0x3000, kvmpa(KERNBASE + 0x3000));
+  printf("etext_addr:\n");
+  printf("[test_vm](kvmpa) va: %p, pa: %p\n", etext_addr, kvmpa(etext_addr));
   printf("[test_vm](kvmpa) va: %p, pa: %p\n", etext_addr + 0x1000, kvmpa(etext_addr + 0x1000));
   printf("[test_vm](kvmpa) va: %p, pa: %p\n", etext_addr + 0x2000, kvmpa(etext_addr + 0x2000));
   printf("[test_vm](kvmpa) va: %p, pa: %p\n", etext_addr + 0x3000, kvmpa(etext_addr + 0x3000));
+  printf("trampoline:\n");
+  printf("[test_vm](kvmpa) va: %p, pa: %p\n", TRAMPOLINE, kvmpa(TRAMPOLINE));
+  printf("[test_vm](kvmpa) va: %p, pa: %p\n", TRAMPOLINE + PGSIZE - 1, kvmpa(TRAMPOLINE + PGSIZE - 1));
+  
 }
