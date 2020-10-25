@@ -36,6 +36,10 @@ main(unsigned long hartid, unsigned long dtb_pa)
     test_kalloc();    // test kalloc
     test_vm(hartid);       // test kernel pagetable
 
+    printf("sbi getchar:");
+    int ch = sbi_console_getchar();
+    // sbi_console_putchar(ch);
+    printf("%d\n", ch);
     for(int i = 1; i < NCPU; i++) {
       unsigned long mask = 1 << i;
       sbi_send_ipi(&mask);
