@@ -72,5 +72,14 @@ void test_vm(unsigned long hart_id) {
   printf("trampoline:\n");
   printf("[test_vm](kvmpa) va: %p, pa: %p\n", TRAMPOLINE, kvmpa(TRAMPOLINE));
   printf("[test_vm](kvmpa) va: %p, pa: %p\n", TRAMPOLINE + PGSIZE - 1, kvmpa(TRAMPOLINE + PGSIZE - 1));
-  
+  printf("[test_vm]create test pagetable\n");
+  pagetable_t test_pagetable = uvmcreate();
+  printf("test_pagetable: %p\n", test_pagetable);
+  char *test_mem = kalloc();
+  memset(test_mem, 0, PGSIZE);
+  if(mappages(test_pagetable, 0, PGSIZE, (uint64)test_mem, PTE_R | PTE_W | PTE_U | PTE_X) != 0) {
+    panic("[test_vm]mappages failed\n");
+  }
+  printf("[test_vm](walkaddr) va: %p, pa: %p\n", 0, walkaddr(test_pagetable, 0));
+  printf("[test_vm](walkaddr) va: %p, pa: %p\n", PGSIZE - 1, walkaddr(test_pagetable, PGSIZE - 1) + (PGSIZE - 1) % PGSIZE);
 }
