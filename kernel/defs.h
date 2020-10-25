@@ -193,6 +193,7 @@ void            virtio_disk_intr(void);
 void            test_kalloc(void);
 void            test_vm(unsigned long);
 void            test_getchar(void);
+void            test_extern_interrupt(void);
 // void            ptesprintf(pagetable_t, int);
 // int             vmprint(pagetable_t);
 

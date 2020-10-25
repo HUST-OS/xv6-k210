@@ -90,4 +90,7 @@ static inline void sbi_remote_sfence_vma_asid(const unsigned long *hart_mask,
 	SBI_CALL_4(SBI_REMOTE_SFENCE_VMA_ASID, hart_mask, start, size, asid);
 }
 
+static inline void sbi_set_extern_interrupt(unsigned long func_pointer) {
+	SBI_CALL_1(func_pointer, 0x09);
+}
 #endif

@@ -93,3 +93,7 @@ void test_getchar() {
   sbi_console_putchar(ch);
   printf("\n");
 }
+
+void test_extern_interrupt() {
+  printf("[test_extern_interrupt]receive interrupt request\n");
+}

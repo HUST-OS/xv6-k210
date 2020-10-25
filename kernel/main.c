@@ -36,13 +36,15 @@ main(unsigned long hartid, unsigned long dtb_pa)
     test_kalloc();    // test kalloc
     test_vm(hartid);       // test kernel pagetable
     test_getchar();     // test sbi_console_getchar
-    
+
+    sbi_set_extern_interrupt((uint64)test_extern_interrupt);
     for(int i = 1; i < NCPU; i++) {
-    unsigned long mask = 1 << i;
-    sbi_send_ipi(&mask);
-  }
+      unsigned long mask = 1 << i;
+      sbi_send_ipi(&mask);
+    }
 
   }
+  printf("hart 1 init done\n");
   while (1);
   // scheduler();
   
