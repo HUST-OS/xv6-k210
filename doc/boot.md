@@ -165,4 +165,5 @@ hart 1 enter main()...
 这样子就成功地启动 k210 上的双核了！  
 
 ## 如果本文档有错，请在该项目上开 issue 提出或 提交 pr 或发到作者邮箱，谢谢  
-作者邮箱可以在作者 github 主页上找到。  
+作者邮箱:linuxgnulover@gmail.com  
+
