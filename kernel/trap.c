@@ -6,6 +6,7 @@
 #include "proc.h"
 #include "defs.h"
 
+
 struct spinlock tickslock;
 uint ticks;
 
@@ -231,3 +232,7 @@ devintr()
   }
 }
 
+void
+supervisor_external_handler() {
+  while (1);
+}

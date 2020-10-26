@@ -3,6 +3,7 @@
 #include "memlayout.h"
 #include "riscv.h"
 #include "defs.h"
+#include "sbi.h"
 
 //
 // the riscv Platform Level Interrupt Controller (PLIC).
@@ -66,5 +67,6 @@ void device_init(unsigned long pa) {
   uint32 *hart0_m_int_enable_hi = (uint32*)0x0c002004;
   *(hart0_m_int_enable_hi) = (1 << 0x1);
   // *(uint32*)0x0c002004 = (1 << 0x1);
+  sbi_set_extern_interrupt((uint64)supervisor_external_handler - 0xffffffff00000000);
   printf("device init\n");
 }

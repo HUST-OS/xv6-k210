@@ -33,24 +33,18 @@ main(unsigned long hartid, unsigned long dtb_pa)
     // fileinit();      // file table
     // virtio_disk_init(); // emulated hard disk
     // userinit();      // first user process
-    sbi_set_extern_interrupt((uint64)test_extern_interrupt - 0xffffffff00000000);
+    
     test_kalloc();    // test kalloc
     test_vm(hartid);       // test kernel pagetable
-    test_getchar();     // test sbi_console_getchar
+    // test_getchar();     // test sbi_console_getchar
 
-    
-    // sbi_set_extern_interrupt((uint64)test_extern_interrupt);
+    printf("hart 0 init done\n");
     for(int i = 1; i < NCPU; i++) {
       unsigned long mask = 1 << i;
       sbi_send_ipi(&mask);
     }
   }
-
-  device_init(dtb_pa);
-  // sbi_set_extern_interrupt((uint64)test_extern_interrupt);
-  sbi_set_extern_interrupt((uint64)test_extern_interrupt - 0xffffffff00000000);
   
-  printf("hart 1 init done\n");
   while (1);
   // scheduler();
   

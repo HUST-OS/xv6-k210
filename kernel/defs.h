@@ -151,6 +151,7 @@ void            trapinit(void);
 void            trapinithart(void);
 extern struct spinlock tickslock;
 void            usertrapret(void);
+void            supervisor_external_handler(void);
 
 // uart.c
 void            uartinit(void);
@@ -194,7 +195,7 @@ void            virtio_disk_intr(void);
 void            test_kalloc(void);
 void            test_vm(unsigned long);
 void            test_getchar(void);
-void            test_extern_interrupt(void);
+
 // void            ptesprintf(pagetable_t, int);
 // int             vmprint(pagetable_t);
 
