@@ -234,5 +234,5 @@ devintr()
 
 void
 supervisor_external_handler() {
-  while (1);
+  
 }

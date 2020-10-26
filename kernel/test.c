@@ -87,9 +87,9 @@ void test_vm(unsigned long hart_id) {
 
 void test_getchar() {
   printf("[test_getchar]sbi_console_getchar:");
-  int ch = sbi_console_getchar();
+  sbi_console_getchar();
   printf("\n");
   printf("[test_getchar]getchar return:");
-  sbi_console_putchar(ch);
+  sbi_console_putchar(*(uint32*)0x38000004);
   printf("\n");
 }

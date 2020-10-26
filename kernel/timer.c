@@ -32,5 +32,8 @@ set_next_timeout() {
 void timer_tick() {
     set_next_timeout();
     tick++;
-    if((tick % 10) == 0) printf("[Timer]tick: %d\n", tick);
+    if((tick % 10) == 0) {
+        printf("[Timer]tick: %d\n", tick);
+        sbi_console_putchar(*(uint32*)0x38000004);
+    }
 }

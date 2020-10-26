@@ -45,7 +45,9 @@ main(unsigned long hartid, unsigned long dtb_pa)
     }
   }
   
-  while (1);
+  while (1) {
+    
+  }
   // scheduler();
   
   /* if(cpuid() == 0){
