@@ -36,7 +36,7 @@ OBJS = \
 
 
 QEMU = qemu-system-riscv64
-RUSTSBI = ./bootloader/SBI/rustsbi.bin
+RUSTSBI = ./bootloader/SBI/rustsbi-k210
 
 TOOLPREFIX	:= riscv64-unknown-elf-
 CC = $(TOOLPREFIX)gcc
@@ -85,8 +85,9 @@ k210-serialport := /dev/ttyUSB1
 
 k210: build
 	@riscv64-unknown-elf-objcopy $T/kernel --strip-all -O binary $(image)
-	@cp $(RUSTSBI) $(k210)
-	dd if=$(image) of=$(k210) bs=128k seek=1
+	@riscv64-unknown-elf-objcopy $(RUSTSBI) --strip-all -O binary $(k210)
+	# @cp $(RUSTSBI) $(k210)
+	@dd if=$(image) of=$(k210) bs=128k seek=1
 
 
 run-k210: k210

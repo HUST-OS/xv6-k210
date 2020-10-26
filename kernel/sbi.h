@@ -91,6 +91,6 @@ static inline void sbi_remote_sfence_vma_asid(const unsigned long *hart_mask,
 }
 
 static inline void sbi_set_extern_interrupt(unsigned long func_pointer) {
-	SBI_CALL_1(func_pointer, 0x09);
+	SBI_CALL_1(0x09, func_pointer);
 }
 #endif

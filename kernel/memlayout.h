@@ -1,6 +1,24 @@
 // Physical memory layout
 
-// qemu puts UART registers here in physical memory.
+// k210 peripherals
+// (0x0200_0000, 0x1000),      /* CLINT     */
+// // we only need claim/complete for target0 after initializing
+// (0x0C20_0000, 0x1000),      /* PLIC      */
+// (0x3800_0000, 0x1000),      /* UARTHS    */
+// (0x3800_1000, 0x1000),      /* GPIOHS    */
+// (0x5020_0000, 0x1000),      /* GPIO      */
+// (0x5024_0000, 0x1000),      /* SPI_SLAVE */
+// (0x502B_0000, 0x1000),      /* FPIOA     */
+// (0x502D_0000, 0x1000),      /* TIMER0    */
+// (0x502E_0000, 0x1000),      /* TIMER1    */
+// (0x502F_0000, 0x1000),      /* TIMER2    */
+// (0x5044_0000, 0x1000),      /* SYSCTL    */
+// (0x5200_0000, 0x1000),      /* SPI0      */
+// (0x5300_0000, 0x1000),      /* SPI1      */
+// (0x5400_0000, 0x1000),      /* SPI2      */
+// (0x8000_0000, 0x600000),    /* Memory    */
+
+// k210 puts UART registers here in physical memory.
 #define UART0 0x38000000L
 #define UART0_IRQ 10
 
@@ -13,7 +31,6 @@
 #define CLINT_MTIMECMP(hartid) (CLINT + 0x4000 + 8*(hartid))
 #define CLINT_MTIME (CLINT + 0xBFF8) // cycles since boot.
 
-// qemu puts programmable interrupt controller here.
 #define PLIC 0x0c200000L
 #define PLIC_PRIORITY (PLIC + 0x0)
 #define PLIC_PENDING (PLIC + 0x1000)
@@ -23,6 +40,8 @@
 #define PLIC_SPRIORITY(hart) (PLIC + 0x201000 + (hart)*0x2000)
 #define PLIC_MCLAIM(hart) (PLIC + 0x200004 + (hart)*0x2000)
 #define PLIC_SCLAIM(hart) (PLIC + 0x201004 + (hart)*0x2000)
+
+
 
 // the kernel expects there to be RAM
 // for use by the kernel and user pages

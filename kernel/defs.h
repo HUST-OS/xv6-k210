@@ -183,6 +183,7 @@ void            plicinit(void);
 void            plicinithart(void);
 int             plic_claim(void);
 void            plic_complete(int);
+void            device_init(unsigned long);
 
 // virtio_disk.c
 void            virtio_disk_init(void);
