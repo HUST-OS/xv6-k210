@@ -234,5 +234,12 @@ devintr()
 
 void
 supervisor_external_handler() {
-  
+  int irq = *(uint32*)(PLIC + 0x04);
+  if(irq == UARTHS_IRQ) {
+    // UARTHS
+  }
+  else
+  {
+    while (1);
+  }
 }

@@ -5,6 +5,8 @@
 #include "riscv.h"
 #include "defs.h"
 #include "sbi.h"
+#include "memlayout.h"
+#include "uarths.h"
 
 static int tick = 0;
 
@@ -34,6 +36,11 @@ void timer_tick() {
     tick++;
     if((tick % 10) == 0) {
         printf("[Timer]tick: %d\n", tick);
-        sbi_console_putchar(*(uint32*)0x38000004);
+        uint32 c = *(uint32*)(UARTHS + UARTHS_REG_RXFIFO);
+        if(c <= 255) {
+            printf("[UARTHS]receive: %p, ", c);
+            sbi_console_putchar(c);
+            printf("\n");
+        }
     }
 }

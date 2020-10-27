@@ -22,12 +22,15 @@
 #define UART0 0x38000000L
 #define UART0_IRQ 10
 
+#define UARTHS 0x38000000L
+#define UARTHS_IRQ 33
+
 // virtio mmio interface
 #define VIRTIO0 0x10001000
 #define VIRTIO0_IRQ 1
 
 // local interrupt controller, which contains the timer.
-#define CLINT 0x2000000L
+#define CLINT 0x02000000L
 #define CLINT_MTIMECMP(hartid) (CLINT + 0x4000 + 8*(hartid))
 #define CLINT_MTIME (CLINT + 0xBFF8) // cycles since boot.
 

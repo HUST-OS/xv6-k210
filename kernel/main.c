@@ -25,7 +25,7 @@ main(unsigned long hartid, unsigned long dtb_pa)
     trapinithart();  // install kernel trap vector
     timerinit();     // set up timer interrupt handler
     procinit();
-    device_init(dtb_pa);
+    device_init(dtb_pa, hartid);
     // plicinit();      // set up interrupt controller
     // plicinithart();  // ask PLIC for device interrupts
     // binit();         // buffer cache
