@@ -32,6 +32,8 @@ may help you: [maixpy-doc](https://maixpy.sipeed.com/zh/get_started/env_install_
 + Memory alloc
 + Page Table
 + Timer interrupt
++ S mode extern interrupt
++ receive uart message
 
 ## TODO
 The rest part of xv6-kernel and xv6-fs
