@@ -12,7 +12,7 @@ void
 main(unsigned long hartid, unsigned long dtb_pa)
 {
   
-  printf("hart %d enter main()...\n", hartid);
+  // printf("hart %d enter main()...\n", hartid);
   if (hartid == 0) {
     printf("\n");
     printf("xv6-k210 kernel is booting\n");

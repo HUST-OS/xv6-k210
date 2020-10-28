@@ -574,10 +574,11 @@ scheduler(void)
         // to release its lock and then reacquire it
         // before jumping back to us.
         printf("[scheduler]found runnable proc: %d\n", p->pid);
+        // printf("%d\n", p->pid);
         p->state = RUNNING;
         c->proc = p;
         swtch(&c->context, &p->context);
-
+        printf("[scheduler]return from user mode\n");
         // Process is done running for now.
         // It should have changed its p->state before coming back.
         c->proc = 0;
