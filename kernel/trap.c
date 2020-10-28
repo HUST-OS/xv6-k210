@@ -162,9 +162,9 @@ kerneltrap()
     yield();
   } */
   if(which_dev == 2) {
-    // printf("[Trap]timer interrupt\n");
     timer_tick();
     if(myproc() != 0 && myproc()->state == RUNNING) {
+      printf("[kerneltrap]switch proc\n");
       yield();
     }
   }

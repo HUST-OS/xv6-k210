@@ -110,6 +110,7 @@ void            yield(void);
 int             either_copyout(int user_dst, uint64 dst, void *src, uint64 len);
 int             either_copyin(void *dst, int user_src, uint64 src, uint64 len);
 void            procdump(void);
+void            test_proc_init(void);
 
 // swtch.S
 void            swtch(struct context*, struct context*);
@@ -194,7 +195,7 @@ void            virtio_disk_intr(void);
 // test.c
 void            test_kalloc(void);
 void            test_vm(unsigned long);
-void            test_getchar(void);
+
 
 // void            ptesprintf(pagetable_t, int);
 // int             vmprint(pagetable_t);

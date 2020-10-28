@@ -7,6 +7,7 @@
 #include "memlayout.h"
 #include "riscv.h"
 #include "defs.h"
+#include "spinlock.h"
 
 void freerange(void *pa_start, void *pa_end);
 
@@ -18,13 +19,14 @@ struct run {
 };
 
 struct {
+  struct spinlock lock;
   struct run *freelist;
 } kmem;
 
 void
 kinit()
 {
-
+  initlock(&kmem.lock, "kmem");
   printf("kernel_end: %p, phystop: %p\n", kernel_end - 0xffffffff00000000, (void*)PHYSTOP);
   freerange(kernel_end - 0xffffffff00000000, (void*)PHYSTOP);
   printf("kinit\n");
@@ -56,8 +58,10 @@ kfree(void *pa)
 
   r = (struct run*)pa;
 
+  acquire(&kmem.lock);
   r->next = kmem.freelist;
   kmem.freelist = r;
+  release(&kmem.lock);
 }
 
 // Allocate one 4096-byte page of physical memory.
@@ -68,9 +72,11 @@ kalloc(void)
 {
   struct run *r;
 
+  acquire(&kmem.lock);
   r = kmem.freelist;
   if(r)
     kmem.freelist = r->next;
+  release(&kmem.lock);
 
   if(r)
     memset((char*)r, 5, PGSIZE); // fill with junk

@@ -26,11 +26,6 @@ set_next_timeout() {
     sbi_set_timer(r_time() + INTERVAL);
 }
 
-// uint64 read_time() {
-//     uint64 *mtime = (uint64 *)0xffffffff0200bff8;
-//     return *(mtime);
-// }
-
 void timer_tick() {
     set_next_timeout();
     tick++;

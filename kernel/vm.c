@@ -223,6 +223,7 @@ uvminit(pagetable_t pagetable, uchar *src, uint sz)
   if(sz >= PGSIZE)
     panic("inituvm: more than a page");
   mem = kalloc();
+  printf("[uvminit]kalloc: %p\n", mem);
   memset(mem, 0, PGSIZE);
   mappages(pagetable, 0, PGSIZE, (uint64)mem, PTE_W|PTE_R|PTE_X|PTE_U);
   memmove(mem, src, sz);
