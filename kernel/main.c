@@ -46,7 +46,7 @@ main(unsigned long hartid, unsigned long dtb_pa)
     __sync_synchronize();
     started = 1;
 
-    scheduler();
+    // scheduler();
 
   } else
   {
