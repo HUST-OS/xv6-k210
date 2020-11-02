@@ -35,6 +35,9 @@ may help you: [maixpy-doc](https://maixpy.sipeed.com/zh/get_started/env_install_
 + S mode extern interrupt
 + receive uarths message
 
+## What I'm doing
+Try to read sdcard data on k210.  
+
 ## TODO
 The rest part of xv6-kernel and xv6-fs
 
