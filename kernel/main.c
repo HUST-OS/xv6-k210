@@ -34,43 +34,14 @@ main(unsigned long hartid, unsigned long dtb_pa)
     // fileinit();      // file table
     // virtio_disk_init(); // emulated hard disk
     // userinit();      // first user process
-    fpioa_set_function(27, FUNC_SPI0_SCLK);
-    fpioa_set_function(28, FUNC_SPI0_D0);
-    fpioa_set_function(26, FUNC_SPI0_D1);
-	  fpioa_set_function(32, FUNC_GPIOHS7);
-    fpioa_set_function(29, FUNC_SPI0_SS3);
-    uint8 cardinfo = sd_init();
-    if(cardinfo) {
-      panic("sd card init error\n");
-    } else
-    {
-      printf("sdcard init: %d\n", cardinfo);
-    }
     
-    uint8 buffer[100];
-    memset(buffer, 0, sizeof(buffer));
-    if(sd_read_sector(buffer, 0, 10)) {
-        printf("SD card read sector err\n");
-    } else {
-        printf("SD card read sector succeed\n");
-    }
-    memmove(buffer, "Hello,World", sizeof("Hello,World"));
-    printf("Buffer: %s\n", buffer);
-    if(sd_write_sector(buffer, 0, 10)) {
-        printf("SD card write sector err\n");
-    } else {
-        printf("SD card write sector succeed\n");
-    }
-    memset(buffer, 0, sizeof(buffer));
-    if(sd_read_sector(buffer, 0, 10)) {
-        printf("SD card read sector err\n");
-    } else {
-        printf("SD card read sector succeed\n");
-    }
-    printf("Buffer: %s\n", buffer);
+    fpioa_pin_init();
+    sdcard_init();
+
     test_kalloc();    // test kalloc
     test_vm(hartid);       // test kernel pagetable
     test_proc_init();   // test porc init
+    test_sdcard();
 
     printf("hart 0 init done\n");
     for(int i = 1; i < NCPU; i++) {

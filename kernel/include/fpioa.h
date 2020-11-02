@@ -1028,6 +1028,7 @@ int fpioa_set_st(int number, uint8 st_enable);
  */
 int fpioa_set_oe_inv(int number, uint8 inv_enable);
 
+void fpioa_pin_init(void);
 #ifdef __cplusplus
 }
 #endif

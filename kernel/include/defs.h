@@ -197,7 +197,7 @@ void            virtio_disk_intr(void);
 // test.c
 void            test_kalloc(void);
 void            test_vm(unsigned long);
-
+void            test_sdcard(void);
 // spi.c
 // void spi_init(spi_device_num_t spi_num, spi_work_mode_t work_mode, spi_frame_format_t frame_format,
 //               uint64 data_bit_length, uint32 endian);

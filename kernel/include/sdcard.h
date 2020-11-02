@@ -77,6 +77,7 @@ typedef struct {
 extern SD_CardInfo cardinfo;
 
 uint8 sd_init(void);
+void sdcard_init(void);
 uint8 sd_read_sector(uint8 *data_buff, uint32 sector, uint32 count);
 uint8 sd_write_sector(uint8 *data_buff, uint32 sector, uint32 count);
 uint8 sd_read_sector_dma(uint8 *data_buff, uint32 sector, uint32 count);

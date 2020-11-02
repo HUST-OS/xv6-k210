@@ -9,7 +9,7 @@
 #include "include/proc.h"
 #include "include/defs.h"
 #include "include/sbi.h"
-
+#include "include/sdcard.h"
 
 extern uint64 etext_addr;
 extern struct proc *initproc;
@@ -87,4 +87,23 @@ void test_vm(unsigned long hart_id) {
   }
   printf("[test_vm](walkaddr) va: %p, pa: %p\n", 0, walkaddr(test_pagetable, 0));
   printf("[test_vm](walkaddr) va: %p, pa: %p\n", PGSIZE - 1, walkaddr(test_pagetable, PGSIZE - 1) + (PGSIZE - 1) % PGSIZE);
+}
+
+void test_sdcard() {
+  uint8 *buffer = kalloc();
+  memset(buffer, 0, sizeof(buffer));
+  memmove(buffer, "Hello,sdcard", sizeof("Hello,sdcard"));
+  printf("[test_sdcard]Buffer: %s\n", buffer);
+  if(sd_write_sector(buffer, 0, 10)) {
+      printf("[test_sdcard]SD card write sector err\n");
+  } else {
+      printf("[test_sdcard]SD card write sector succeed\n");
+  }
+  memset(buffer, 0, sizeof(buffer));
+  if(sd_read_sector(buffer, 0, 10)) {
+      printf("[test_sdcard]SD card read sector err\n");
+  } else {
+      printf("[test_sdcard]SD card read sector succeed\n");
+  }
+  printf("[test_sdcard]Buffer: %s\n", buffer);
 }

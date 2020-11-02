@@ -35,6 +35,15 @@
 
 SD_CardInfo cardinfo;
 
+void sdcard_init() {
+	uint8 cardinfo = sd_init();
+    if(cardinfo) {
+      panic("sd card init error\n");
+    } else
+    {
+      printf("sdcard init: %d\n", cardinfo);
+    }
+}
 void SD_CS_HIGH(void)
 {
     gpiohs_set_pin(7, GPIO_PV_HIGH);

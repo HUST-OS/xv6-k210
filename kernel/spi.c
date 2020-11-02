@@ -2,7 +2,7 @@
 
 #include "include/types.h"
 #include "include/spi.h"
-#include "../kendryte_sdk/include/platform.h"
+#include "include/platform.h"
 #include "include/riscv.h"
 #include "include/utils.h"
 #include "include/defs.h"
