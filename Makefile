@@ -3,6 +3,7 @@
 K=kernel
 U=xv6-user
 T=target
+S=kendryte_sdk
 
 OBJS = \
   $K/entry_k210.o \
@@ -34,6 +35,17 @@ OBJS = \
   $K/timer.o \
   $K/test.o \
 
+SDK_OBJS = \
+  $S/clint.o \
+  $S/dmac.o \
+  $S/fpioa.o \
+  $S/gpio.o \
+  $S/gpiohs.o \
+  $S/pwm.o \
+  $S/sdcard.o \
+  $S/sha256.o \
+  $S/spi.o \
+  $S/sysctl.o \
 
 QEMU = qemu-system-riscv64
 RUSTSBI = ./bootloader/SBI/rustsbi-k210
@@ -60,13 +72,15 @@ linker = ./linker/k210.ld
 # LIBS				:= -lgcc
 # LINK				:= $(CC) $(LDFLAGS)
 
-$K/kernel: $(OBJS) $(linker)
-	@$(LD) $(LDFLAGS) -T $(linker) -o $T/kernel $(OBJS)
+kendryte_sdk_lib = ./libkendryte.a
+
+$T/kernel: $(OBJS) $(linker) 
+	@$(LD) $(LDFLAGS) -T $(linker) -o $T/kernel $(OBJS) $(kendryte_sdk_lib) -L.
 	@$(OBJDUMP) -S $T/kernel > $T/kernel.asm
 	@$(OBJDUMP) -t $T/kernel | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$$/d' > $T/kernel.sym
 	# @rm -f $K/*.o $K/*.d
   
-build: $K/kernel
+build: $T/kernel
 
 ifndef CPUS
 CPUS := 2
@@ -88,7 +102,8 @@ k210: build
 	@riscv64-unknown-elf-objcopy $(RUSTSBI) --strip-all -O binary $(k210)
 	# @cp $(RUSTSBI) $(k210)
 	@dd if=$(image) of=$(k210) bs=128k seek=1
-
+	# @dd if=sdcard.bin of=$(k210) bs=128k seek=3
+	@$(OBJDUMP) -D -b binary -m riscv $(k210) > $T/k210.asm
 
 run-k210: k210
 	@sudo chmod 777 $(k210-serialport)
@@ -169,6 +184,7 @@ sdcard: fs.img
 clean: 
 	rm -f *.tex *.dvi *.idx *.aux *.log *.ind *.ilg \
 	*/*.o */*.d */*.asm */*.sym \
+	$T/* \
 	$U/initcode $U/initcode.out $K/kernel fs.img \
 	mkfs/mkfs .gdbinit \
         $U/usys.S \

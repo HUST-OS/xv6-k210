@@ -1,12 +1,13 @@
 // Timer Interrupt handler
 
-#include "types.h"
-#include "param.h"
-#include "riscv.h"
-#include "defs.h"
-#include "sbi.h"
-#include "memlayout.h"
-#include "uarths.h"
+
+#include "include/types.h"
+#include "include/param.h"
+#include "include/riscv.h"
+#include "include/defs.h"
+#include "include/sbi.h"
+#include "include/memlayout.h"
+#include "include/uarths.h"
 
 static int tick = 0;
 

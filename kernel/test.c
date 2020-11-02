@@ -1,13 +1,15 @@
 // test implemetation
 
-#include "types.h"
-#include "param.h"
-#include "memlayout.h"
-#include "riscv.h"
-#include "spinlock.h"
-#include "proc.h"
-#include "defs.h"
-#include "sbi.h"
+
+#include "include/types.h"
+#include "include/param.h"
+#include "include/memlayout.h"
+#include "include/riscv.h"
+#include "include/spinlock.h"
+#include "include/proc.h"
+#include "include/defs.h"
+#include "include/sbi.h"
+
 
 extern uint64 etext_addr;
 extern struct proc *initproc;

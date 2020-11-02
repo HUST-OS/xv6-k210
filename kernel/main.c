@@ -1,12 +1,12 @@
-#include "types.h"
-#include "param.h"
-#include "memlayout.h"
-#include "riscv.h"
-#include "defs.h"
-#include "sbi.h"
+
+#include "include/types.h"
+#include "include/param.h"
+#include "include/memlayout.h"
+#include "include/riscv.h"
+#include "include/defs.h"
+#include "include/sbi.h"
 
 volatile static int started = 0;
-
 // start() jumps here in supervisor mode on all CPUs.
 void
 main(unsigned long hartid, unsigned long dtb_pa)
@@ -17,7 +17,7 @@ main(unsigned long hartid, unsigned long dtb_pa)
     printf("\n");
     printf("xv6-k210 kernel is booting\n");
     printf("\n");
-
+    // uint64 core = current_coreid();
     kinit();         // physical page allocator
     kvminit();       // create kernel page table
     kvminithart();   // turn on paging
@@ -33,7 +33,7 @@ main(unsigned long hartid, unsigned long dtb_pa)
     // fileinit();      // file table
     // virtio_disk_init(); // emulated hard disk
     // userinit();      // first user process
-    
+
     test_kalloc();    // test kalloc
     test_vm(hartid);       // test kernel pagetable
     test_proc_init();   // test porc init

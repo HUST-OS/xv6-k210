@@ -14,14 +14,15 @@
 //     so do not keep them longer than necessary.
 
 
-#include "types.h"
-#include "param.h"
-#include "spinlock.h"
-#include "sleeplock.h"
-#include "riscv.h"
-#include "defs.h"
-#include "fs.h"
-#include "buf.h"
+
+#include "include/types.h"
+#include "include/param.h"
+#include "include/spinlock.h"
+#include "include/sleeplock.h"
+#include "include/riscv.h"
+#include "include/defs.h"
+#include "include/fs.h"
+#include "include/buf.h"
 
 struct {
   struct spinlock lock;
