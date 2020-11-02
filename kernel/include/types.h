@@ -9,3 +9,5 @@ typedef unsigned long uint64;
 
 typedef unsigned long uintptr_t;
 typedef uint64 pde_t;
+
+#define NULL ((void *)0)

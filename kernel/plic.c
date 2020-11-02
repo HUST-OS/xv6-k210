@@ -49,25 +49,3 @@ plic_complete(int irq)
   *(uint32*)PLIC_SCLAIM(hart) = irq;
 }
 
-void device_init(unsigned long pa, uint64 hartid) {
-  // after RustSBI, txen = rxen = 1, rxie = 1, rxcnt = 0
-  // start UART interrupt configuration
-  // disable external interrupt on hart1 by setting threshold
-  uint32 *hart0_m_threshold = (uint32*)PLIC;
-  uint32 *hart1_m_threshold = (uint32*)PLIC_MENABLE(hartid);
-  *(hart0_m_threshold) = 0;
-  *(hart1_m_threshold) = 1;
-  // *(uint32*)0x0c200000 = 0;
-  // *(uint32*)0x0c202000 = 1;
-
-  // now using UARTHS whose IRQID = 33
-  // assure that its priority equals 1
-  // if(*(uint32*)(0x0c000000 + 33 * 4) != 1) panic("uarhs's priority is not 1\n");
-  // printf("uart priority: %p\n", *(uint32*)(0x0c000000 + 33 * 4));
-  // *(uint32*)(0x0c000000 + 33 * 4) = 0x1;
-  uint32 *hart0_m_int_enable_hi = (uint32*)(PLIC_MENABLE(hartid) + 0x04);
-  *(hart0_m_int_enable_hi) = (1 << 0x1);
-  // *(uint32*)0x0c002004 = (1 << 0x1);
-  sbi_set_extern_interrupt((uint64)supervisor_external_handler - 0xffffffff00000000);
-  printf("device init\n");
-}

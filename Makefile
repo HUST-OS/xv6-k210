@@ -33,6 +33,11 @@ OBJS = \
   $K/plic.o \
   $K/virtio_disk.o \
   $K/timer.o \
+  $K/spi.o \
+  $K/gpiohs.o \
+  $K/fpioa.o \
+  $K/utils.o \
+  $K/sdcard.o \
   $K/test.o \
 
 SDK_OBJS = \
@@ -75,7 +80,7 @@ linker = ./linker/k210.ld
 kendryte_sdk_lib = ./libkendryte.a
 
 $T/kernel: $(OBJS) $(linker) 
-	@$(LD) $(LDFLAGS) -T $(linker) -o $T/kernel $(OBJS) $(kendryte_sdk_lib) -L.
+	@$(LD) $(LDFLAGS) -T $(linker) -o $T/kernel $(OBJS)
 	@$(OBJDUMP) -S $T/kernel > $T/kernel.asm
 	@$(OBJDUMP) -t $T/kernel | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$$/d' > $T/kernel.sym
 	# @rm -f $K/*.o $K/*.d

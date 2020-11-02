@@ -8,7 +8,9 @@ struct spinlock;
 struct sleeplock;
 struct stat;
 struct superblock;
-
+// enum spi_device_num_t;
+// enum spi_work_mode_t;
+// enum spi_frame_format_t;
 // bio.c
 void            binit(void);
 struct buf*     bread(uint, uint);
@@ -153,6 +155,7 @@ void            trapinithart(void);
 extern struct spinlock tickslock;
 void            usertrapret(void);
 void            supervisor_external_handler(void);
+void            device_init(unsigned long, uint64);
 
 // uart.c
 void            uartinit(void);
@@ -185,7 +188,6 @@ void            plicinit(void);
 void            plicinithart(void);
 int             plic_claim(void);
 void            plic_complete(int);
-void            device_init(unsigned long, uint64);
 
 // virtio_disk.c
 void            virtio_disk_init(void);
@@ -195,6 +197,10 @@ void            virtio_disk_intr(void);
 // test.c
 void            test_kalloc(void);
 void            test_vm(unsigned long);
+
+// spi.c
+// void spi_init(spi_device_num_t spi_num, spi_work_mode_t work_mode, spi_frame_format_t frame_format,
+//               uint64 data_bit_length, uint32 endian);
 
 
 // void            ptesprintf(pagetable_t, int);
