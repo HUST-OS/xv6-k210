@@ -18,6 +18,7 @@ void test_kalloc() {
     memset(mem, 0, PGSIZE);
     strncpy(mem, "Hello, xv6-k210", 16);
     printf("[test_kalloc]mem: %s\n", mem);
+    kfree(mem);
 }
 
 void ptesprint(pagetable_t pagetable, int level){
@@ -46,15 +47,15 @@ int vmprint(pagetable_t pagetable){
 }
 
 void test_vm(unsigned long hart_id) {
-  printf("UART:\n");
+  printf("[test_vm]UART:\n");
   printf("[test_vm](kvmpa) va: %p, pa: %p\n", UART0, kvmpa(UART0));
   printf("virto mmio:\n");
   printf("[test_vm](kvmpa) va: %p, pa: %p\n", VIRTIO0, kvmpa(VIRTIO0));
-  printf("CLINT:\n");
+  printf("[test_vm]CLINT:\n");
   printf("[test_vm](kvmpa) va: %p, pa: %p\n", CLINT, kvmpa(CLINT));
   printf("[test_vm](kvmpa) va: %p, pa: %p\n", CLINT_MTIMECMP(hart_id), kvmpa(CLINT_MTIMECMP(hart_id)));
   printf("[test_vm](kvmpa) va: %p, pa: %p\n", CLINT_MTIME, kvmpa(CLINT_MTIME));
-  printf("PLIC\n");
+  printf("[test_vm]PLIC\n");
   printf("[test_vm](kvmpa) va: %p, pa: %p\n", PLIC, kvmpa(PLIC));
   printf("[test_vm](kvmpa) va: %p, pa: %p\n", PLIC_PRIORITY, kvmpa(PLIC_PRIORITY));
   printf("[test_vm](kvmpa) va: %p, pa: %p\n", PLIC_PENDING, kvmpa(PLIC_PENDING));
@@ -64,22 +65,22 @@ void test_vm(unsigned long hart_id) {
   printf("[test_vm](kvmpa) va: %p, pa: %p\n", PLIC_SPRIORITY(hart_id), kvmpa(PLIC_SPRIORITY(hart_id)));
   printf("[test_vm](kvmpa) va: %p, pa: %p\n", PLIC_MCLAIM(hart_id), kvmpa(PLIC_MCLAIM(hart_id)));
   printf("[test_vm](kvmpa) va: %p, pa: %p\n", PLIC_SCLAIM(hart_id), kvmpa(PLIC_SCLAIM(hart_id)));
-  printf("kernel base:\n");
+  printf("[test_vm]kernel base:\n");
   printf("[test_vm](kvmpa) va: %p, pa: %p\n", KERNBASE, kvmpa(KERNBASE));
   printf("[test_vm](kvmpa) va: %p, pa: %p\n", KERNBASE + 0x1000, kvmpa(KERNBASE + 0x1000));
   printf("[test_vm](kvmpa) va: %p, pa: %p\n", KERNBASE + 0x2000, kvmpa(KERNBASE + 0x2000));
   printf("[test_vm](kvmpa) va: %p, pa: %p\n", KERNBASE + 0x3000, kvmpa(KERNBASE + 0x3000));
-  printf("etext_addr:\n");
+  printf("[test_vm]etext_addr:\n");
   printf("[test_vm](kvmpa) va: %p, pa: %p\n", etext_addr, kvmpa(etext_addr));
   printf("[test_vm](kvmpa) va: %p, pa: %p\n", etext_addr + 0x1000, kvmpa(etext_addr + 0x1000));
   printf("[test_vm](kvmpa) va: %p, pa: %p\n", etext_addr + 0x2000, kvmpa(etext_addr + 0x2000));
   printf("[test_vm](kvmpa) va: %p, pa: %p\n", etext_addr + 0x3000, kvmpa(etext_addr + 0x3000));
-  printf("trampoline:\n");
+  printf("[test_vm]trampoline:\n");
   printf("[test_vm](kvmpa) va: %p, pa: %p\n", TRAMPOLINE, kvmpa(TRAMPOLINE));
   printf("[test_vm](kvmpa) va: %p, pa: %p\n", TRAMPOLINE + PGSIZE - 1, kvmpa(TRAMPOLINE + PGSIZE - 1));
   printf("[test_vm]create test pagetable\n");
   pagetable_t test_pagetable = uvmcreate();
-  printf("test_pagetable: %p\n", test_pagetable);
+  printf("[test_vm]test_pagetable: %p\n", test_pagetable);
   char *test_mem = kalloc();
   memset(test_mem, 0, PGSIZE);
   if(mappages(test_pagetable, 0, PGSIZE, (uint64)test_mem, PTE_R | PTE_W | PTE_U | PTE_X) != 0) {
@@ -90,8 +91,8 @@ void test_vm(unsigned long hart_id) {
 }
 
 void test_sdcard() {
-  uint8 buffer[20];
-  uint8 pre_buffer[20];
+  uint8 *buffer = kalloc();
+  uint8 *pre_buffer = kalloc();
   memset(buffer, 0, sizeof(buffer));
   if(sd_read_sector(pre_buffer, 0, sizeof(pre_buffer))) {
       printf("[test_sdcard]SD card read sector err\n");
@@ -118,4 +119,6 @@ void test_sdcard() {
   } else {
       printf("[test_sdcard]SD card recover succeed\n");
   }
+  kfree(buffer);
+  kfree(pre_buffer);
 }
