@@ -52,12 +52,12 @@ main(unsigned long hartid, unsigned long dtb_pa)
     __sync_synchronize();
     started = 1;
 
-    // scheduler();
+    scheduler();
 
   } else
   {
     // hart 1
-    printf("hart %d enter main()...\n", hartid);
+    // printf("hart %d enter main()...\n", hartid);
   }
   
   while (1) {

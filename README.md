@@ -14,7 +14,7 @@ First you need to connect your k210 board to your PC.
 And check the USB port:  
 >\$ ls /dev/ | grep USB  
 
-In my situation it will be `ttyUSB1`  
+In my situation it will be `ttyUSB0`  
 
 >\$ cd xv6-k210  
 >\$ mkdir target  
@@ -33,8 +33,8 @@ may help you: [maixpy-doc](https://maixpy.sipeed.com/zh/get_started/env_install_
 + Page Table
 + Timer interrupt
 + S mode extern interrupt
-+ receive uarths message
-+ read and write data in sd card
++ Receive uarths message
++ Read and write data in sd card
 
 ## What I'm doing
 Try to port file system.  
