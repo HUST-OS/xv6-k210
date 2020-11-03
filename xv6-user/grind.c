@@ -2,15 +2,15 @@
 // run random system calls in parallel forever.
 //
 
-#include "kernel/param.h"
-#include "kernel/types.h"
-#include "kernel/stat.h"
+#include "kernel/include/param.h"
+#include "kernel/include/types.h"
+#include "kernel/include/stat.h"
 #include "xv6-user/user.h"
-#include "kernel/fs.h"
-#include "kernel/fcntl.h"
-#include "kernel/syscall.h"
-#include "kernel/memlayout.h"
-#include "kernel/riscv.h"
+#include "kernel/include/fs.h"
+#include "kernel/include/fcntl.h"
+#include "kernel/include/syscall.h"
+#include "kernel/include/memlayout.h"
+#include "kernel/include/riscv.h"
 
 // from FreeBSD.
 int

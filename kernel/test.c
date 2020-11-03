@@ -90,20 +90,32 @@ void test_vm(unsigned long hart_id) {
 }
 
 void test_sdcard() {
-  uint8 *buffer = kalloc();
+  uint8 buffer[20];
+  uint8 pre_buffer[20];
   memset(buffer, 0, sizeof(buffer));
-  memmove(buffer, "Hello,sdcard", sizeof("Hello,sdcard"));
-  printf("[test_sdcard]Buffer: %s\n", buffer);
-  if(sd_write_sector(buffer, 0, 10)) {
-      printf("[test_sdcard]SD card write sector err\n");
-  } else {
-      printf("[test_sdcard]SD card write sector succeed\n");
-  }
-  memset(buffer, 0, sizeof(buffer));
-  if(sd_read_sector(buffer, 0, 10)) {
+  if(sd_read_sector(pre_buffer, 0, sizeof(pre_buffer))) {
       printf("[test_sdcard]SD card read sector err\n");
   } else {
       printf("[test_sdcard]SD card read sector succeed\n");
   }
   printf("[test_sdcard]Buffer: %s\n", buffer);
+  memmove(buffer, "Hello,sdcard", sizeof("Hello,sdcard"));
+  printf("[test_sdcard]Buffer: %s\n", buffer);
+  if(sd_write_sector(buffer, 0, sizeof(buffer))) {
+      printf("[test_sdcard]SD card write sector err\n");
+  } else {
+      printf("[test_sdcard]SD card write sector succeed\n");
+  }
+  memset(buffer, 0, sizeof(buffer));
+  if(sd_read_sector(buffer, 0, sizeof(buffer))) {
+      printf("[test_sdcard]SD card read sector err\n");
+  } else {
+      printf("[test_sdcard]SD card read sector succeed\n");
+  }
+  printf("[test_sdcard]Buffer: %s\n", buffer);
+  if(sd_write_sector(pre_buffer, 0, sizeof(pre_buffer))) {
+      printf("[test_sdcard]SD card recover err\n");
+  } else {
+      printf("[test_sdcard]SD card recover succeed\n");
+  }
 }
