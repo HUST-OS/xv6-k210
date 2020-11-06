@@ -7,7 +7,9 @@ Run xv6-riscv on k210 board
 + RISC-V Toolchain
 
 ## Installation
->\$ git clone https://github.com/SKTT1Ryze/xv6-k210
+```bash
+git clone https://github.com/SKTT1Ryze/xv6-k210
+```
 
 ## Build
 First you need to connect your k210 board to your PC.  
