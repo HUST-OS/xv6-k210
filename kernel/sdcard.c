@@ -131,7 +131,7 @@ static void sd_end_cmd(void)
  *         - 0xFF: Sequence failed
  *         - 0: Sequence succeed
  */
-static uint8 sd_get_response(void)
+	static uint8 sd_get_response(void)
 {
 	uint8 result;
 	uint16 timeout = 0x0FFF;
