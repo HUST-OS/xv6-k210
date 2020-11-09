@@ -102,7 +102,7 @@ bread(uint dev, uint blockno)
     // virtio_disk_rw(b, 0);
     uint64 sector = b->blockno * (BSIZE / 512);
     memset(b->data, 0, sizeof(b->data));
-    if(sd_read_sector(b->data, sector, 2)) {
+    if(sd_read_sector(b->data, sector, BSIZE / 512)) {
       panic("[bread]bread err\n");
     } else {
       printf("[bread]read data: %s\n", b->data);
