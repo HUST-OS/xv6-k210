@@ -20,10 +20,17 @@ main(unsigned long hartid, unsigned long dtb_pa)
   
   if (hartid == 0) {
     printfinit();   // init a lock for printf 
+<<<<<<< HEAD
     printf("\n");
     printf("xv6-k210 kernel is booting\n");
     printf("\n");
     printf("hart %d enter main()...\n", hartid);
+=======
+   // printf("\n");
+    //printf("xv6-k210 kernel is booting\n");
+    //printf("\n");
+    //printf("hart %d enter main()...\n", hartid);
+>>>>>>> 4375f2a094c15b49a19ff60b54086627634add1f
     kinit();         // physical page allocator
     kvminit();       // create kernel page table
     kvminithart();   // turn on paging
@@ -33,6 +40,7 @@ main(unsigned long hartid, unsigned long dtb_pa)
     procinit();
     device_init(dtb_pa, hartid);
     fpioa_pin_init();
+<<<<<<< HEAD
     sdcard_init();
     //plicinit();      // set up interrupt controller
     //plicinithart();  // ask PLIC for device interrupts
@@ -46,6 +54,21 @@ main(unsigned long hartid, unsigned long dtb_pa)
     // test_vm(hartid);       // test kernel pagetable
     // test_proc_init();   // test porc init
     // test_sdcard();
+=======
+    //sdcard_init();
+    //plicinit();      // set up interrupt controller
+    //plicinithart();  // ask PLIC for device interrupts
+    binit();         // buffer cache
+    //iinit();         // inode cache
+    //fileinit();      // file table
+    //virtio_disk_init(); // emulated hard disk
+    userinit();      // first user process
+    
+    //test_kalloc();    // test kalloc
+    //test_vm(hartid);       // test kernel pagetable
+    // test_proc_init();   // test porc init
+    //test_sdcard();
+>>>>>>> 4375f2a094c15b49a19ff60b54086627634add1f
 
     printf("hart 0 init done\n");
     scheduler();
@@ -65,11 +88,16 @@ main(unsigned long hartid, unsigned long dtb_pa)
     __sync_synchronize();
     printfinit();   // init a lock for printf 
     // printf("hart %d enter main()...\n", hartid);
+<<<<<<< HEAD
     kvminithart();
     trapinithart();
     device_init(dtb_pa, hartid);
     // printf("hart 1 init done\n");
+=======
+    printf("hart 1 init done\n");
+>>>>>>> 4375f2a094c15b49a19ff60b54086627634add1f
   }
+  printf("%d: enter scheduler\n", cpuid());
   scheduler();
   while (1) {
   }  
