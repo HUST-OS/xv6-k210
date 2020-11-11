@@ -95,13 +95,14 @@ bget(uint dev, uint blockno)
 struct buf*
 bread(uint dev, uint blockno)
 {
+  // printf("run in bread\n");
   struct buf *b;
 
   b = bget(dev, blockno);
   if(!b->valid) {
     // virtio_disk_rw(b, 0);
-    uint64 sector = b->blockno * (BSIZE / 512);
     memset(b->data, 0, sizeof(b->data));
+    uint64 sector = b->blockno * (BSIZE / 512);
     if(sd_read_sector(b->data, sector, BSIZE / 512)) {
       panic("[bread]bread err\n");
     } else {

@@ -43,6 +43,7 @@ trapinithart(void)
 void
 usertrap(void)
 {
+  printf("run in usertrap\n");
   int which_dev = 0;
 
   if((r_sstatus() & SSTATUS_SPP) != 0)
@@ -96,6 +97,7 @@ usertrap(void)
 void
 usertrapret(void)
 {
+  printf("USERTRAPRET\n");
   struct proc *p = myproc();
 
   // we're about to switch the destination of traps from

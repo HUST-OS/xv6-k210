@@ -37,11 +37,11 @@ procinit(void)
       // Map it high in memory, followed by an invalid
       // guard page.
       char *pa = kalloc();
-      printf("[procinit]kernel stack: %p\n", (uint64)pa);
+      // printf("[procinit]kernel stack: %p\n", (uint64)pa);
       if(pa == 0)
         panic("kalloc");
       uint64 va = KSTACK((int) (p - proc));
-      printf("[procinit]kvmmap va %p to pa %p\n", va, (uint64)pa);
+      // printf("[procinit]kvmmap va %p to pa %p\n", va, (uint64)pa);
       kvmmap(va, (uint64)pa, PGSIZE, PTE_R | PTE_W);
       p->kstack = va;
   }
@@ -212,99 +212,73 @@ uchar initcode[] = {
   0x00, 0x00, 0x00, 0x00
 };
 
-// ffffffff80020e42:	04100513          	li	a0,65
-// ffffffff80020e46:	4581                	li	a1,0
-// ffffffff80020e48:	4601                	li	a2,0
-// ffffffff80020e4a:	4681                	li	a3,0
-// ffffffff80020e4c:	4885                	li	a7,1
-// ffffffff80020e4e:	00000073          	ecall
-// ffffffff80020e52:	04200513          	li	a0,66
-// ffffffff80020e56:	00000073          	ecall
-// ffffffff80020e5a:	04300513          	li	a0,67
-// ffffffff80020e5e:	00000073          	ecall
-// ffffffff80020e62:	04400513          	li	a0,68
-// ffffffff80020e66:	00000073          	ecall
-// ffffffff80020e6a:	4529                	li	a0,10
-// ffffffff80020e6c:	00000073          	ecall
 
 uchar proc_test_code_1[] = {
-  0x13, 0x05, 0x10, 0x04, 0x81, 0x45, 0x01, 0x46,
-  0x81, 0x46, 0x85, 0x48, 0x73, 0x00, 0x00, 0x00,
+  0x13, 0x05, 0x10, 0x04, 0x93, 0x05, 0x00, 0x00, 0x13, 0x06, 0x00, 0x00, 0x93, 0x06, 0x00, 0x00,
+  0x93, 0x08, 0x10, 0x00, 0x73, 0x00, 0x00, 0x00, 0xef, 0x00, 0x00, 0x00
 };
-
-// uchar proc_test_code_1[] = {
-
-// };
 
 uchar proc_test_code_2[] = {
-  0x13, 0x05, 0x20, 0x04, 0x81, 0x45, 0x01, 0x46,
-  0x81, 0x46, 0x85, 0x48, 0x73, 0x00, 0x00, 0x00,
+  0x13, 0x05, 0x20, 0x04, 0x93, 0x05, 0x00, 0x00, 0x13, 0x06, 0x00, 0x00, 0x93, 0x06, 0x00, 0x00,
+  0x93, 0x08, 0x10, 0x00, 0x73, 0x00, 0x00, 0x00, 0xef, 0x00, 0x00, 0x00
 };
+
 uchar proc_test_code_3[] = {
-  0x13, 0x05, 0x30, 0x04, 0x81, 0x45, 0x01, 0x46,
-  0x81, 0x46, 0x85, 0x48, 0x73, 0x00, 0x00, 0x00,
+  0x13, 0x05, 0x30, 0x04, 0x93, 0x05, 0x00, 0x00, 0x13, 0x06, 0x00, 0x00, 0x93, 0x06, 0x00, 0x00,
+  0x93, 0x08, 0x10, 0x00, 0x73, 0x00, 0x00, 0x00, 0xef, 0x00, 0x00, 0x00
 };
+
 uchar proc_test_code_4[] = {
-  0x13, 0x05, 0x40, 0x04, 0x81, 0x45, 0x01, 0x46,
-  0x81, 0x46, 0x85, 0x48, 0x73, 0x00, 0x00, 0x00,
+  0x13, 0x05, 0x40, 0x04, 0x93, 0x05, 0x00, 0x00, 0x13, 0x06, 0x00, 0x00, 0x93, 0x06, 0x00, 0x00,
+  0x93, 0x08, 0x10, 0x00, 0x73, 0x00, 0x00, 0x00, 0xef, 0x00, 0x00, 0x00
 };
 
 void test_proc_init() {
   struct proc *p1;
-  // struct proc *p2;
-  // struct proc *p3;
-  // struct proc *p4;
 
   p1 = allocproc();
-  printf("[test_proc_init]allocproc: %p\n", p1);
-  // p2 = allocproc();
-  // p3 = allocproc();
-  // p4 = allocproc();
-  
-  initproc = p1;
-
-  // allocate one user page and copy init's instructions
-  // and data into it.
   uvminit(p1->pagetable, proc_test_code_1, sizeof(proc_test_code_1));
-  // uvminit(p2->pagetable, proc_test_code_2, sizeof(proc_test_code_2));
-  // uvminit(p3->pagetable, proc_test_code_3, sizeof(proc_test_code_3));
-  // uvminit(p4->pagetable, proc_test_code_4, sizeof(proc_test_code_4));
+  // initproc = p1;
   p1->sz = PGSIZE;
-  // p2->sz = PGSIZE;
-  // p3->sz = PGSIZE;
-  // p4->sz = PGSIZE;
-
-  // prepare for the very first "return" from kernel to user.
   p1->trapframe->epc = 0;      // user program counter
   p1->trapframe->sp = PGSIZE;  // user stack pointer
+  safestrcpy(p1->name, "proc_test_code_1", sizeof(p1->name));
+  p1->cwd = namei("/test");
+  p1->state = RUNNABLE;
+  release(&p1->lock);
+  printf("[test_proc_init]allocproc: %p\n", p1);
 
+  // struct proc *p2;
+  // p2 = allocproc();
+  // uvminit(p2->pagetable, proc_test_code_2, sizeof(proc_test_code_2));
+  // p2->sz = PGSIZE;
   // p2->trapframe->epc = 0;      // user program counter
   // p2->trapframe->sp = PGSIZE;  // user stack pointer
+  // safestrcpy(p2->name, "proc_test_code_2", sizeof(p2->name));
+  // p2->cwd = namei("/test");
+  // p2->state = RUNNABLE;
+  // release(&p2->lock);
 
+  // struct proc *p3;
+  // p3 = allocproc();
+  // uvminit(p3->pagetable, proc_test_code_3, sizeof(proc_test_code_3));
+  // p3->sz = PGSIZE;
   // p3->trapframe->epc = 0;      // user program counter
   // p3->trapframe->sp = PGSIZE;  // user stack pointer
+  // safestrcpy(p3->name, "proc_test_code_3", sizeof(p3->name));
+  // p3->cwd = namei("/test");
+  // p3->state = RUNNABLE;
+  // release(&p3->lock);
 
+  // struct proc *p4;
+  // p4 = allocproc();
+  // uvminit(p4->pagetable, proc_test_code_4, sizeof(proc_test_code_4));
+  // p4->sz = PGSIZE;
   // p4->trapframe->epc = 0;      // user program counter
   // p4->trapframe->sp = PGSIZE;  // user stack pointer
-
-  safestrcpy(p1->name, "proc_test_code_1", sizeof(p1->name));
-  // safestrcpy(p2->name, "proc_test_code_2", sizeof(p2->name));
-  // safestrcpy(p3->name, "proc_test_code_3", sizeof(p3->name));
   // safestrcpy(p4->name, "proc_test_code_4", sizeof(p4->name));
-
-  p1->cwd = namei("/");
-  // p2->cwd = namei("/test");
-  // p3->cwd = namei("/test");
   // p4->cwd = namei("/test");
-
-  p1->state = RUNNABLE;
-  // p2->state = RUNNABLE;
-  // p3->state = RUNNABLE;
   // p4->state = RUNNABLE;
-
-  release(&p1->lock);
-  // release(&p2->lock);
-  // release(&p3->lock);
   // release(&p4->lock);
 
   printf("[test_proc]test_proc init done\n");
@@ -322,6 +296,7 @@ userinit(void)
   // allocate one user page and copy init's instructions
   // and data into it.
   uvminit(p->pagetable, initcode, sizeof(initcode));
+  // uvminit(p->pagetable, proc_test_code_1, sizeof(proc_test_code_1));
   p->sz = PGSIZE;
 
   // prepare for the very first "return" from kernel to user.
@@ -575,12 +550,11 @@ scheduler(void)
         // Switch to chosen process.  It is the process's job
         // to release its lock and then reacquire it
         // before jumping back to us.
-        printf("[scheduler]found runnable proc: %d\n", p->pid);
-        // printf("%d\n", p->pid);
+        printf("[scheduler]found runnable proc with pid: %d\n", p->pid);
         p->state = RUNNING;
         c->proc = p;
         swtch(&c->context, &p->context);
-        printf("[scheduler]return from user mode\n");
+        printf("[scheduler]return to shceduler\n");
         // Process is done running for now.
         // It should have changed its p->state before coming back.
         c->proc = 0;
@@ -639,6 +613,7 @@ yield(void)
 void
 forkret(void)
 {
+  // printf("run in forkret\n");
   static int first = 1;
 
   // Still holding p->lock from scheduler.
@@ -648,10 +623,11 @@ forkret(void)
     // File system initialization must be run in the context of a
     // regular process (e.g., because it calls sleep), and thus cannot
     // be run from main().
+    printf("[forkret]first scheduling\n");
     first = 0;
     fsinit(ROOTDEV);
   }
-
+  printf("[forket]call usertrapret\n");
   usertrapret();
 }
 

@@ -23,7 +23,7 @@ SECTIONS
         PROVIDE(etext = .);
     }
 
-    . = ALIGN(4K);
+    /* . = ALIGN(4K);
     rodata_start = .;
     .rodata : {
         srodata = .;
@@ -46,7 +46,28 @@ SECTIONS
         sbss_clear = .;
         *(.sbss .bss .bss.*)
         ebss_clear = .;
-    }
+    } */
+
+    .rodata : {
+    . = ALIGN(16);
+    *(.srodata .srodata.*) /* do not need to distinguish this from .rodata */
+    . = ALIGN(16);
+    *(.rodata .rodata.*)
+  }
+
+  .data : {
+    . = ALIGN(16);
+    *(.sdata .sdata.*) /* do not need to distinguish this from .data */
+    . = ALIGN(16);
+    *(.data .data.*)
+  }
+
+  .bss : {
+    . = ALIGN(16);
+    *(.sbss .sbss.*) /* do not need to distinguish this from .bss */
+    . = ALIGN(16);
+    *(.bss .bss.*)
+  }
 
     . = ALIGN(4K);
     PROVIDE(kernel_end = .);

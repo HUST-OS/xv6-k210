@@ -79,7 +79,7 @@ linker = ./linker/k210.ld
 
 kendryte_sdk_lib = ./libkendryte.a
 
-$T/kernel: $(OBJS) $(linker) 
+$T/kernel: $(OBJS) $(linker) $U/initcode $U/testcode_1 $U/testcode_2 $U/testcode_3 $U/testcode_4
 	@$(LD) $(LDFLAGS) -T $(linker) -o $T/kernel $(OBJS)
 	@$(OBJDUMP) -S $T/kernel > $T/kernel.asm
 	@$(OBJDUMP) -t $T/kernel | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$$/d' > $T/kernel.sym
@@ -120,6 +120,30 @@ $U/initcode: $U/initcode.S
 	$(LD) $(LDFLAGS) -N -e start -Ttext 0 -o $U/initcode.out $U/initcode.o
 	$(OBJCOPY) -S -O binary $U/initcode.out $U/initcode
 	$(OBJDUMP) -S $U/initcode.o > $U/initcode.asm
+
+$U/testcode_1: $U/testcode_1.S
+	$(CC) $(CFLAGS) -march=rv64g -nostdinc -I. -Ikernel -c $U/testcode_1.S -o $U/testcode_1.o
+	$(LD) $(LDFLAGS) -N -e start -Ttext 0 -o $U/testcode_1.out $U/testcode_1.o
+	$(OBJCOPY) -S -O binary $U/testcode_1.out $U/testcode_1
+	$(OBJDUMP) -S $U/testcode_1.o > $U/testcode_1.asm
+
+$U/testcode_2: $U/testcode_2.S
+	$(CC) $(CFLAGS) -march=rv64g -nostdinc -I. -Ikernel -c $U/testcode_2.S -o $U/testcode_2.o
+	$(LD) $(LDFLAGS) -N -e start -Ttext 0 -o $U/testcode_2.out $U/testcode_2.o
+	$(OBJCOPY) -S -O binary $U/testcode_2.out $U/testcode_2
+	$(OBJDUMP) -S $U/testcode_2.o > $U/testcode_2.asm
+
+$U/testcode_3: $U/testcode_3.S
+	$(CC) $(CFLAGS) -march=rv64g -nostdinc -I. -Ikernel -c $U/testcode_3.S -o $U/testcode_3.o
+	$(LD) $(LDFLAGS) -N -e start -Ttext 0 -o $U/testcode_3.out $U/testcode_3.o
+	$(OBJCOPY) -S -O binary $U/testcode_3.out $U/testcode_3
+	$(OBJDUMP) -S $U/testcode_3.o > $U/testcode_3.asm
+
+$U/testcode_4: $U/testcode_4.S
+	$(CC) $(CFLAGS) -march=rv64g -nostdinc -I. -Ikernel -c $U/testcode_4.S -o $U/testcode_4.o
+	$(LD) $(LDFLAGS) -N -e start -Ttext 0 -o $U/testcode_4.out $U/testcode_4.o
+	$(OBJCOPY) -S -O binary $U/testcode_4.out $U/testcode_4
+	$(OBJDUMP) -S $U/testcode_4.o > $U/testcode_4.asm
 
 tags: $(OBJS) _init
 	@etags *.S *.c

@@ -56,6 +56,7 @@ static void commit();
 void
 initlog(int dev, struct superblock *sb)
 {
+  // printf("run in initlog\n");
   if (sizeof(struct logheader) >= BSIZE)
     panic("initlog: too big logheader");
 
@@ -64,6 +65,7 @@ initlog(int dev, struct superblock *sb)
   log.size = sb->nlog;
   log.dev = dev;
   recover_from_log();
+  // printf("initlog done\n");
 }
 
 // Copy committed blocks from log to their home location
@@ -87,6 +89,7 @@ install_trans(void)
 static void
 read_head(void)
 {
+  // printf("run in read_head\n");
   struct buf *buf = bread(log.dev, log.start);
   struct logheader *lh = (struct logheader *) (buf->data);
   int i;
@@ -95,6 +98,7 @@ read_head(void)
     log.lh.block[i] = lh->block[i];
   }
   brelse(buf);
+  // printf("read_head done\n");
 }
 
 // Write in-memory log header to disk.
@@ -103,6 +107,7 @@ read_head(void)
 static void
 write_head(void)
 {
+  // printf("run in write_head\n");
   struct buf *buf = bread(log.dev, log.start);
   struct logheader *hb = (struct logheader *) (buf->data);
   int i;
@@ -112,6 +117,7 @@ write_head(void)
   }
   bwrite(buf);
   brelse(buf);
+  // printf("write_head done\n");
 }
 
 static void
