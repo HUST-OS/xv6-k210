@@ -214,7 +214,9 @@ clean:
 	rm -f *.tex *.dvi *.idx *.aux *.log *.ind *.ilg \
 	*/*.o */*.d */*.asm */*.sym \
 	$T/* \
-	$U/initcode $U/initcode.out $K/kernel fs.img \
+	$U/initcode $U/initcode.out $U/testcode_1 $U/testcode_2 $U/testcode_3 $U/testcode_4 \
+	$U/testcode_1.out $U/testcode_2.out $U/testcode_3.out $U/testcode_4.out \
+	$K/kernel fs.img \
 	mkfs/mkfs .gdbinit \
         $U/usys.S \
 	$(UPROGS)

@@ -100,14 +100,11 @@ allocproc(void)
 {
   struct proc *p;
 
-  printf("allocproc()\n");
   for(p = proc; p < &proc[NPROC]; p++) {
-    printf("acquire\n");
     acquire(&p->lock);
     if(p->state == UNUSED) {
       goto found;
     } else {
-      printf("release\n");
       release(&p->lock);
     }
   }
@@ -295,7 +292,6 @@ userinit(void)
   struct proc *p;
 
   p = allocproc();
-  printf("return from allocproc()\n");
   initproc = p;
   
   // allocate one user page and copy init's instructions
@@ -313,7 +309,6 @@ userinit(void)
 
   p->state = RUNNABLE;
 
-  printf("try to release lock\n");
   release(&p->lock);
   printf("userinit\n");
 }
