@@ -37,7 +37,7 @@ kvminit()
 
   // PLIC
   kvmmap(PLIC, PLIC, 0x400000, PTE_R | PTE_W);
-  printf("kernel_base: %p, etext: %p, etext - kernel_base: %p\n", KERNBASE, etext_addr, etext_addr - KERNBASE);
+  // printf("kernel_base: %p, etext: %p, etext - kernel_base: %p\n", KERNBASE, etext_addr, etext_addr - KERNBASE);
   // map kernel text executable and read-only.
   kvmmap(KERNBASE, KERNBASE, etext_addr - KERNBASE, PTE_R | PTE_X);
   // map kernel data and the physical RAM we'll make use of.
@@ -46,6 +46,7 @@ kvminit()
   // map the trampoline for trap entry/exit to
   // the highest virtual address in the kernel.
   kvmmap(TRAMPOLINE, trampoline_addr, PGSIZE, PTE_R | PTE_X);
+  // kvmmap(TRAMPOLINE, (uint64)trampoline, PGSIZE, PTE_R | PTE_X);
 
   printf("kvminit\n");
 }
@@ -226,8 +227,12 @@ uvminit(pagetable_t pagetable, uchar *src, uint sz)
   mem = kalloc();
   printf("[uvminit]kalloc: %p\n", mem);
   memset(mem, 0, PGSIZE);
-  mappages(pagetable, 0, PGSIZE, (uint64)mem, PTE_W|PTE_R|PTE_X|PTE_U);
+  // int map_res = mappages(pagetable, 0, PGSIZE, (uint64)mem, PTE_W|PTE_R|PTE_X|PTE_U);
+  // printf("[vminit]map result: %d, va: %p, pa: %p\n", map_res, PGSIZE - 1, walkaddr(pagetable, PGSIZE - 1) + PGSIZE - 1);
   memmove(mem, src, sz);
+  for (int i = 0; i < sz; i ++) {
+    printf("[uvminit]mem: %p, %x\n", mem + i, mem[i]);
+  }
 }
 
 // Allocate PTEs and physical memory to grow process from oldsz to

@@ -23,6 +23,61 @@ static void freeproc(struct proc *p);
 
 extern char trampoline[]; // trampoline.S
 
+void reg_info(void) {
+  // struct proc *p = myproc();
+  // printf("trapframe {\n");
+  // printf("  kernel_satp: %p\n", p->trapframe->kernel_satp);
+  // printf("  kernel_sp: %p\n", p->trapframe->kernel_sp);
+  // printf("  kernel_trap: %p\n", p->trapframe->kernel_trap);
+  // printf("  kernel_hartid: %p\n", p->trapframe->kernel_hartid);
+  // printf("  epc: %p\n", p->trapframe->epc);
+  // printf("  ra: %p\n", p->trapframe->ra);
+  // printf("  sp: %p\n", p->trapframe->sp);
+  // printf("  gp: %p\n", p->trapframe->gp);
+  // printf("  tp: %p\n", p->trapframe->tp);
+  // printf("  t0: %p\n", p->trapframe->t0);
+  // printf("  t1: %p\n", p->trapframe->t1);
+  // printf("  t2: %p\n", p->trapframe->t2);
+  // printf("  s0: %p\n", p->trapframe->s0);
+  // printf("  s1: %p\n", p->trapframe->s1);
+  // printf("  a0: %p\n", p->trapframe->a0);
+  // printf("  a1: %p\n", p->trapframe->a1);
+  // printf("  a2: %p\n", p->trapframe->a2);
+  // printf("  a3: %p\n", p->trapframe->a3);
+  // printf("  a4: %p\n", p->trapframe->a4);
+  // printf("  a5: %p\n", p->trapframe->a5);
+  // printf("  a6: %p\n", p->trapframe->a6);
+  // printf("  a7: %p\n", p->trapframe->a7);
+  // printf("  s2: %p\n", p->trapframe->s2);
+  // printf("  s3: %p\n", p->trapframe->s3);
+  // printf("  s4: %p\n", p->trapframe->s4);
+  // printf("  s5: %p\n", p->trapframe->s5);
+  // printf("  s6: %p\n", p->trapframe->s6);
+  // printf("  s7: %p\n", p->trapframe->s7);
+  // printf("  s8: %p\n", p->trapframe->s8);
+  // printf("  s9: %p\n", p->trapframe->s9);
+  // printf("  s10: %p\n", p->trapframe->s10);
+  // printf("  s11: %p\n", p->trapframe->s11);
+  // printf("  t3: %p\n", p->trapframe->t3);
+  // printf("  t4: %p\n", p->trapframe->t4);
+  // printf("  t5: %p\n", p->trapframe->t5);
+  // printf("  t6: %p\n", p->trapframe->t6);
+  // printf("}\n");
+  printf("register info: {\n");
+  printf("sstatus: %p\n", r_sstatus());
+  printf("sip: %p\n", r_sip());
+  printf("sie: %p\n", r_sie());
+  printf("sepc: %p\n", r_sepc());
+  printf("stvec: %p\n", r_stvec());
+  printf("satp: %p\n", r_satp());
+  printf("scause: %p\n", r_scause());
+  printf("stval: %p\n", r_stval());
+  printf("sp: %p\n", r_sp());
+  printf("tp: %p\n", r_tp());
+  printf("ra: %p\n", r_ra());
+  printf("}\n");
+}
+
 // initialize the proc table at boot time.
 void
 procinit(void)
@@ -296,12 +351,12 @@ userinit(void)
   
   // allocate one user page and copy init's instructions
   // and data into it.
-  uvminit(p->pagetable, initcode, sizeof(initcode));
-  // uvminit(p->pagetable, proc_test_code_1, sizeof(proc_test_code_1));
+  // uvminit(p->pagetable, initcode, sizeof(initcode));
+  uvminit(p->pagetable, proc_test_code_1, sizeof(proc_test_code_1));
   p->sz = PGSIZE;
 
   // prepare for the very first "return" from kernel to user.
-  p->trapframe->epc = 0;      // user program counter
+  p->trapframe->epc = 0x0;      // user program counter
   p->trapframe->sp = PGSIZE;  // user stack pointer
 
   safestrcpy(p->name, "initcode", sizeof(p->name));
@@ -624,9 +679,9 @@ forkret(void)
     // File system initialization must be run in the context of a
     // regular process (e.g., because it calls sleep), and thus cannot
     // be run from main().
-    printf("[forkret]first scheduling\n");
+    // printf("[forkret]first scheduling\n");
     first = 0;
-    fsinit(ROOTDEV);
+    // fsinit(ROOTDEV);
   }
   printf("[forket]call usertrapret\n");
   usertrapret();

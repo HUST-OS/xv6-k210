@@ -37,7 +37,7 @@ readsb(int dev, struct superblock *sb)
   bp = bread(dev, 1);
   memmove(sb, bp->data, sizeof(*sb));
   brelse(bp);
-  // printf("readsb done\n");
+  printf("readsb done\n");
 }
 
 // Init fs

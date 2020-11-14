@@ -95,7 +95,7 @@ bget(uint dev, uint blockno)
 struct buf*
 bread(uint dev, uint blockno)
 {
-  // printf("run in bread\n");
+  printf("run in bread\n");
   struct buf *b;
 
   b = bget(dev, blockno);

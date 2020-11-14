@@ -41,9 +41,9 @@ main(unsigned long hartid, unsigned long dtb_pa)
     fileinit();      // file table
     //virtio_disk_init(); // emulated hard disk
     userinit();      // first user process
-    
+
     // test_kalloc();    // test kalloc
-    // test_vm(hartid);       // test kernel pagetable
+    test_vm(hartid);       // test kernel pagetable
     // test_proc_init();   // test porc init
     // test_sdcard();
 

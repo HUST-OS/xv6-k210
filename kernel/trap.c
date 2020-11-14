@@ -19,6 +19,11 @@ void kernelvec();
 
 extern int devintr();
 
+void userret_log() {
+  printf("run in userret\n");
+  while (1) {}
+  
+}
 void
 trapinit(void)
 {
@@ -128,13 +133,19 @@ usertrapret(void)
   w_sepc(p->trapframe->epc);
 
   // tell trampoline.S the user page table to switch to.
+  printf("[usertrapret]p->pagetable: %p\n", p->pagetable);
   uint64 satp = MAKE_SATP(p->pagetable);
 
+  // reg_info();
   // jump to trampoline.S at the top of memory, which 
   // switches to the user page table, restores user registers,
   // and switches to user mode with sret.
   uint64 fn = TRAMPOLINE + (userret - trampoline);
-  ((void (*)(uint64,uint64))fn)(TRAPFRAME, satp);
+  printf("[usertrapret]fn va: %p, pa: %p\n", fn, kvmpa(fn));
+  printf("[usertrapret]useret: %p\n", ((uint64)userret & 0xffffffff));
+  // ((void (*)(uint64,uint64))fn)(TRAPFRAME, satp);
+  // use physical address `userret` instead of virtual address `fn`
+  ((void (*)(uint64,uint64))((uint64)userret & 0xffffffff))(TRAPFRAME, satp);
 }
 
 // interrupts and exceptions from kernel code go here via kernelvec,
