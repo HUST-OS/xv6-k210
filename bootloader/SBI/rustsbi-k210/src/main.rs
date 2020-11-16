@@ -481,6 +481,7 @@ extern "C" fn start_trap_rust(trap_frame: &mut TrapFrame) {
                 // discard rs2 // let _rs2_asid = ((ins >> 20) & 0b1_1111) as u8;
                 // let rs1_vaddr = ((ins >> 15) & 0b1_1111) as u8;
                 // read paging mode from satp (sptbr)
+                println!("[rustsbi]invalid instruction sfence.vma");
                 let satp_bits = satp::read().bits();
                 // bit 63..20 is not readable and writeable on K210, so we cannot
                 // decide paging type from the 'satp' register.
@@ -490,6 +491,7 @@ extern "C" fn start_trap_rust(trap_frame: &mut TrapFrame) {
                 // write to sptbr
                 let sptbr_bits = ppn & 0x3F_FFFF_FFFF;
                 unsafe { llvm_asm!("csrw 0x180, $0"::"r"(sptbr_bits)) }; // write to sptbr
+                println!("[rustsbi]write {:016x?} to sptbr", sptbr_bits);
                 // enable paging (in v1.9.1, mstatus: | 28..24 VM[4:0] WARL | ... )
                 let mut mstatus_bits: usize; 
                 unsafe { llvm_asm!("csrr $0, mstatus":"=r"(mstatus_bits)) };
@@ -500,6 +502,7 @@ extern "C" fn start_trap_rust(trap_frame: &mut TrapFrame) {
                 unsafe { llvm_asm!(".word 0x10400073") }; // sfence.vm x0
                 // ::"r"(rs1_vaddr)
                 mepc::write(mepc::read().wrapping_add(4)); // skip current instruction
+                println!("[rustsbi]handle sfence.vma done, return to va: {:016x?}", mepc::read());
             } else {
                 panic!("invalid instruction! mepc: {:016x?}, instruction: {:08x?}", mepc::read(), ins);
             }
