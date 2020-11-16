@@ -1,3 +1,0 @@
-cargo:rustc-link-search=/home/hustccc/xv6-k210/bootloader/SBI/rustsbi-k210/target/rls/riscv64gc-unknown-none-elf/debug/build/rustsbi-k210-8112ca9d3e8df55c/out
-cargo:rerun-if-changed=build.rs
-cargo:rerun-if-changed=link-k210.ld
