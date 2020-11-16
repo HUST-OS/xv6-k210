@@ -1,0 +1,2 @@
+cargo:rustc-link-search=/home/hustccc/xv6-k210/bootloader/SBI/rustsbi-k210/target/rls/riscv64gc-unknown-none-elf/debug/build/k210-pac-ada3644d15c27440/out
+cargo:rerun-if-changed=memory-k210.x

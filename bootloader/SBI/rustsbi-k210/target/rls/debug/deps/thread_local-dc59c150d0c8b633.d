@@ -1,0 +1,10 @@
+/home/hustccc/xv6-k210/bootloader/SBI/rustsbi-k210/target/rls/debug/deps/thread_local-dc59c150d0c8b633.rmeta: /home/hustccc/.cargo/registry/src/mirrors.tuna.tsinghua.edu.cn-df7c3c540f42cdbd/thread_local-1.0.1/src/lib.rs /home/hustccc/.cargo/registry/src/mirrors.tuna.tsinghua.edu.cn-df7c3c540f42cdbd/thread_local-1.0.1/src/thread_id.rs /home/hustccc/.cargo/registry/src/mirrors.tuna.tsinghua.edu.cn-df7c3c540f42cdbd/thread_local-1.0.1/src/unreachable.rs /home/hustccc/.cargo/registry/src/mirrors.tuna.tsinghua.edu.cn-df7c3c540f42cdbd/thread_local-1.0.1/src/cached.rs
+
+/home/hustccc/xv6-k210/bootloader/SBI/rustsbi-k210/target/rls/debug/deps/libthread_local-dc59c150d0c8b633.rlib: /home/hustccc/.cargo/registry/src/mirrors.tuna.tsinghua.edu.cn-df7c3c540f42cdbd/thread_local-1.0.1/src/lib.rs /home/hustccc/.cargo/registry/src/mirrors.tuna.tsinghua.edu.cn-df7c3c540f42cdbd/thread_local-1.0.1/src/thread_id.rs /home/hustccc/.cargo/registry/src/mirrors.tuna.tsinghua.edu.cn-df7c3c540f42cdbd/thread_local-1.0.1/src/unreachable.rs /home/hustccc/.cargo/registry/src/mirrors.tuna.tsinghua.edu.cn-df7c3c540f42cdbd/thread_local-1.0.1/src/cached.rs
+
+/home/hustccc/xv6-k210/bootloader/SBI/rustsbi-k210/target/rls/debug/deps/thread_local-dc59c150d0c8b633.d: /home/hustccc/.cargo/registry/src/mirrors.tuna.tsinghua.edu.cn-df7c3c540f42cdbd/thread_local-1.0.1/src/lib.rs /home/hustccc/.cargo/registry/src/mirrors.tuna.tsinghua.edu.cn-df7c3c540f42cdbd/thread_local-1.0.1/src/thread_id.rs /home/hustccc/.cargo/registry/src/mirrors.tuna.tsinghua.edu.cn-df7c3c540f42cdbd/thread_local-1.0.1/src/unreachable.rs /home/hustccc/.cargo/registry/src/mirrors.tuna.tsinghua.edu.cn-df7c3c540f42cdbd/thread_local-1.0.1/src/cached.rs
+
+/home/hustccc/.cargo/registry/src/mirrors.tuna.tsinghua.edu.cn-df7c3c540f42cdbd/thread_local-1.0.1/src/lib.rs:
+/home/hustccc/.cargo/registry/src/mirrors.tuna.tsinghua.edu.cn-df7c3c540f42cdbd/thread_local-1.0.1/src/thread_id.rs:
+/home/hustccc/.cargo/registry/src/mirrors.tuna.tsinghua.edu.cn-df7c3c540f42cdbd/thread_local-1.0.1/src/unreachable.rs:
+/home/hustccc/.cargo/registry/src/mirrors.tuna.tsinghua.edu.cn-df7c3c540f42cdbd/thread_local-1.0.1/src/cached.rs:

@@ -1,0 +1,1 @@
+{"rustc":7550950016206273850,"features":"[]","target":11291934076410965371,"profile":12939370821261546320,"path":14361130113869838835,"deps":[[3357660926759529983,"nb",false,328588187172158469]],"local":[{"CheckDepInfo":{"dep_info":"riscv64gc-unknown-none-elf/debug/.fingerprint/embedded-hal-2bb78f471ddaa746/dep-lib-embedded-hal"}}],"rustflags":[],"metadata":11936456713547242485}

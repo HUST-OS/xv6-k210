@@ -1,0 +1,1 @@
+{"rustc":7550950016206273850,"features":"[\"spin\", \"spin_no_std\"]","target":3310758268438181623,"profile":11677938664258541388,"path":471010694202729539,"deps":[[9909677338687340172,"spin",false,5343254373545884084]],"local":[{"CheckDepInfo":{"dep_info":"debug/.fingerprint/lazy_static-ab8c09bbacf088d7/dep-lib-lazy_static"}}],"rustflags":[],"metadata":111743654650316589}
