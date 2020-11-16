@@ -53,7 +53,7 @@ SDK_OBJS = \
   $S/sysctl.o \
 
 QEMU = qemu-system-riscv64
-RUSTSBI = ./bootloader/SBI/rustsbi-k210
+RUSTSBI = ./bootloader/SBI/sbi
 
 TOOLPREFIX	:= riscv64-unknown-elf-
 CC = $(TOOLPREFIX)gcc
@@ -62,7 +62,7 @@ LD = $(TOOLPREFIX)ld
 OBJCOPY = $(TOOLPREFIX)objcopy
 OBJDUMP = $(TOOLPREFIX)objdump
 
-CFLAGS = -Wall -Werror -O -fno-omit-frame-pointer -ggdb
+CFLAGS = -Wall -Werror -O -fno-omit-frame-pointer -ggdb -g
 CFLAGS += -MD
 CFLAGS += -mcmodel=medany
 CFLAGS += -ffreestanding -fno-common -nostdlib -mno-relax
@@ -98,6 +98,12 @@ QEMUOPTS += -device loader,file=$T/kernel,addr=0x80200000
 qemu: build
 	@$(QEMU) $(QEMUOPTS)
 
+RUSTSBI:
+	@cd ./bootloader/SBI/rustsbi-k210 && cargo build && cp ./target/riscv64gc-unknown-none-elf/debug/rustsbi-k210 ../sbi
+
+rustsbi-clean:
+	@cd ./bootloader/SBI/rustsbi-k210 && cargo clean
+
 image = $T/kernel.bin
 k210 = $T/k210.bin
 k210-serialport := /dev/ttyUSB0
@@ -105,6 +111,8 @@ k210-serialport := /dev/ttyUSB0
 k210: build
 	@riscv64-unknown-elf-objcopy $T/kernel --strip-all -O binary $(image)
 	@riscv64-unknown-elf-objcopy $(RUSTSBI) --strip-all -O binary $(k210)
+	# @riscv64-unknown-elf-objcopy $T/kernel -O binary $(image)
+	# @riscv64-unknown-elf-objcopy $(RUSTSBI) -O binary $(k210)
 	# @cp $(RUSTSBI) $(k210)
 	@dd if=$(image) of=$(k210) bs=128k seek=1
 	# @dd if=sdcard.bin of=$(k210) bs=128k seek=3

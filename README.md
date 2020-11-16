@@ -47,6 +47,3 @@ may help you: [maixpy-doc](https://maixpy.sipeed.com/zh/get_started/env_install_
 
 ## TODO
 The rest part of xv6-kernel and xv6-fs
-
-## LICENSE
-MIT License
