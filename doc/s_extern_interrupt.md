@@ -76,7 +76,7 @@ supervisor_external_handler() {
 ...
 
 // 使用 SBI 调用注册 S 态外部中断处理函数
-sbi_set_extern_interrupt((uint64)supervisor_external_handler - 0xffffffff00000000);
+sbi_set_extern_interrupt((uint64)supervisor_external_handler);
 ```
 
 这样做看起来很简单，是因为 luojia 在 RustSBI 中针对 K210 这个平台做的特定的功能，如果是 OpenSBI 就达不到这种效果。这么做的原理我这里直接引用吴一凡学长的笔记：  

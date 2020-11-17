@@ -11,7 +11,7 @@
 #include "include/sbi.h"
 #include "include/sdcard.h"
 
-extern uint64 etext_addr;
+extern uint64 etext;
 extern struct proc *initproc;
 void test_kalloc() {
     char *mem = kalloc();
@@ -70,11 +70,11 @@ void test_vm(unsigned long hart_id) {
   printf("[test_vm](kvmpa) va: %p, pa: %p\n", KERNBASE + 0x1000, kvmpa(KERNBASE + 0x1000));
   printf("[test_vm](kvmpa) va: %p, pa: %p\n", KERNBASE + 0x2000, kvmpa(KERNBASE + 0x2000));
   printf("[test_vm](kvmpa) va: %p, pa: %p\n", KERNBASE + 0x3000, kvmpa(KERNBASE + 0x3000));
-  printf("[test_vm]etext_addr:\n");
-  printf("[test_vm](kvmpa) va: %p, pa: %p\n", etext_addr, kvmpa(etext_addr));
-  printf("[test_vm](kvmpa) va: %p, pa: %p\n", etext_addr + 0x1000, kvmpa(etext_addr + 0x1000));
-  printf("[test_vm](kvmpa) va: %p, pa: %p\n", etext_addr + 0x2000, kvmpa(etext_addr + 0x2000));
-  printf("[test_vm](kvmpa) va: %p, pa: %p\n", etext_addr + 0x3000, kvmpa(etext_addr + 0x3000));
+  printf("[test_vm]etext:\n");
+  printf("[test_vm](kvmpa) va: %p, pa: %p\n", etext, kvmpa(etext));
+  printf("[test_vm](kvmpa) va: %p, pa: %p\n", etext + 0x1000, kvmpa(etext + 0x1000));
+  printf("[test_vm](kvmpa) va: %p, pa: %p\n", etext + 0x2000, kvmpa(etext + 0x2000));
+  printf("[test_vm](kvmpa) va: %p, pa: %p\n", etext + 0x3000, kvmpa(etext + 0x3000));
   printf("[test_vm]trampoline:\n");
   printf("[test_vm](kvmpa) va: %p, pa: %p\n", TRAMPOLINE, kvmpa(TRAMPOLINE));
   printf("[test_vm](kvmpa) va: %p, pa: %p\n", TRAMPOLINE + PGSIZE - 1, kvmpa(TRAMPOLINE + PGSIZE - 1));

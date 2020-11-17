@@ -34,19 +34,19 @@ main(unsigned long hartid, unsigned long dtb_pa)
     timerinit();     // set up timer interrupt handler
     procinit();
     device_init(dtb_pa, hartid);
-    fpioa_pin_init();
-    sdcard_init();
+    // fpioa_pin_init();
+    // sdcard_init();
     //plicinit();      // set up interrupt controller
     //plicinithart();  // ask PLIC for device interrupts
-    binit();         // buffer cache
-    iinit();         // inode cache
-    fileinit();      // file table
+    // binit();         // buffer cache
+    // iinit();         // inode cache
+    // fileinit();      // file table
     //virtio_disk_init(); // emulated hard disk
-    userinit();      // first user process
+    // userinit();      // first user process
+    test_proc_init();   // test porc init
 
     // test_kalloc();    // test kalloc
-    test_vm(hartid);       // test kernel pagetable
-    // test_proc_init();   // test porc init
+    // test_vm(hartid);       // test kernel pagetable
     // test_sdcard();
 
     printf("hart 0 init done\n");

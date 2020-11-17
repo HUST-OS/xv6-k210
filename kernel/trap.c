@@ -19,11 +19,6 @@ void kernelvec();
 
 extern int devintr();
 
-void userret_log() {
-  printf("run in userret\n");
-  while (1) {}
-  
-}
 void
 trapinit(void)
 {
@@ -48,7 +43,7 @@ trapinithart(void)
 void
 usertrap(void)
 {
-  printf("run in usertrap\n");
+  // printf("run in usertrap\n");
   int which_dev = 0;
 
   if((r_sstatus() & SSTATUS_SPP) != 0)
@@ -133,19 +128,14 @@ usertrapret(void)
   w_sepc(p->trapframe->epc);
 
   // tell trampoline.S the user page table to switch to.
-  printf("[usertrapret]p->pagetable: %p\n", p->pagetable);
+  // printf("[usertrapret]p->pagetable: %p\n", p->pagetable);
   uint64 satp = MAKE_SATP(p->pagetable);
 
-  // reg_info();
   // jump to trampoline.S at the top of memory, which 
   // switches to the user page table, restores user registers,
   // and switches to user mode with sret.
   uint64 fn = TRAMPOLINE + (userret - trampoline);
-  printf("[usertrapret]fn va: %p, pa: %p\n", fn, kvmpa(fn));
-  printf("[usertrapret]useret: %p\n", ((uint64)userret & 0xffffffff));
-  // ((void (*)(uint64,uint64))fn)(TRAPFRAME, satp);
-  // use physical address `userret` instead of virtual address `fn`
-  ((void (*)(uint64,uint64))((uint64)userret & 0xffffffff))(TRAPFRAME, satp);
+  ((void (*)(uint64,uint64))fn)(TRAPFRAME, satp);
 }
 
 // interrupts and exceptions from kernel code go here via kernelvec,
@@ -234,7 +224,8 @@ devintr()
     // software interrupt from a supervisor-mode timer interrupt,
 
     if(cpuid() == 0){
-      clockintr();
+      // clockintr();
+      printf("[devintr]clockintr\n");
     }
     
     // acknowledge the software interrupt by clearing
@@ -278,6 +269,6 @@ void device_init(unsigned long pa, uint64 hartid) {
   uint32 *hart0_m_int_enable_hi = (uint32*)(PLIC_MENABLE(hartid) + 0x04);
   *(hart0_m_int_enable_hi) = (1 << 0x1);
   // *(uint32*)0x0c002004 = (1 << 0x1);
-  sbi_set_extern_interrupt((uint64)supervisor_external_handler - 0xffffffff00000000);
+  sbi_set_extern_interrupt((uint64)supervisor_external_handler);
   printf("device init\n");
 }

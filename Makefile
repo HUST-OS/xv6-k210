@@ -72,6 +72,7 @@ CFLAGS += $(shell $(CC) -fno-stack-protector -E -x c /dev/null >/dev/null 2>&1 &
 LDFLAGS = -z max-page-size=4096
 
 linker = ./linker/k210.ld
+# linker = ./linker/xv6.ld
 
 # LDFLAGS = -Wl,--build-id=none -nostartfiles -nostdlib -static -fno-stack-protector
 # LIBS				:= -lgcc

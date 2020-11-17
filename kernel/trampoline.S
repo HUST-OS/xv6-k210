@@ -78,7 +78,7 @@ uservec:
         csrw satp, t1
 
         # sfence.vma zero, zero
-        sfence.vm
+        sfence.vma
 
         # a0 is no longer valid, since the kernel page
         # table does not specially map p->tf.
@@ -100,8 +100,7 @@ userret:
         csrw satp, a1
 
         # sfence.vma zero, zero
-        sfence.vm
-        # sfence.vma
+        sfence.vma
         
         # put the saved user a0 in sscratch, so we
         # can swap it with our a0 (TRAPFRAME) in the last step.
@@ -142,10 +141,6 @@ userret:
 
 	# restore user a0, and save TRAPFRAME in sscratch
         csrrw a0, sscratch, a0
-
-        lui t0, %hi(reg_info)
-        addi t0, t0, %lo(reg_info)
-        jr t0
 
         # return to user mode and user pc.
         # usertrapret() set up sstatus and sepc.

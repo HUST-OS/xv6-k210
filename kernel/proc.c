@@ -24,45 +24,6 @@ static void freeproc(struct proc *p);
 extern char trampoline[]; // trampoline.S
 
 void reg_info(void) {
-  // struct proc *p = myproc();
-  // printf("trapframe {\n");
-  // printf("  kernel_satp: %p\n", p->trapframe->kernel_satp);
-  // printf("  kernel_sp: %p\n", p->trapframe->kernel_sp);
-  // printf("  kernel_trap: %p\n", p->trapframe->kernel_trap);
-  // printf("  kernel_hartid: %p\n", p->trapframe->kernel_hartid);
-  // printf("  epc: %p\n", p->trapframe->epc);
-  // printf("  ra: %p\n", p->trapframe->ra);
-  // printf("  sp: %p\n", p->trapframe->sp);
-  // printf("  gp: %p\n", p->trapframe->gp);
-  // printf("  tp: %p\n", p->trapframe->tp);
-  // printf("  t0: %p\n", p->trapframe->t0);
-  // printf("  t1: %p\n", p->trapframe->t1);
-  // printf("  t2: %p\n", p->trapframe->t2);
-  // printf("  s0: %p\n", p->trapframe->s0);
-  // printf("  s1: %p\n", p->trapframe->s1);
-  // printf("  a0: %p\n", p->trapframe->a0);
-  // printf("  a1: %p\n", p->trapframe->a1);
-  // printf("  a2: %p\n", p->trapframe->a2);
-  // printf("  a3: %p\n", p->trapframe->a3);
-  // printf("  a4: %p\n", p->trapframe->a4);
-  // printf("  a5: %p\n", p->trapframe->a5);
-  // printf("  a6: %p\n", p->trapframe->a6);
-  // printf("  a7: %p\n", p->trapframe->a7);
-  // printf("  s2: %p\n", p->trapframe->s2);
-  // printf("  s3: %p\n", p->trapframe->s3);
-  // printf("  s4: %p\n", p->trapframe->s4);
-  // printf("  s5: %p\n", p->trapframe->s5);
-  // printf("  s6: %p\n", p->trapframe->s6);
-  // printf("  s7: %p\n", p->trapframe->s7);
-  // printf("  s8: %p\n", p->trapframe->s8);
-  // printf("  s9: %p\n", p->trapframe->s9);
-  // printf("  s10: %p\n", p->trapframe->s10);
-  // printf("  s11: %p\n", p->trapframe->s11);
-  // printf("  t3: %p\n", p->trapframe->t3);
-  // printf("  t4: %p\n", p->trapframe->t4);
-  // printf("  t5: %p\n", p->trapframe->t5);
-  // printf("  t6: %p\n", p->trapframe->t6);
-  // printf("}\n");
   printf("register info: {\n");
   printf("sstatus: %p\n", r_sstatus());
   printf("sip: %p\n", r_sip());
@@ -268,74 +229,55 @@ uchar initcode[] = {
   0x00, 0x00, 0x00, 0x00
 };
 
-
-uchar proc_test_code_1[] = {
-  0x13, 0x05, 0x10, 0x04, 0x93, 0x05, 0x00, 0x00, 0x13, 0x06, 0x00, 0x00, 0x93, 0x06, 0x00, 0x00,
-  0x93, 0x08, 0x10, 0x00, 0x73, 0x00, 0x00, 0x00, 0xef, 0x00, 0x00, 0x00
+uchar printhello[] = {
+    0x13, 0x00, 0x00, 0x00,     // nop
+    0x13, 0x00, 0x00, 0x00,     // nop 
+    0x13, 0x00, 0x00, 0x00,     // nop 
+    // <start>
+    0x17, 0x05, 0x00, 0x00,     // auipc a0, 0x0 
+    0x13, 0x05, 0x05, 0x00,     // mv a0, a0 
+    0x93, 0x08, 0x60, 0x01,     // li a7, 22 
+    0x73, 0x00, 0x00, 0x00,     // ecall 
+    0xef, 0xf0, 0x1f, 0xff,     // jal ra, <start>
+    // <loop>
+    0xef, 0x00, 0x00, 0x00,     // jal ra, <loop>
 };
 
-uchar proc_test_code_2[] = {
-  0x13, 0x05, 0x20, 0x04, 0x93, 0x05, 0x00, 0x00, 0x13, 0x06, 0x00, 0x00, 0x93, 0x06, 0x00, 0x00,
-  0x93, 0x08, 0x10, 0x00, 0x73, 0x00, 0x00, 0x00, 0xef, 0x00, 0x00, 0x00
-};
-
-uchar proc_test_code_3[] = {
-  0x13, 0x05, 0x30, 0x04, 0x93, 0x05, 0x00, 0x00, 0x13, 0x06, 0x00, 0x00, 0x93, 0x06, 0x00, 0x00,
-  0x93, 0x08, 0x10, 0x00, 0x73, 0x00, 0x00, 0x00, 0xef, 0x00, 0x00, 0x00
-};
-
-uchar proc_test_code_4[] = {
-  0x13, 0x05, 0x40, 0x04, 0x93, 0x05, 0x00, 0x00, 0x13, 0x06, 0x00, 0x00, 0x93, 0x06, 0x00, 0x00,
-  0x93, 0x08, 0x10, 0x00, 0x73, 0x00, 0x00, 0x00, 0xef, 0x00, 0x00, 0x00
-};
 
 void test_proc_init() {
-  struct proc *p1;
+  struct proc *p;
 
-  p1 = allocproc();
-  uvminit(p1->pagetable, proc_test_code_1, sizeof(proc_test_code_1));
-  // initproc = p1;
-  p1->sz = PGSIZE;
-  p1->trapframe->epc = 0;      // user program counter
-  p1->trapframe->sp = PGSIZE;  // user stack pointer
-  safestrcpy(p1->name, "proc_test_code_1", sizeof(p1->name));
-  p1->cwd = namei("/test");
-  p1->state = RUNNABLE;
-  release(&p1->lock);
-  printf("[test_proc_init]allocproc: %p\n", p1);
+    p = allocproc();
+    initproc = p;
 
-  // struct proc *p2;
-  // p2 = allocproc();
-  // uvminit(p2->pagetable, proc_test_code_2, sizeof(proc_test_code_2));
-  // p2->sz = PGSIZE;
-  // p2->trapframe->epc = 0;      // user program counter
-  // p2->trapframe->sp = PGSIZE;  // user stack pointer
-  // safestrcpy(p2->name, "proc_test_code_2", sizeof(p2->name));
-  // p2->cwd = namei("/test");
-  // p2->state = RUNNABLE;
-  // release(&p2->lock);
+    uvminit(p->pagetable, (uchar*)printhello, sizeof(printhello));
+    p->sz = PGSIZE;
 
-  // struct proc *p3;
-  // p3 = allocproc();
-  // uvminit(p3->pagetable, proc_test_code_3, sizeof(proc_test_code_3));
-  // p3->sz = PGSIZE;
-  // p3->trapframe->epc = 0;      // user program counter
-  // p3->trapframe->sp = PGSIZE;  // user stack pointer
-  // safestrcpy(p3->name, "proc_test_code_3", sizeof(p3->name));
-  // p3->cwd = namei("/test");
-  // p3->state = RUNNABLE;
-  // release(&p3->lock);
+    p->trapframe->epc = 0x0;
+    p->trapframe->sp = PGSIZE;
 
-  // struct proc *p4;
-  // p4 = allocproc();
-  // uvminit(p4->pagetable, proc_test_code_4, sizeof(proc_test_code_4));
-  // p4->sz = PGSIZE;
-  // p4->trapframe->epc = 0;      // user program counter
-  // p4->trapframe->sp = PGSIZE;  // user stack pointer
-  // safestrcpy(p4->name, "proc_test_code_4", sizeof(p4->name));
-  // p4->cwd = namei("/test");
-  // p4->state = RUNNABLE;
-  // release(&p4->lock);
+    safestrcpy(p->name, "test_code_0", sizeof(p->name));
+
+    p->state = RUNNABLE;
+
+    release(&p->lock);
+
+	struct proc *p1;
+
+    p1 = allocproc();
+    printf("return from allocproc()\n");
+
+    uvminit(p1->pagetable, (uchar*)printhello, sizeof(printhello));
+    p1->sz = PGSIZE;
+
+    p1->trapframe->epc = 0x0;
+    p1->trapframe->sp = PGSIZE;
+
+    safestrcpy(p1->name, "test_code_1", sizeof(p1->name));
+
+    p1->state = RUNNABLE;
+
+    release(&p1->lock);
 
   printf("[test_proc]test_proc init done\n");
 }
@@ -352,7 +294,7 @@ userinit(void)
   // allocate one user page and copy init's instructions
   // and data into it.
   // uvminit(p->pagetable, initcode, sizeof(initcode));
-  uvminit(p->pagetable, proc_test_code_1, sizeof(proc_test_code_1));
+  uvminit(p->pagetable, initcode, sizeof(initcode));
   p->sz = PGSIZE;
 
   // prepare for the very first "return" from kernel to user.
