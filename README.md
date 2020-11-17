@@ -41,7 +41,7 @@ may help you: [maixpy-doc](https://maixpy.sipeed.com/zh/get_started/env_install_
 - [x] S mode extern interrupt
 - [x] Receive uarths message
 - [x] SD card driver
-- [ ] Process management
+- [x] Process management
 - [ ] File system
 - [ ] User program
 
