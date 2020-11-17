@@ -54,7 +54,7 @@ void
 kvminithart()
 {
   w_satp(MAKE_SATP(kernel_pagetable));
-  reg_info();
+  // reg_info();
   sfence_vma();
   printf("kvminithart\n");
 }

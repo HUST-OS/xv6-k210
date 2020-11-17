@@ -97,7 +97,6 @@ usertrap(void)
 void
 usertrapret(void)
 {
-  printf("USERTRAPRET\n");
   struct proc *p = myproc();
 
   // we're about to switch the destination of traps from
@@ -169,7 +168,7 @@ kerneltrap()
   if(which_dev == 2) {
     timer_tick();
     if(myproc() != 0 && myproc()->state == RUNNING) {
-      printf("[kerneltrap]switch proc\n");
+      // printf("[kerneltrap]switch proc\n");
       yield();
     }
   }
@@ -225,7 +224,6 @@ devintr()
 
     if(cpuid() == 0){
       // clockintr();
-      printf("[devintr]clockintr\n");
     }
     
     // acknowledge the software interrupt by clearing

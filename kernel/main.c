@@ -73,6 +73,5 @@ main(unsigned long hartid, unsigned long dtb_pa)
     // printf("hart 1 init done\n");
   }
   scheduler();
-  while (1) {
-  }  
+
 }

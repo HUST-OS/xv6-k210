@@ -265,7 +265,6 @@ void test_proc_init() {
 	struct proc *p1;
 
     p1 = allocproc();
-    printf("return from allocproc()\n");
 
     uvminit(p1->pagetable, (uchar*)printhello, sizeof(printhello));
     p1->sz = PGSIZE;
@@ -278,6 +277,22 @@ void test_proc_init() {
     p1->state = RUNNABLE;
 
     release(&p1->lock);
+
+  struct proc *p2;
+
+    p2 = allocproc();
+
+    uvminit(p2->pagetable, (uchar*)printhello, sizeof(printhello));
+    p2->sz = PGSIZE;
+
+    p2->trapframe->epc = 0x0;
+    p2->trapframe->sp = PGSIZE;
+
+    safestrcpy(p2->name, "test_code_2", sizeof(p2->name));
+
+    p2->state = RUNNABLE;
+
+    release(&p2->lock);
 
   printf("[test_proc]test_proc init done\n");
 }
@@ -548,11 +563,11 @@ scheduler(void)
         // Switch to chosen process.  It is the process's job
         // to release its lock and then reacquire it
         // before jumping back to us.
-        printf("[scheduler]found runnable proc with pid: %d\n", p->pid);
+        // printf("[scheduler]found runnable proc with pid: %d\n", p->pid);
         p->state = RUNNING;
         c->proc = p;
         swtch(&c->context, &p->context);
-        printf("[scheduler]return to shceduler\n");
+        // printf("[scheduler]return to shceduler\n");
         // Process is done running for now.
         // It should have changed its p->state before coming back.
         c->proc = 0;
