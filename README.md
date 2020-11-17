@@ -27,7 +27,7 @@ make build
 
 ## Run
 ```bash
-make run-k210 k210-serialport=`Your-USB-port`(default by ttyUSB1)
+make run-k210 k210-serialport=`Your-USB-port`(default by ttyUSB0)
 ```
 Ps: Most of the k210-port in Linux is ttyUSB0, if you use Windows or Mac OS, this doc 
 may help you: [maixpy-doc](https://maixpy.sipeed.com/zh/get_started/env_install_driver.html#)  
