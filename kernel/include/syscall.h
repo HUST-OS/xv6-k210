@@ -20,4 +20,4 @@
 #define SYS_link   19
 #define SYS_mkdir  20
 #define SYS_close  21
-#define SYS_test 22
+#define SYS_test_proc 22

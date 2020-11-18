@@ -40,6 +40,11 @@ void test_vm(unsigned long hart_id) {
   printf("[test_vm](kvmpa) va: %p, pa: %p\n", PLIC_SPRIORITY(hart_id), kvmpa(PLIC_SPRIORITY(hart_id)));
   printf("[test_vm](kvmpa) va: %p, pa: %p\n", PLIC_MCLAIM(hart_id), kvmpa(PLIC_MCLAIM(hart_id)));
   printf("[test_vm](kvmpa) va: %p, pa: %p\n", PLIC_SCLAIM(hart_id), kvmpa(PLIC_SCLAIM(hart_id)));
+  printf("[test_vm]rustsbi:\n");
+  printf("[test_vm](kvmpa) va: %p, pa: %p\n", RUSTSBI_BASE, kvmpa(RUSTSBI_BASE));
+  printf("[test_vm](kvmpa) va: %p, pa: %p\n", RUSTSBI_BASE + 0x1000, kvmpa(RUSTSBI_BASE + 0x1000));
+  printf("[test_vm](kvmpa) va: %p, pa: %p\n", RUSTSBI_BASE + 0x2000, kvmpa(RUSTSBI_BASE + 0x2000));
+  printf("[test_vm](kvmpa) va: %p, pa: %p\n", RUSTSBI_BASE + 0x3000, kvmpa(RUSTSBI_BASE + 0x3000));
   printf("[test_vm]kernel base:\n");
   printf("[test_vm](kvmpa) va: %p, pa: %p\n", KERNBASE, kvmpa(KERNBASE));
   printf("[test_vm](kvmpa) va: %p, pa: %p\n", KERNBASE + 0x1000, kvmpa(KERNBASE + 0x1000));

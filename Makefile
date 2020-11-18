@@ -101,7 +101,8 @@ qemu: build
 
 RUSTSBI:
 	@cd ./bootloader/SBI/rustsbi-k210 && cargo build && cp ./target/riscv64gc-unknown-none-elf/debug/rustsbi-k210 ../sbi
-
+	@$(OBJDUMP) -S ./bootloader/SBI/sbi > $T/rustsbi.asm
+	
 rustsbi-clean:
 	@cd ./bootloader/SBI/rustsbi-k210 && cargo clean
 

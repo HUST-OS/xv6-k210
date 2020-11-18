@@ -35,11 +35,13 @@ kvminit()
 
   // PLIC
   kvmmap(PLIC, PLIC, 0x400000, PTE_R | PTE_W);
+
+  // map rustsbi
+  kvmmap(RUSTSBI_BASE, RUSTSBI_BASE, KERNBASE - RUSTSBI_BASE, PTE_R | PTE_X);
   // map kernel text executable and read-only.
   kvmmap(KERNBASE, KERNBASE, (uint64)etext - KERNBASE, PTE_R | PTE_X);
   // map kernel data and the physical RAM we'll make use of.
   kvmmap((uint64)etext, (uint64)etext, PHYSTOP - (uint64)etext, PTE_R | PTE_W);
-
   // map the trampoline for trap entry/exit to
   // the highest virtual address in the kernel.
   kvmmap(TRAMPOLINE, (uint64)trampoline, PGSIZE, PTE_R | PTE_X);
@@ -223,7 +225,7 @@ uvminit(pagetable_t pagetable, uchar *src, uint sz)
   if(sz >= PGSIZE)
     panic("inituvm: more than a page");
   mem = kalloc();
-  printf("[uvminit]kalloc: %p\n", mem);
+  // printf("[uvminit]kalloc: %p\n", mem);
   memset(mem, 0, PGSIZE);
   mappages(pagetable, 0, PGSIZE, (uint64)mem, PTE_W|PTE_R|PTE_X|PTE_U);
   memmove(mem, src, sz);

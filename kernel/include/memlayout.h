@@ -44,16 +44,15 @@
 #define PLIC_MCLAIM(hart) (PLIC + 0x200004 + (hart)*0x2000)
 #define PLIC_SCLAIM(hart) (PLIC + 0x201004 + (hart)*0x2000)
 
-
+// the physical address of rustsbi
+#define RUSTSBI_BASE 0x80000000
 
 // the kernel expects there to be RAM
 // for use by the kernel and user pages
 // from physical address 0x80200000 to PHYSTOP.
-// #define KERNBASE 0xffffffff80020000
-#define KERNBASE 0x0000000080020000
+#define KERNBASE 0x80020000
 // #define PHYSTOP (KERNBASE + 128*1024*1024)
-// #define PHYSTOP 0xffffffff80600000
-#define PHYSTOP 0x0000000080600000
+#define PHYSTOP 0x80600000
 
 // map the trampoline page to the highest address,
 // in both user and kernel space.

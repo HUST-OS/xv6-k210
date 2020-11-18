@@ -106,7 +106,7 @@ extern uint64 sys_unlink(void);
 extern uint64 sys_wait(void);
 extern uint64 sys_write(void);
 extern uint64 sys_uptime(void);
-extern uint64 sys_test(void);
+extern uint64 sys_test_proc(void);
 
 static uint64 (*syscalls[])(void) = {
 [SYS_fork]    sys_fork,
@@ -130,7 +130,7 @@ static uint64 (*syscalls[])(void) = {
 [SYS_link]    sys_link,
 [SYS_mkdir]   sys_mkdir,
 [SYS_close]   sys_close,
-[SYS_test]    sys_test,
+[SYS_test_proc]    sys_test_proc,
 };
 
 void
@@ -150,7 +150,7 @@ syscall(void)
 }
 
 uint64 
-sys_test(void) {
+sys_test_proc(void) {
     printf("hello world from proc %d, core %d\n", myproc()->pid, r_tp());
     return 0;
 }
