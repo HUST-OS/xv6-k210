@@ -34,8 +34,8 @@ main(unsigned long hartid, unsigned long dtb_pa)
     timerinit();     // set up timer interrupt handler
     procinit();
     device_init(dtb_pa, hartid);
-    // fpioa_pin_init();
-    // sdcard_init();
+    fpioa_pin_init();
+    sdcard_init();
     //plicinit();      // set up interrupt controller
     //plicinithart();  // ask PLIC for device interrupts
     // binit();         // buffer cache
@@ -47,7 +47,7 @@ main(unsigned long hartid, unsigned long dtb_pa)
 
     // test_kalloc();    // test kalloc
     // test_vm(hartid);       // test kernel pagetable
-    // test_sdcard();
+    test_sdcard();
     
     printf("hart 0 init done\n");
     for(int i = 1; i < NCPU; i++) {

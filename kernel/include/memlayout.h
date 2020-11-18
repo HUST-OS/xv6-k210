@@ -44,6 +44,20 @@
 #define PLIC_MCLAIM(hart) (PLIC + 0x200004 + (hart)*0x2000)
 #define PLIC_SCLAIM(hart) (PLIC + 0x201004 + (hart)*0x2000)
 
+#define GPIOHS 0x38001000
+
+#define GPIO 0x50200000
+
+#define SPI_SLAVE 0x50240000
+
+#define FPIOA 0x502B0000
+
+#define SPI0 0x52000000
+
+#define SPI1 0x53000000
+
+#define SPI2 0x54000000
+
 // the physical address of rustsbi
 #define RUSTSBI_BASE 0x80000000
 

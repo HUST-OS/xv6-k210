@@ -31,13 +31,34 @@ kvminit()
   kvmmap(UARTHS, UARTHS, PGSIZE, PTE_R | PTE_W);
 
   // virtio mmio disk interface
-  kvmmap(VIRTIO0, VIRTIO0, PGSIZE, PTE_R | PTE_W);
+  // kvmmap(VIRTIO0, VIRTIO0, PGSIZE, PTE_R | PTE_W);
 
   // CLINT
-  kvmmap(CLINT, CLINT, 0x10000, PTE_R | PTE_W);
+  kvmmap(CLINT, CLINT, 0x1000, PTE_R | PTE_W);
 
   // PLIC
-  kvmmap(PLIC, PLIC, 0x400000, PTE_R | PTE_W);
+  kvmmap(PLIC, PLIC, 0x4000, PTE_R | PTE_W);
+
+  // GPIOHS
+  kvmmap(GPIOHS, GPIOHS, 0x1000, PTE_R | PTE_W);
+
+  // GPIO
+  kvmmap(GPIO, GPIO, 0x1000, PTE_R | PTE_W);
+
+  // SPI_SLAVE
+  kvmmap(SPI_SLAVE, SPI_SLAVE, 0x1000, PTE_R | PTE_W);
+
+  // FPIOA
+  kvmmap(FPIOA, FPIOA, 0x1000, PTE_R | PTE_W);
+
+  // SPI0
+  kvmmap(SPI0, SPI0, 0x1000, PTE_R | PTE_W);
+
+  // SPI1
+  kvmmap(SPI1, SPI1, 0x1000, PTE_R | PTE_W);
+
+  // SPI2
+  kvmmap(SPI2, SPI2, 0x1000, PTE_R | PTE_W);
 
   // map rustsbi
   kvmmap(RUSTSBI_BASE, RUSTSBI_BASE, KERNBASE - RUSTSBI_BASE, PTE_R | PTE_X);
