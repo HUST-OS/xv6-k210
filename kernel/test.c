@@ -22,24 +22,24 @@ void test_kalloc() {
 }
 
 void test_vm(unsigned long hart_id) {
-  printf("[test_vm]UART:\n");
-  printf("[test_vm](kvmpa) va: %p, pa: %p\n", UART0, kvmpa(UART0));
-  printf("virto mmio:\n");
-  printf("[test_vm](kvmpa) va: %p, pa: %p\n", VIRTIO0, kvmpa(VIRTIO0));
+  printf("[test_vm]UARTHS:\n");
+  printf("[test_vm](kvmpa) va: %p, pa: %p\n", UARTHS, kvmpa(UARTHS));
+//   printf("virto mmio:\n");
+//   printf("[test_vm](kvmpa) va: %p, pa: %p\n", VIRTIO0, kvmpa(VIRTIO0));
   printf("[test_vm]CLINT:\n");
   printf("[test_vm](kvmpa) va: %p, pa: %p\n", CLINT, kvmpa(CLINT));
-  printf("[test_vm](kvmpa) va: %p, pa: %p\n", CLINT_MTIMECMP(hart_id), kvmpa(CLINT_MTIMECMP(hart_id)));
-  printf("[test_vm](kvmpa) va: %p, pa: %p\n", CLINT_MTIME, kvmpa(CLINT_MTIME));
+//   printf("[test_vm](kvmpa) va: %p, pa: %p\n", CLINT_MTIMECMP(hart_id), kvmpa(CLINT_MTIMECMP(hart_id)));
+//   printf("[test_vm](kvmpa) va: %p, pa: %p\n", CLINT_MTIME, kvmpa(CLINT_MTIME));
   printf("[test_vm]PLIC\n");
   printf("[test_vm](kvmpa) va: %p, pa: %p\n", PLIC, kvmpa(PLIC));
-  printf("[test_vm](kvmpa) va: %p, pa: %p\n", PLIC_PRIORITY, kvmpa(PLIC_PRIORITY));
-  printf("[test_vm](kvmpa) va: %p, pa: %p\n", PLIC_PENDING, kvmpa(PLIC_PENDING));
-  printf("[test_vm](kvmpa) va: %p, pa: %p\n", PLIC_MENABLE(hart_id), kvmpa(PLIC_MENABLE(hart_id)));
-  printf("[test_vm](kvmpa) va: %p, pa: %p\n", PLIC_SENABLE(hart_id), kvmpa(PLIC_SENABLE(hart_id)));
-  printf("[test_vm](kvmpa) va: %p, pa: %p\n", PLIC_MPRIORITY(hart_id), kvmpa(PLIC_MPRIORITY(hart_id)));
-  printf("[test_vm](kvmpa) va: %p, pa: %p\n", PLIC_SPRIORITY(hart_id), kvmpa(PLIC_SPRIORITY(hart_id)));
-  printf("[test_vm](kvmpa) va: %p, pa: %p\n", PLIC_MCLAIM(hart_id), kvmpa(PLIC_MCLAIM(hart_id)));
-  printf("[test_vm](kvmpa) va: %p, pa: %p\n", PLIC_SCLAIM(hart_id), kvmpa(PLIC_SCLAIM(hart_id)));
+//   printf("[test_vm](kvmpa) va: %p, pa: %p\n", PLIC_PRIORITY, kvmpa(PLIC_PRIORITY));
+//   printf("[test_vm](kvmpa) va: %p, pa: %p\n", PLIC_PENDING, kvmpa(PLIC_PENDING));
+//   printf("[test_vm](kvmpa) va: %p, pa: %p\n", PLIC_MENABLE(hart_id), kvmpa(PLIC_MENABLE(hart_id)));
+//   printf("[test_vm](kvmpa) va: %p, pa: %p\n", PLIC_SENABLE(hart_id), kvmpa(PLIC_SENABLE(hart_id)));
+//   printf("[test_vm](kvmpa) va: %p, pa: %p\n", PLIC_MPRIORITY(hart_id), kvmpa(PLIC_MPRIORITY(hart_id)));
+//   printf("[test_vm](kvmpa) va: %p, pa: %p\n", PLIC_SPRIORITY(hart_id), kvmpa(PLIC_SPRIORITY(hart_id)));
+//   printf("[test_vm](kvmpa) va: %p, pa: %p\n", PLIC_MCLAIM(hart_id), kvmpa(PLIC_MCLAIM(hart_id)));
+//   printf("[test_vm](kvmpa) va: %p, pa: %p\n", PLIC_SCLAIM(hart_id), kvmpa(PLIC_SCLAIM(hart_id)));
   printf("[test_vm]rustsbi:\n");
   printf("[test_vm](kvmpa) va: %p, pa: %p\n", RUSTSBI_BASE, kvmpa(RUSTSBI_BASE));
   printf("[test_vm](kvmpa) va: %p, pa: %p\n", RUSTSBI_BASE + 0x1000, kvmpa(RUSTSBI_BASE + 0x1000));

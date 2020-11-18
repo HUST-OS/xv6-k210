@@ -149,8 +149,11 @@ syscall(void)
   }
 }
 
+static int count = 0;
 uint64 
 sys_test_proc(void) {
-    printf("hello world from proc %d, hart %d\n", myproc()->pid, r_tp());
+    count++;
+    if(count % 10000 == 0)
+      printf("hello world from proc %d, hart %d\n", myproc()->pid, r_tp());
     return 0;
 }
