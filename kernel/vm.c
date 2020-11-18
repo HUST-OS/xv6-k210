@@ -227,9 +227,9 @@ uvminit(pagetable_t pagetable, uchar *src, uint sz)
   memset(mem, 0, PGSIZE);
   mappages(pagetable, 0, PGSIZE, (uint64)mem, PTE_W|PTE_R|PTE_X|PTE_U);
   memmove(mem, src, sz);
-  for (int i = 0; i < sz; i ++) {
-    printf("[uvminit]mem: %p, %x\n", mem + i, mem[i]);
-  }
+  // for (int i = 0; i < sz; i ++) {
+  //   printf("[uvminit]mem: %p, %x\n", mem + i, mem[i]);
+  // }
 }
 
 // Allocate PTEs and physical memory to grow process from oldsz to

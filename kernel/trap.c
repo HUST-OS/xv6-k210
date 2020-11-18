@@ -231,7 +231,8 @@ devintr()
     w_sip(r_sip() & ~2);
 
     return 2;
-  } else {
+  }
+  else {
     return 0;
   }
 }

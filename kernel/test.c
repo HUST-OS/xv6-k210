@@ -11,7 +11,7 @@
 #include "include/sbi.h"
 #include "include/sdcard.h"
 
-extern uint64 etext;
+extern char etext[];
 extern struct proc *initproc;
 void test_kalloc() {
     char *mem = kalloc();
@@ -19,31 +19,6 @@ void test_kalloc() {
     strncpy(mem, "Hello, xv6-k210", 16);
     printf("[test_kalloc]mem: %s\n", mem);
     kfree(mem);
-}
-
-void ptesprint(pagetable_t pagetable, int level){
-  // there are 2^9 = 512 PTEs in a page table.
-  for(int i = 0; i < 512; i++){
-    pte_t pte = pagetable[i];
-    if(pte & PTE_V){
-      for(int j = 0; j < level-1; j++)
-        printf(".. ");
-      printf("..%d: pte %p pa %p\n", i, pte, PTE2PA(pte));
-    }
-    if((pte & PTE_V) && (pte & (PTE_R|PTE_W|PTE_X)) == 0){
-      // this PTE points to a lower-level page table.
-      uint64 child = PTE2PA(pte);
-      ptesprint((pagetable_t)child, level+1);
-    }
-  }
-}
-
-int vmprint(pagetable_t pagetable){
-
-  printf("page table %p\n", pagetable);
-  ptesprint(pagetable, 1);
-
-  return 0;
 }
 
 void test_vm(unsigned long hart_id) {
@@ -71,10 +46,10 @@ void test_vm(unsigned long hart_id) {
   printf("[test_vm](kvmpa) va: %p, pa: %p\n", KERNBASE + 0x2000, kvmpa(KERNBASE + 0x2000));
   printf("[test_vm](kvmpa) va: %p, pa: %p\n", KERNBASE + 0x3000, kvmpa(KERNBASE + 0x3000));
   printf("[test_vm]etext:\n");
-  printf("[test_vm](kvmpa) va: %p, pa: %p\n", etext, kvmpa(etext));
-  printf("[test_vm](kvmpa) va: %p, pa: %p\n", etext + 0x1000, kvmpa(etext + 0x1000));
-  printf("[test_vm](kvmpa) va: %p, pa: %p\n", etext + 0x2000, kvmpa(etext + 0x2000));
-  printf("[test_vm](kvmpa) va: %p, pa: %p\n", etext + 0x3000, kvmpa(etext + 0x3000));
+  printf("[test_vm](kvmpa) va: %p, pa: %p\n", (uint64)etext, kvmpa((uint64)etext));
+  printf("[test_vm](kvmpa) va: %p, pa: %p\n", (uint64)etext + 0x1000, kvmpa((uint64)etext + 0x1000));
+  printf("[test_vm](kvmpa) va: %p, pa: %p\n", (uint64)etext + 0x2000, kvmpa((uint64)etext + 0x2000));
+  printf("[test_vm](kvmpa) va: %p, pa: %p\n", (uint64)etext + 0x3000, kvmpa((uint64)etext + 0x3000));
   printf("[test_vm]trampoline:\n");
   printf("[test_vm](kvmpa) va: %p, pa: %p\n", TRAMPOLINE, kvmpa(TRAMPOLINE));
   printf("[test_vm](kvmpa) va: %p, pa: %p\n", TRAMPOLINE + PGSIZE - 1, kvmpa(TRAMPOLINE + PGSIZE - 1));

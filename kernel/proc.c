@@ -244,56 +244,20 @@ uchar printhello[] = {
 };
 
 
-void test_proc_init() {
+void test_proc_init(int proc_num) {
+  if(proc_num > NPROC) panic("test_proc_init\n");
   struct proc *p;
-
+  for(int i = 0; i < proc_num; i++) {
     p = allocproc();
-    initproc = p;
-
     uvminit(p->pagetable, (uchar*)printhello, sizeof(printhello));
     p->sz = PGSIZE;
-
     p->trapframe->epc = 0x0;
     p->trapframe->sp = PGSIZE;
-
-    safestrcpy(p->name, "test_code_0", sizeof(p->name));
-
+    safestrcpy(p->name, "test_code", sizeof(p->name));
     p->state = RUNNABLE;
-
     release(&p->lock);
-
-	struct proc *p1;
-
-    p1 = allocproc();
-
-    uvminit(p1->pagetable, (uchar*)printhello, sizeof(printhello));
-    p1->sz = PGSIZE;
-
-    p1->trapframe->epc = 0x0;
-    p1->trapframe->sp = PGSIZE;
-
-    safestrcpy(p1->name, "test_code_1", sizeof(p1->name));
-
-    p1->state = RUNNABLE;
-
-    release(&p1->lock);
-
-  struct proc *p2;
-
-    p2 = allocproc();
-
-    uvminit(p2->pagetable, (uchar*)printhello, sizeof(printhello));
-    p2->sz = PGSIZE;
-
-    p2->trapframe->epc = 0x0;
-    p2->trapframe->sp = PGSIZE;
-
-    safestrcpy(p2->name, "test_code_2", sizeof(p2->name));
-
-    p2->state = RUNNABLE;
-
-    release(&p2->lock);
-
+  }
+  initproc = proc;
   printf("[test_proc]test_proc init done\n");
 }
 
@@ -640,7 +604,7 @@ forkret(void)
     first = 0;
     // fsinit(ROOTDEV);
   }
-  printf("[forket]call usertrapret\n");
+  // printf("[forket]call usertrapret\n");
   usertrapret();
 }
 

@@ -43,16 +43,13 @@ main(unsigned long hartid, unsigned long dtb_pa)
     // fileinit();      // file table
     //virtio_disk_init(); // emulated hard disk
     // userinit();      // first user process
-    test_proc_init();   // test porc init
+    test_proc_init(5);   // test porc init
 
-    // test_kalloc();    // test kalloc
-    // test_vm(hartid);       // test kernel pagetable
+    test_kalloc();    // test kalloc
+    test_vm(hartid);       // test kernel pagetable
     // test_sdcard();
 
     printf("hart 0 init done\n");
-    // scheduler();
-    // while (1) {
-    // }  
     for(int i = 1; i < NCPU; i++) {
       unsigned long mask = 1 << i;
       sbi_send_ipi(&mask);
@@ -66,11 +63,11 @@ main(unsigned long hartid, unsigned long dtb_pa)
       ;
     __sync_synchronize();
     printfinit();   // init a lock for printf 
-    // printf("hart %d enter main()...\n", hartid);
+    printf("hart %d enter main()...\n", hartid);
     kvminithart();
     trapinithart();
     device_init(dtb_pa, hartid);
-    // printf("hart 1 init done\n");
+    printf("hart 1 init done\n");
   }
   scheduler();
 
