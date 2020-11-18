@@ -45,8 +45,8 @@ main(unsigned long hartid, unsigned long dtb_pa)
     // userinit();      // first user process
     test_proc_init(8);   // test porc init
 
-    test_kalloc();    // test kalloc
-    test_vm(hartid);       // test kernel pagetable
+    // test_kalloc();    // test kalloc
+    // test_vm(hartid);       // test kernel pagetable
     // test_sdcard();
     
     printf("hart 0 init done\n");

@@ -25,7 +25,10 @@ kvminit()
   memset(kernel_pagetable, 0, PGSIZE);
 
   // uart registers
-  kvmmap(UART0, UART0, PGSIZE, PTE_R | PTE_W);
+  // kvmmap(UART0, UART0, PGSIZE, PTE_R | PTE_W);
+  
+  // uarths registers
+  kvmmap(UARTHS, UARTHS, PGSIZE, PTE_R | PTE_W);
 
   // virtio mmio disk interface
   kvmmap(VIRTIO0, VIRTIO0, PGSIZE, PTE_R | PTE_W);

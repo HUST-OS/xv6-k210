@@ -151,6 +151,6 @@ syscall(void)
 
 uint64 
 sys_test_proc(void) {
-    printf("hello world from proc %d, core %d\n", myproc()->pid, r_tp());
+    printf("hello world from proc %d, hart %d\n", myproc()->pid, r_tp());
     return 0;
 }
