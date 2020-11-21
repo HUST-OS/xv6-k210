@@ -22,9 +22,10 @@ main(unsigned long hartid, unsigned long dtb_pa)
   
   if (hartid == 0) {
     printfinit();   // init a lock for printf 
-    printf("\n");
-    printf("xv6-k210 kernel is booting\n");
-    printf("\n");
+    // printf("\n");
+    // printf("xv6-k210 kernel is booting\n");
+    // printf("\n");
+    print_logo();
     printf("hart %d enter main()...\n", hartid);
     kinit();         // physical page allocator
     kvminit();       // create kernel page table

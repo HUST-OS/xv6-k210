@@ -38,6 +38,7 @@ OBJS = \
   $K/fpioa.o \
   $K/utils.o \
   $K/sdcard.o \
+  $K/logo.o \
   $K/test.o \
 
 SDK_OBJS = \

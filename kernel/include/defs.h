@@ -195,6 +195,9 @@ void            virtio_disk_init(void);
 void            virtio_disk_rw(struct buf *, int);
 void            virtio_disk_intr(void);
 
+// logo.c
+void            print_logo(void);
+
 // test.c
 void            test_kalloc(void);
 void            test_vm(unsigned long);
