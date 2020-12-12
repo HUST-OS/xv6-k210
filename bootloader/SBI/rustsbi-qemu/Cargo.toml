@@ -1,0 +1,17 @@
+[package]
+name = "rustsbi-qemu"
+version = "0.1.0"
+authors = ["hustccc <1276675421@qq.com>"]
+edition = "2018"
+publish = false
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+rustsbi = "0.0.2"
+linked_list_allocator = "0.8"
+lazy_static = { version = "1", features = ["spin_no_std"] }
+spin = "0.6"
+riscv = { git = "https://github.com/rust-embedded/riscv", features = ["inline-asm"] }
+embedded-hal = "1.0.0-alpha.1"
+nb = "1"
