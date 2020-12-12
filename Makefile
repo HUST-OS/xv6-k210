@@ -1,12 +1,21 @@
 # Compile xv6 for porting on k210
-
+platform	:= k210
 K=kernel
 U=xv6-user
 T=target
 S=kendryte_sdk
 
+entry =
+ifeq ($(platform), k210)
+entry = $K/entry_k210.o
+endif
+
+ifeq ($(platform), qemu)
+entry = $K/entry_qemu.o
+endif
+
 OBJS = \
-  $K/entry_k210.o \
+  $(entry) \
   $K/console.o \
   $K/printf.o \
   $K/uart.o \
@@ -54,7 +63,14 @@ SDK_OBJS = \
   $S/sysctl.o \
 
 QEMU = qemu-system-riscv64
-RUSTSBI = ./bootloader/SBI/sbi
+
+ifeq ($(platform), k210)
+RUSTSBI = ./bootloader/SBI/sbi-k210
+endif
+
+ifeq ($(platform), qemu)
+RUSTSBI = ./bootloader/SBI/sbi-qemu
+endif
 
 TOOLPREFIX	:= riscv64-unknown-elf-
 CC = $(TOOLPREFIX)gcc
@@ -70,55 +86,48 @@ CFLAGS += -ffreestanding -fno-common -nostdlib -mno-relax
 CFLAGS += -I.
 CFLAGS += $(shell $(CC) -fno-stack-protector -E -x c /dev/null >/dev/null 2>&1 && echo -fno-stack-protector)
 
+ifeq ($(platform), qemu)
+CFLAGS += -DQEMU
+endif
+
 LDFLAGS = -z max-page-size=4096
 
+ifeq ($(platform), k210)
 linker = ./linker/k210.ld
-# linker = ./linker/xv6.ld
+endif
 
-# LDFLAGS = -Wl,--build-id=none -nostartfiles -nostdlib -static -fno-stack-protector
-# LIBS				:= -lgcc
-# LINK				:= $(CC) $(LDFLAGS)
+ifeq ($(platform), qemu)
+linker = ./linker/qemu.ld
+endif
 
-kendryte_sdk_lib = ./libkendryte.a
-
+# Compile Kernel
 $T/kernel: $(OBJS) $(linker) $U/initcode
 	@$(LD) $(LDFLAGS) -T $(linker) -o $T/kernel $(OBJS)
 	@$(OBJDUMP) -S $T/kernel > $T/kernel.asm
 	@$(OBJDUMP) -t $T/kernel | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$$/d' > $T/kernel.sym
-	# @rm -f $K/*.o $K/*.d
   
 build: $T/kernel
 
-ifndef CPUS
-CPUS := 2
-endif
-
-QEMUOPTS = -machine virt -bios $(RUSTSBI) 
-QEMUOPTS += -kernel $T/kernel -m 128M -smp $(CPUS) -nographic
-QEMUOPTS += -device loader,file=$T/kernel,addr=0x80200000
-
-qemu: build
-	@$(QEMU) $(QEMUOPTS)
-
+# Compile RustSBI
 RUSTSBI:
-	@cd ./bootloader/SBI/rustsbi-k210 && cargo build && cp ./target/riscv64gc-unknown-none-elf/debug/rustsbi-k210 ../sbi
-	@$(OBJDUMP) -S ./bootloader/SBI/sbi > $T/rustsbi.asm
+	@cd ./bootloader/SBI/rustsbi-k210 && cargo build && cp ./target/riscv64gc-unknown-none-elf/debug/rustsbi-k210 ../sbi-k210
+	@$(OBJDUMP) -S ./bootloader/SBI/sbi-k210 > $T/rustsbi-k210.asm
+	@cd ./bootloader/SBI/rustsbi-qemu && cargo build && cp ./target/riscv64gc-unknown-none-elf/debug/rustsbi-qemu ../sbi-qemu
+	@$(OBJDUMP) -S ./bootloader/SBI/sbi-qemu > $T/rustsbi-qemu.asm
 	
 rustsbi-clean:
 	@cd ./bootloader/SBI/rustsbi-k210 && cargo clean
+	@cd ./bootloader/SBI/rustsbi-qemu && cargo clean
 
 image = $T/kernel.bin
 k210 = $T/k210.bin
 k210-serialport := /dev/ttyUSB0
 
+# Compile K210 image
 k210: build
 	@riscv64-unknown-elf-objcopy $T/kernel --strip-all -O binary $(image)
 	@riscv64-unknown-elf-objcopy $(RUSTSBI) --strip-all -O binary $(k210)
-	# @riscv64-unknown-elf-objcopy $T/kernel -O binary $(image)
-	# @riscv64-unknown-elf-objcopy $(RUSTSBI) -O binary $(k210)
-	# @cp $(RUSTSBI) $(k210)
 	@dd if=$(image) of=$(k210) bs=128k seek=1
-	# @dd if=sdcard.bin of=$(k210) bs=128k seek=3
 	@$(OBJDUMP) -D -b binary -m riscv $(k210) > $T/k210.asm
 
 run-k210: k210
@@ -183,6 +192,7 @@ UPROGS=\
 
 UEXTRA = $U/xargstest.sh
 
+# Make fs image
 fs.img: mkfs/mkfs README $(UEXTRA) $(UPROGS)
 	@mkfs/mkfs fs.img README $(UEXTRA) $(UPROGS)
 
@@ -190,12 +200,11 @@ fs.img: mkfs/mkfs README $(UEXTRA) $(UPROGS)
 
 SDCARD		?= /dev/sdb
 
+# Write sdcard
 sdcard: fs.img
 	@echo "flashing into sd card..."
 	@sudo dd if=/dev/zero of=$(SDCARD) bs=1M count=50
 	@sudo dd if=fs.img of=$(SDCARD)
-
-
 
 clean: 
 	rm -f *.tex *.dvi *.idx *.aux *.log *.ind *.ilg \

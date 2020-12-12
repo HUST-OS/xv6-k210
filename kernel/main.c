@@ -16,7 +16,7 @@ static inline void inithartid(unsigned long hartid) {
 volatile static int started = 0;
 // start() jumps here in supervisor mode on all CPUs.
 void
-main(unsigned long hartid, unsigned long dtb_pa)
+main_k210(unsigned long hartid, unsigned long dtb_pa)
 {
   inithartid(hartid);
   
