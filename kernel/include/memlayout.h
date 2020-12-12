@@ -30,6 +30,7 @@
 //             -kernel loads the kernel here
 // unused RAM after 80000000.
 
+
 #ifdef QEMU
 // qemu puts UART registers here in physical memory.
 #define UART0 0x10000000L

@@ -30,12 +30,11 @@ kvminit()
   #else
   kvmmap(UARTHS, UARTHS, PGSIZE, PTE_R | PTE_W);
   #endif
-
-  // virtio mmio disk interface
+  
   #ifdef QEMU
+  // virtio mmio disk interface
   kvmmap(VIRTIO0, VIRTIO0, PGSIZE, PTE_R | PTE_W);
   #endif
-
   // CLINT
   kvmmap(CLINT, CLINT, 0x1000, PTE_R | PTE_W);
 

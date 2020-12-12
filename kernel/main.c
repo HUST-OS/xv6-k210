@@ -27,7 +27,15 @@ main(unsigned long hartid, unsigned long dtb_pa)
     kinit();         // physical page allocator
     kvminit();       // create kernel page table
     kvminithart();   // turn on paging
-    
+    trapinit();      // trap vectors
+    trapinithart();  // install kernel trap vector
+    timerinit();     // set up timer interrupt handler
+    procinit();
+    // device_init(dtb_pa, hartid);
+    test_proc_init(8);   // test porc init
+    test_kalloc();    // test kalloc
+    test_vm(hartid);       // test kernel pagetable
+
     for(int i = 1; i < NCPU; i++) {
       unsigned long mask = 1 << i;
       sbi_send_ipi(&mask);
@@ -37,10 +45,12 @@ main(unsigned long hartid, unsigned long dtb_pa)
   } else {
     while (started == 0)
       ;
-    __sync_synchronize();
     printf("hart %d enter main()...\n", hartid);
+    kvminithart();
+    trapinithart();
+    __sync_synchronize();
   }
-  while(1) {}
+  scheduler();
 }
 
 #else
@@ -68,7 +78,6 @@ main(unsigned long hartid, unsigned long dtb_pa)
     // binit();         // buffer cache
     // iinit();         // inode cache
     // fileinit();      // file table
-    //virtio_disk_init(); // emulated hard disk
     // userinit();      // first user process
     test_proc_init(8);   // test porc init
 

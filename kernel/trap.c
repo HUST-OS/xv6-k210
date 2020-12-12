@@ -161,14 +161,9 @@ kerneltrap()
   // printf("which_dev: %d\n", which_dev);
   
   // give up the CPU if this is a timer interrupt.
-  /* if(which_dev == 2 && myproc() != 0 && myproc()->state == RUNNING) {
-    supervisor_timer();
-    yield();
-  } */
   if(which_dev == 2) {
     timer_tick();
     if(myproc() != 0 && myproc()->state == RUNNING) {
-      // printf("[kerneltrap]switch proc\n");
       yield();
     }
   }
@@ -202,8 +197,8 @@ devintr()
     // this is a supervisor external interrupt, via PLIC.
 
     // irq indicates which device interrupted.
-    int irq = plic_claim();
     #ifdef QEMU
+    int irq = plic_claim();
     if(irq == UART0_IRQ){
       uartintr();
     } else if(irq == VIRTIO0_IRQ){
@@ -211,15 +206,17 @@ devintr()
     } else if(irq){
       printf("unexpected interrupt irq=%d\n", irq);
     }
-    #endif
     // the PLIC allows each device to raise at most one
     // interrupt at a time; tell the PLIC the device is
     // now allowed to interrupt again.
     if(irq)
       plic_complete(irq);
+    #endif
 
     return 1;
-  } else if(scause == 0x8000000000000005L){
+  } 
+  else if(scause == 0x8000000000000005L)
+  {
     // software interrupt from a supervisor-mode timer interrupt,
 
     if(cpuid() == 0){
@@ -236,6 +233,7 @@ devintr()
     return 0;
   }
 }
+
 #ifndef QEMU
 void
 supervisor_external_handler() {
@@ -273,8 +271,8 @@ void device_init(unsigned long pa, uint64 hartid) {
   sbi_set_extern_interrupt((uint64)supervisor_external_handler);
   #else
   *((uint32*)0x0c002080) = (1 << 10);
-  *((uint8*)0x10000004) = 0x0;
-  *((uint8*)0x10000001) = 0x1;
+  *((uint8*)0x10000004) = 0x0b;
+  *((uint8*)0x10000001) = 0x01;
   *((uint32*)0x0c000028) = 0x7;
   *((uint32*)0x0c201000) = 0x0;
   #endif

@@ -1,4 +1,3 @@
-# Compile xv6 for porting on k210
 platform	:= k210
 K=kernel
 U=xv6-user
@@ -9,9 +8,7 @@ OBJS =
 ifeq ($(platform), k210)
 OBJS += \
   $K/entry_k210.o \
-  $K/console.o \
   $K/printf.o \
-  $K/uart.o \
   $K/kalloc.o \
   $K/spinlock.o \
   $K/string.o \
@@ -32,8 +29,6 @@ OBJS += \
   $K/exec.o \
   $K/sysfile.o \
   $K/kernelvec.o \
-  $K/plic.o \
-  $K/virtio_disk.o \
   $K/timer.o \
   $K/spi.o \
   $K/gpiohs.o \
@@ -74,7 +69,6 @@ OBJS += \
   $K/plic.o \
   $K/virtio_disk.o \
   $K/timer.o \
-  $K/utils.o \
   $K/logo.o \
   $K/test.o \
 
@@ -139,25 +133,23 @@ image = $T/kernel.bin
 k210 = $T/k210.bin
 k210-serialport := /dev/ttyUSB0
 
-# Compile K210 image
-k210: build
-	@riscv64-unknown-elf-objcopy $T/kernel --strip-all -O binary $(image)
-	@riscv64-unknown-elf-objcopy $(RUSTSBI) --strip-all -O binary $(k210)
-	@dd if=$(image) of=$(k210) bs=128k seek=1
-	@$(OBJDUMP) -D -b binary -m riscv $(k210) > $T/k210.asm
-
-run-k210: k210
-	@sudo chmod 777 $(k210-serialport)
-	python3 ./tools/kflash.py -p $(k210-serialport) -b 1500000 -t $(k210)
-
 ifndef CPUS
 CPUS := 2
 endif
 
 QEMUOPTS = -machine virt -bios $(RUSTSBI) -kernel $T/kernel -m 128M -smp $(CPUS) -nographic
 
-run-qemu: build
+run: build
+ifeq ($(platform), k210)
+	@riscv64-unknown-elf-objcopy $T/kernel --strip-all -O binary $(image)
+	@riscv64-unknown-elf-objcopy $(RUSTSBI) --strip-all -O binary $(k210)
+	@dd if=$(image) of=$(k210) bs=128k seek=1
+	@$(OBJDUMP) -D -b binary -m riscv $(k210) > $T/k210.asm
+	@sudo chmod 777 $(k210-serialport)
+	@python3 ./tools/kflash.py -p $(k210-serialport) -b 1500000 -t $(k210)
+else
 	@$(QEMU) $(QEMUOPTS)
+endif
 
 $U/initcode: $U/initcode.S
 	$(CC) $(CFLAGS) -march=rv64g -nostdinc -I. -Ikernel -c $U/initcode.S -o $U/initcode.o
