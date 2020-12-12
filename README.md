@@ -15,7 +15,7 @@ Run xv6-riscv on k210 board
 ![run-k210](./img/xv6_k210_run_proc.png)  
 
 ## Dependencies
-+ k210 board
++ `k210 board` or `qemu-system-riscv64`
 + RISC-V Toolchain:[riscv-gnu-toolchain](https://github.com/riscv/riscv-gnu-toolchain.git)
 
 ## Installation
@@ -25,7 +25,7 @@ git clone https://github.com/SKTT1Ryze/xv6-k210
 
 ## Build
 First you need to connect your k210 board to your PC.  
-And check the USB port:  
+And check the `USB serial port`:  
 ```bash
 ls /dev/ | grep USB
 ```
@@ -37,12 +37,24 @@ mkdir target
 make build
 ```
 
-## Run
+## Run on k210 board
 ```bash
-make run-k210 k210-serialport=`Your-USB-port`(default by ttyUSB0)
+make run
+```
+
+Sometimes you should change the `USB serial port`:  
+```bash
+make run k210-serialport=`Your-USB-port`(default by ttyUSB0)
 ```
 Ps: Most of the k210-port in Linux is ttyUSB0, if you use Windows or Mac OS, this doc 
 may help you: [maixpy-doc](https://maixpy.sipeed.com/zh/get_started/env_install_driver.html#)  
+
+## Run on qemu-system-riscv64
+First make sure you have the `qemu-system-riscv64` on your system.  
+Then run the command:  
+```bash
+make run platform=qemu
+```
 
 ## Progress
 - [x] Multicore boot
