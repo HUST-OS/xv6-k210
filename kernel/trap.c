@@ -203,7 +203,7 @@ devintr()
 
     // irq indicates which device interrupted.
     int irq = plic_claim();
-
+    #ifdef QEMU
     if(irq == UART0_IRQ){
       uartintr();
     } else if(irq == VIRTIO0_IRQ){
@@ -211,7 +211,7 @@ devintr()
     } else if(irq){
       printf("unexpected interrupt irq=%d\n", irq);
     }
-
+    #endif
     // the PLIC allows each device to raise at most one
     // interrupt at a time; tell the PLIC the device is
     // now allowed to interrupt again.
@@ -236,7 +236,7 @@ devintr()
     return 0;
   }
 }
-
+#ifndef QEMU
 void
 supervisor_external_handler() {
   int irq = *(uint32*)(PLIC + 0x04);
@@ -248,8 +248,10 @@ supervisor_external_handler() {
     while (1);
   }
 }
+#endif
 
 void device_init(unsigned long pa, uint64 hartid) {
+  #ifndef QEMU
   // after RustSBI, txen = rxen = 1, rxie = 1, rxcnt = 0
   // start UART interrupt configuration
   // disable external interrupt on hart1 by setting threshold
@@ -269,5 +271,12 @@ void device_init(unsigned long pa, uint64 hartid) {
   *(hart0_m_int_enable_hi) = (1 << 0x1);
   // *(uint32*)0x0c002004 = (1 << 0x1);
   sbi_set_extern_interrupt((uint64)supervisor_external_handler);
+  #else
+  *((uint32*)0x0c002080) = (1 << 10);
+  *((uint8*)0x10000004) = 0x0;
+  *((uint8*)0x10000001) = 0x1;
+  *((uint32*)0x0c000028) = 0x7;
+  *((uint32*)0x0c201000) = 0x0;
+  #endif
   printf("device init\n");
 }

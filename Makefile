@@ -3,19 +3,12 @@ platform	:= k210
 K=kernel
 U=xv6-user
 T=target
-S=kendryte_sdk
 
-entry =
+OBJS =
+
 ifeq ($(platform), k210)
-entry = $K/entry_k210.o
-endif
-
-ifeq ($(platform), qemu)
-entry = $K/entry_qemu.o
-endif
-
-OBJS = \
-  $(entry) \
+OBJS += \
+  $K/entry_k210.o \
   $K/console.o \
   $K/printf.o \
   $K/uart.o \
@@ -50,25 +43,48 @@ OBJS = \
   $K/logo.o \
   $K/test.o \
 
-SDK_OBJS = \
-  $S/clint.o \
-  $S/dmac.o \
-  $S/fpioa.o \
-  $S/gpio.o \
-  $S/gpiohs.o \
-  $S/pwm.o \
-  $S/sdcard.o \
-  $S/sha256.o \
-  $S/spi.o \
-  $S/sysctl.o \
+endif
+
+ifeq ($(platform), qemu)
+OBJS += \
+  $K/entry_qemu.o \
+  $K/console.o \
+  $K/printf.o \
+  $K/uart.o \
+  $K/kalloc.o \
+  $K/spinlock.o \
+  $K/string.o \
+  $K/main.o \
+  $K/vm.o \
+  $K/proc.o \
+  $K/swtch.o \
+  $K/trampoline.o \
+  $K/trap.o \
+  $K/syscall.o \
+  $K/sysproc.o \
+  $K/bio.o \
+  $K/fs.o \
+  $K/log.o \
+  $K/sleeplock.o \
+  $K/file.o \
+  $K/pipe.o \
+  $K/exec.o \
+  $K/sysfile.o \
+  $K/kernelvec.o \
+  $K/plic.o \
+  $K/virtio_disk.o \
+  $K/timer.o \
+  $K/utils.o \
+  $K/logo.o \
+  $K/test.o \
+
+endif
 
 QEMU = qemu-system-riscv64
 
 ifeq ($(platform), k210)
 RUSTSBI = ./bootloader/SBI/sbi-k210
-endif
-
-ifeq ($(platform), qemu)
+else
 RUSTSBI = ./bootloader/SBI/sbi-qemu
 endif
 
@@ -134,6 +150,14 @@ run-k210: k210
 	@sudo chmod 777 $(k210-serialport)
 	python3 ./tools/kflash.py -p $(k210-serialport) -b 1500000 -t $(k210)
 
+ifndef CPUS
+CPUS := 2
+endif
+
+QEMUOPTS = -machine virt -bios $(RUSTSBI) -kernel $T/kernel -m 128M -smp $(CPUS) -nographic
+
+run-qemu: build
+	@$(QEMU) $(QEMUOPTS)
 
 $U/initcode: $U/initcode.S
 	$(CC) $(CFLAGS) -march=rv64g -nostdinc -I. -Ikernel -c $U/initcode.S -o $U/initcode.o

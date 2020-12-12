@@ -155,7 +155,9 @@ void            trapinit(void);
 void            trapinithart(void);
 extern struct spinlock tickslock;
 void            usertrapret(void);
+#ifndef QEMU
 void            supervisor_external_handler(void);
+#endif
 void            device_init(unsigned long, uint64);
 
 // uart.c

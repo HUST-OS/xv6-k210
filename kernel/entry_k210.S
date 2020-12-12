@@ -14,7 +14,7 @@ _start:
     // lui t0, %hi(main)
     // addi t0, t0, %lo(main)
     // jr t0
-    call main_k210
+    call main
 
 loop:
     j loop

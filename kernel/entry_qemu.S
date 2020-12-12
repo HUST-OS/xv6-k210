@@ -5,7 +5,7 @@ _entry:
     slli t0, t0, 14
     la sp, boot_stack
     add sp, sp, t0
-    call main_qemu
+    call main
 
 loop:
     j loop

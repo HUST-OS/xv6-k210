@@ -100,7 +100,9 @@ bread(uint dev, uint blockno)
 
   b = bget(dev, blockno);
   if(!b->valid) {
-    // virtio_disk_rw(b, 0);
+    #ifdef QEMU
+    virtio_disk_rw(b, 0);
+    #else
     memset(b->data, 0, sizeof(b->data));
     uint64 sector = b->blockno * (BSIZE / 512);
     if(sd_read_sector(b->data, sector, BSIZE / 512)) {
@@ -108,6 +110,7 @@ bread(uint dev, uint blockno)
     } else {
       printf("[bread]read data: %s\n", b->data);
     }
+    #endif
     b->valid = 1;
   }
   return b;
@@ -119,11 +122,14 @@ bwrite(struct buf *b)
 {
   if(!holdingsleep(&b->lock))
     panic("bwrite");
-  // virtio_disk_rw(b, 1);
+  #ifdef QEMU
+  virtio_disk_rw(b, 1);
+  #else
   uint64 sector = b->blockno * (BSIZE / 512);
   if(sd_write_sector(b->data, sector, sizeof(b->data))) {
     panic("[bio.c]bwrite err\n");
   }
+  #endif
 }
 
 // Release a locked buffer.

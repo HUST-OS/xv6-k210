@@ -1,5 +1,6 @@
 // Copyright (c) 2006-2019 Frans Kaashoek, Robert Morris, Russ Cox,
 //                         Massachusetts Institute of Technology
+
 #include "include/types.h"
 #include "include/param.h"
 #include "include/memlayout.h"
@@ -14,17 +15,42 @@ static inline void inithartid(unsigned long hartid) {
 }
 
 volatile static int started = 0;
-// start() jumps here in supervisor mode on all CPUs.
+#ifdef QEMU
 void
-main_k210(unsigned long hartid, unsigned long dtb_pa)
+main(unsigned long hartid, unsigned long dtb_pa)
+{
+  inithartid(hartid);
+  if (hartid == 0) {
+    printfinit();   // init a lock for printf 
+    print_logo();
+    printf("hart %d enter main()...\n", hartid);
+    kinit();         // physical page allocator
+    kvminit();       // create kernel page table
+    kvminithart();   // turn on paging
+    
+    for(int i = 1; i < NCPU; i++) {
+      unsigned long mask = 1 << i;
+      sbi_send_ipi(&mask);
+    }
+    __sync_synchronize();
+    started = 1;
+  } else {
+    while (started == 0)
+      ;
+    __sync_synchronize();
+    printf("hart %d enter main()...\n", hartid);
+  }
+  while(1) {}
+}
+
+#else
+void
+main(unsigned long hartid, unsigned long dtb_pa)
 {
   inithartid(hartid);
   
   if (hartid == 0) {
     printfinit();   // init a lock for printf 
-    // printf("\n");
-    // printf("xv6-k210 kernel is booting\n");
-    // printf("\n");
     print_logo();
     printf("hart %d enter main()...\n", hartid);
     kinit();         // physical page allocator
@@ -71,5 +97,5 @@ main_k210(unsigned long hartid, unsigned long dtb_pa)
     printf("hart 1 init done\n");
   }
   scheduler();
-
 }
+#endif

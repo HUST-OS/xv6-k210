@@ -25,13 +25,16 @@ kvminit()
   memset(kernel_pagetable, 0, PGSIZE);
 
   // uart registers
-  // kvmmap(UART0, UART0, PGSIZE, PTE_R | PTE_W);
-  
-  // uarths registers
+  #ifdef QEMU
+  kvmmap(UART0, UART0, PGSIZE, PTE_R | PTE_W);
+  #else
   kvmmap(UARTHS, UARTHS, PGSIZE, PTE_R | PTE_W);
+  #endif
 
   // virtio mmio disk interface
-  // kvmmap(VIRTIO0, VIRTIO0, PGSIZE, PTE_R | PTE_W);
+  #ifdef QEMU
+  kvmmap(VIRTIO0, VIRTIO0, PGSIZE, PTE_R | PTE_W);
+  #endif
 
   // CLINT
   kvmmap(CLINT, CLINT, 0x1000, PTE_R | PTE_W);
@@ -39,6 +42,7 @@ kvminit()
   // PLIC
   kvmmap(PLIC, PLIC, 0x4000, PTE_R | PTE_W);
 
+  #ifndef QEMU
   // GPIOHS
   kvmmap(GPIOHS, GPIOHS, 0x1000, PTE_R | PTE_W);
 
@@ -59,7 +63,8 @@ kvminit()
 
   // SPI2
   kvmmap(SPI2, SPI2, 0x1000, PTE_R | PTE_W);
-
+  #endif
+  
   // map rustsbi
   kvmmap(RUSTSBI_BASE, RUSTSBI_BASE, KERNBASE - RUSTSBI_BASE, PTE_R | PTE_X);
   // map kernel text executable and read-only.

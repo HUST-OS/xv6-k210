@@ -32,11 +32,13 @@ void timer_tick() {
     tick++;
     if((tick % 10) == 0) {
         printf("[Timer]tick: %d\n", tick);
+        #ifndef QEMU
         uint32 c = *(uint32*)(UARTHS + UARTHS_REG_RXFIFO);
         if(c <= 255) {
             printf("[UARTHS]receive: %p, ", c);
             sbi_console_putchar(c);
             printf("\n");
         }
+        #endif
     }
 }
