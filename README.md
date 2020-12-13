@@ -33,7 +33,6 @@ In my situation it will be `ttyUSB0`
 
 ```bash
 cd xv6-k210
-mkdir target
 make build
 ```
 
