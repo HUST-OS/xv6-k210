@@ -4,10 +4,13 @@ U=xv6-user
 T=target
 
 OBJS =
-
 ifeq ($(platform), k210)
+OBJS += $K/entry_k210.o
+else
+OBJS += $K/entry_qemu.o
+endif
+
 OBJS += \
-  $K/entry_k210.o \
   $K/printf.o \
   $K/kalloc.o \
   $K/spinlock.o \
@@ -30,47 +33,20 @@ OBJS += \
   $K/sysfile.o \
   $K/kernelvec.o \
   $K/timer.o \
+  $K/logo.o \
+  $K/test.o \
+
+ifeq ($(platform), k210)
+OBJS += \
   $K/spi.o \
   $K/gpiohs.o \
   $K/fpioa.o \
   $K/utils.o \
   $K/sdcard.o \
-  $K/logo.o \
-  $K/test.o \
 
-endif
-
-ifeq ($(platform), qemu)
+else
 OBJS += \
-  $K/entry_qemu.o \
-  $K/console.o \
-  $K/printf.o \
-  $K/uart.o \
-  $K/kalloc.o \
-  $K/spinlock.o \
-  $K/string.o \
-  $K/main.o \
-  $K/vm.o \
-  $K/proc.o \
-  $K/swtch.o \
-  $K/trampoline.o \
-  $K/trap.o \
-  $K/syscall.o \
-  $K/sysproc.o \
-  $K/bio.o \
-  $K/fs.o \
-  $K/log.o \
-  $K/sleeplock.o \
-  $K/file.o \
-  $K/pipe.o \
-  $K/exec.o \
-  $K/sysfile.o \
-  $K/kernelvec.o \
-  $K/plic.o \
   $K/virtio_disk.o \
-  $K/timer.o \
-  $K/logo.o \
-  $K/test.o \
 
 endif
 

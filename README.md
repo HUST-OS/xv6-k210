@@ -16,7 +16,7 @@ Run xv6-riscv on k210 board
 
 ## Dependencies
 + `k210 board` or `qemu-system-riscv64`
-+ RISC-V Toolchain:[riscv-gnu-toolchain](https://github.com/riscv/riscv-gnu-toolchain.git)
++ RISC-V Toolchain: [riscv-gnu-toolchain](https://github.com/riscv/riscv-gnu-toolchain.git)
 
 ## Installation
 ```bash

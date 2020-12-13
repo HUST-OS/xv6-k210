@@ -15,45 +15,7 @@ static inline void inithartid(unsigned long hartid) {
 }
 
 volatile static int started = 0;
-#ifdef QEMU
-void
-main(unsigned long hartid, unsigned long dtb_pa)
-{
-  inithartid(hartid);
-  if (hartid == 0) {
-    printfinit();   // init a lock for printf 
-    print_logo();
-    printf("hart %d enter main()...\n", hartid);
-    kinit();         // physical page allocator
-    kvminit();       // create kernel page table
-    kvminithart();   // turn on paging
-    trapinit();      // trap vectors
-    trapinithart();  // install kernel trap vector
-    timerinit();     // set up timer interrupt handler
-    procinit();
-    // device_init(dtb_pa, hartid);
-    test_proc_init(8);   // test porc init
-    test_kalloc();    // test kalloc
-    test_vm(hartid);       // test kernel pagetable
 
-    for(int i = 1; i < NCPU; i++) {
-      unsigned long mask = 1 << i;
-      sbi_send_ipi(&mask);
-    }
-    __sync_synchronize();
-    started = 1;
-  } else {
-    while (started == 0)
-      ;
-    printf("hart %d enter main()...\n", hartid);
-    kvminithart();
-    trapinithart();
-    __sync_synchronize();
-  }
-  scheduler();
-}
-
-#else
 void
 main(unsigned long hartid, unsigned long dtb_pa)
 {
@@ -70,9 +32,11 @@ main(unsigned long hartid, unsigned long dtb_pa)
     trapinithart();  // install kernel trap vector
     timerinit();     // set up timer interrupt handler
     procinit();
+    #ifndef QEMU
     device_init(dtb_pa, hartid);
     fpioa_pin_init();
     sdcard_init();
+    #endif
     //plicinit();      // set up interrupt controller
     //plicinithart();  // ask PLIC for device interrupts
     // binit();         // buffer cache
@@ -83,8 +47,10 @@ main(unsigned long hartid, unsigned long dtb_pa)
 
     test_kalloc();    // test kalloc
     test_vm(hartid);       // test kernel pagetable
+    #ifndef QEMU
     test_sdcard();
-    
+    #endif
+
     printf("hart 0 init done\n");
     for(int i = 1; i < NCPU; i++) {
       unsigned long mask = 1 << i;
@@ -102,9 +68,10 @@ main(unsigned long hartid, unsigned long dtb_pa)
     printf("hart %d enter main()...\n", hartid);
     kvminithart();
     trapinithart();
+    #ifndef QEMU
     device_init(dtb_pa, hartid);
+    #endif
     printf("hart 1 init done\n");
   }
   scheduler();
 }
-#endif
