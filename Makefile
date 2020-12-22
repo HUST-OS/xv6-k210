@@ -118,8 +118,8 @@ QEMUOPTS = -machine virt -bios $(RUSTSBI) -kernel $T/kernel -m 128M -smp $(CPUS)
 
 run: build
 ifeq ($(platform), k210)
-	@riscv64-unknown-elf-objcopy $T/kernel --strip-all -O binary $(image)
-	@riscv64-unknown-elf-objcopy $(RUSTSBI) --strip-all -O binary $(k210)
+	@$(OBJCOPY) $T/kernel --strip-all -O binary $(image)
+	@$(OBJCOPY) $(RUSTSBI) --strip-all -O binary $(k210)
 	@dd if=$(image) of=$(k210) bs=128k seek=1
 	@$(OBJDUMP) -D -b binary -m riscv $(k210) > $T/k210.asm
 	@sudo chmod 777 $(k210-serialport)
