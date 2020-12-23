@@ -12,7 +12,7 @@ Run xv6-riscv on k210 board
 `--'   '--'    `-'     `----'            `--' '--' `------'  `--'   `---''   
 ```
 
-![run-k210](./img/xv6_k210_run_proc.png)  
+![run-k210](./img/xv6-k210_on_k210.gif)  
 
 ## Dependencies
 + `k210 board` or `qemu-system-riscv64`
