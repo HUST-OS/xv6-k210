@@ -213,9 +213,9 @@ fn main() -> ! {
         }
         boot.clear_interrupt_pending_bits();
     }
-    
+
     unsafe {
-        mideleg::set_sext();
+        //mideleg::set_sext();
         mideleg::set_stimer();
         mideleg::set_ssoft();
         medeleg::set_instruction_misaligned();
@@ -233,7 +233,7 @@ fn main() -> ! {
         medeleg::set_instruction_fault();
         medeleg::set_load_fault();
         medeleg::set_store_fault();
-        mie::set_mext();
+        // 默认不打开mie::set_mext
         // 不打开mie::set_mtimer
         mie::set_msoft();
     }
@@ -370,12 +370,14 @@ extern "C" fn start_trap_rust(trap_frame: &mut TrapFrame) {
     let cause = mcause::read().cause();
     match cause {
         Trap::Exception(Exception::SupervisorEnvCall) => {
-            if trap_frame.a7 == 0x0A000004 && trap_frame.a6 == 0x210 { 
+            if trap_frame.a7 == 0x0A000004 && trap_frame.a6 == 0x210 {
                 // We use implementation specific sbi_rustsbi_k210_sext function (extension 
                 // id: 0x0A000004, function id: 0x210) to register S-level interrupt handler
                 // for K210 chip only. This chip uses 1.9.1 version of privileged spec,
                 // which did not declare any S-level external interrupts. 
                 unsafe { DEVINTRENTRY = trap_frame.a0; }
+                // enable mext
+                unsafe { mie::set_mext(); }
                 // return values
                 trap_frame.a0 = 0; // SbiRet::error = SBI_SUCCESS
                 trap_frame.a1 = 0; // SbiRet::value = 0
@@ -390,7 +392,9 @@ extern "C" fn start_trap_rust(trap_frame: &mut TrapFrame) {
                     unsafe {
                         let mtip = mip::read().mtimer();
                         if mtip {
-                            mie::set_mext();
+                            if DEVINTRENTRY != 0 {
+                                mie::set_mext();
+                            }
                         }
                     }
                 }
@@ -481,7 +485,6 @@ extern "C" fn start_trap_rust(trap_frame: &mut TrapFrame) {
                 // discard rs2 // let _rs2_asid = ((ins >> 20) & 0b1_1111) as u8;
                 // let rs1_vaddr = ((ins >> 15) & 0b1_1111) as u8;
                 // read paging mode from satp (sptbr)
-                // println!("[rustsbi]invalid instruction sfence.vma");
                 let satp_bits = satp::read().bits();
                 // bit 63..20 is not readable and writeable on K210, so we cannot
                 // decide paging type from the 'satp' register.
@@ -491,7 +494,6 @@ extern "C" fn start_trap_rust(trap_frame: &mut TrapFrame) {
                 // write to sptbr
                 let sptbr_bits = ppn & 0x3F_FFFF_FFFF;
                 unsafe { llvm_asm!("csrw 0x180, $0"::"r"(sptbr_bits)) }; // write to sptbr
-                // println!("[rustsbi]write {:016x?} to sptbr", sptbr_bits);
                 // enable paging (in v1.9.1, mstatus: | 28..24 VM[4:0] WARL | ... )
                 let mut mstatus_bits: usize; 
                 unsafe { llvm_asm!("csrr $0, mstatus":"=r"(mstatus_bits)) };
@@ -502,7 +504,6 @@ extern "C" fn start_trap_rust(trap_frame: &mut TrapFrame) {
                 unsafe { llvm_asm!(".word 0x10400073") }; // sfence.vm x0
                 // ::"r"(rs1_vaddr)
                 mepc::write(mepc::read().wrapping_add(4)); // skip current instruction
-                // println!("[rustsbi]handle sfence.vma done, return to va: {:016x?}", mepc::read());
             } else {
                 panic!("invalid instruction! mepc: {:016x?}, instruction: {:08x?}", mepc::read(), ins);
             }
