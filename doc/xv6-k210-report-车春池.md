@@ -43,17 +43,54 @@ marp: true
 ![run](../img/xv6-k210_on_k210.gif)  
 
 ---
-## **运行流程**
-+ 需要`RISC-V` 编译链，用它来编译二进制内核镜像，可以是 `riscv64-unknown-elf` 或者 `riscv64-linux-gnu`
-+ 需要搭载 `k210` 芯片的开发板： `Maixpy` 系列，淘宝有售
-+ SD 卡：可选，如果不跑文件系统的话
-+ 在 `github` 上获得项目源码： `git clone https://github.com/SKTT1Ryze/xv6-k210`
-+ 用读卡器把 SD 卡连接到电脑
-+ 进入到 `xv6-k210` 目录下运行命令 `make sdcard`，然后 `Makefile` 会打包一个文件系统镜像写入到 SD 卡
-+ 将 SD 卡插到 `k210` 板子上，并用 type-C 线连接 `k210` 板子到电脑上
-+ 在 `xv6-k210` 目录下运行命令 `make run`
-+ 查看 `USB` 端口： `ls /dev/ | grep USB`
+## **为什么选择 xv6**
++ 一开始想要移植 `riscv-pk` 在 k210 上跑，但研究一下其代码之后发现不可行
++ 寻找开源 OS，最好是 RISC-V 指令集，简单，并且已经能在 qemu 或者真实板子上运行的
++ 考虑过 seL4,RT-Thread 还有其他的一些开源项目
++ 最终选择 xv6-riscv，其简单，RISC-V 指令集并且已经在 qemu 上稳定运行
 
+---
+## **调研**
++ `MIT` 开源协议
++ `xv6` 复杂程度
++ 架构设计：RISC-V SBI 标准
+![riscv_software_stack](../img/riscv_software_stack.png)
+
++ 虚拟环境 vs 真实硬件环境
++ 虚拟硬盘 vs SD 卡
+
+---
+## **项目搭建**
++ `MIT` 开源协议
++ 2020-10-18
++ RISC-V 官方编译链：https://github.com/riscv/riscv-gnu-toolchain
++ 目录结构
+```
+xv6-k210
+├── bootloader  # bootloader 的实现
+├── doc # 文档
+├── kernel  # 内核源码
+├── linker  # 链接脚本
+├── xv6-user # xv6 用户程序
+├── mkfs    # 制作文件系统镜像的 .c 文件
+├── tools   # 一些工具
+├── target  # 目标文件
+├── README.md
+└── LICENSE # MIT LICENSE
+```
+
+---
+## **移植工作一览**
++ 多核启动
++ 内存分配
++ 虚拟内存管理
++ 中断处理
++ S 态外部中断
++ 用户多进程
++ SD 卡驱动
++ 文件系统
++ 软硬件协同调试
++ 中文文档
 
 ---
 ## **K210**
@@ -64,6 +101,7 @@ marp: true
 + PLIC 支持高级中断管理
 + CLINT 支持 CPU 内置定时器中断与跨核心中断
 + 8M 的片上 SRAM
++ **S 态实现有问题**
 
 ---
 ## **K210 SRAM**
@@ -98,19 +136,6 @@ marp: true
 | 5                 | Diosix                    |
 
 ---
-## **移植工作一览**
-+ 多核启动
-+ 内存分配
-+ 虚拟内存管理
-+ 中断处理
-+ S 态外部中断
-+ 用户多进程
-+ SD 卡驱动
-+ 文件系统
-+ 软硬件协同调试
-+ 中文文档
-
----
 ## **多核启动**
 + 内核镜像和 RustSBI 镜像并在一起使用 py 脚本烧到 k210 的 SRAM 中
 + k210 起电运行 RustSBI，然后跳转到内核入口点
@@ -119,13 +144,6 @@ marp: true
 ---
 ## **多核启动**
 ![boot](../img/boot.jpg)  
-
----
-## **内存分配**
-+ `kalloc.c`
-+ 可分配的内存空间范围：`kernel_end` ~ `PHYSTOP`
-+ 内核维护一个链表：空闲链表
-+ 每次分配 4096 字节空间
 
 ---
 ## **虚拟内存管理**
@@ -153,13 +171,6 @@ marp: true
 ## **虚拟内存管理**
 <!-- <img src="../img/mem_map.jpg">   -->
 ![mem_map](../img/mem_map.jpg)
-
----
-## **中断处理**
-+ 将 `kernelvec` 地址写入到 `stvec`
-+ `kernelvec` 函数在 `kernelvec.S` 汇编文件里面，保存上下文，进入 `kerneltrap`，恢复上下文，返回 
-+ 设置 `sie` 开启外部中断，时钟中断和软件中断
-+ 
 
 ---
 ## **时钟中断**
@@ -209,19 +220,6 @@ match cause {
 + 将这个函数指针作为参数调用 `RustSBI` 提供的接口
 + 外部中断将会在 `supervisor_external_handler` 中处理
 
-
----
-## **用户多进程**
-+ `proc.c` & `trap.c` & `trampoline.S` & `swtch.S`
-+ 内核维护一个进程队列，队列在 procinit() 函数中初始化
-+ 每个进程拥有独立的页表和独立的用户态空间
-+ 在 scheduler() 进行进程调度
-+ 通过 swtch(struct context*, struct context*) 进行上下文切换
-+ 每次时钟中断内核会进行一次进程切换
-+ 双核跑多进程
-+ 目前的用户进程是写死在内核里面的
-+ 移植文档: https://github.com/SKTT1Ryze/xv6-k210/wiki/Process-Management
-
 ---
 ## **用户多进程**
 ![proc](../img/proc.jpg)  
@@ -232,7 +230,6 @@ match cause {
 + 官方 SDK demo 实现了读取 sd 卡的例程
 + 暴力出奇迹，移植官方 SDK 到内核中
 + 问题：官方 SDK 编译链不同，代码太多，依赖关系复杂
-+ 通过 SPI 协议与 SD 卡通信
 + 和很多外设打交道，比如 GPIO，FPIO 等等，还需要调整时钟信号
 + 最终将官方 SDK 部分模块移植到了内核中，成功通过 SD 卡读取测试
 + SD 卡读写还不稳定
