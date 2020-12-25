@@ -33,18 +33,18 @@ main(unsigned long hartid, unsigned long dtb_pa)
     // virtio_disk_init(); // emulated hard disk
     // userinit();      // first user process
 
-    test_kalloc();      // test kalloc
-    test_vm(hartid);    // test kernel pagetable
-    //test_getchar();   // test sbi_console_getchar
+    test_kalloc();    // test kalloc
+    test_vm(hartid);       // test kernel pagetable
+    test_getchar();     // test sbi_console_getchar
     
     for(int i = 1; i < NCPU; i++) {
-      unsigned long mask = 1 << i;
-      sbi_send_ipi(&mask);
-    }
+    unsigned long mask = 1 << i;
+    sbi_send_ipi(&mask);
+  }
 
   }
   while (1);
-  //  scheduler();
+  // scheduler();
   
   /* if(cpuid() == 0){
     consoleinit();
