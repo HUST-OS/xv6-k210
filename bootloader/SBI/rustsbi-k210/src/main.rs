@@ -371,6 +371,7 @@ extern "C" fn start_trap_rust(trap_frame: &mut TrapFrame) {
     match cause {
         Trap::Exception(Exception::SupervisorEnvCall) => {
             if trap_frame.a7 == 0x0A000004 && trap_frame.a6 == 0x210 {
+                println!("[rustsbi] set S-level external interrupt handler");
                 // We use implementation specific sbi_rustsbi_k210_sext function (extension 
                 // id: 0x0A000004, function id: 0x210) to register S-level interrupt handler
                 // for K210 chip only. This chip uses 1.9.1 version of privileged spec,
