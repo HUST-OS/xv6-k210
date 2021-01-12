@@ -77,10 +77,10 @@ fileclose(struct file *f)
 
   if(ff.type == FD_PIPE){
     pipeclose(ff.pipe, ff.writable);
-  } else if(ff.type == FD_INODE || ff.type == FD_DEVICE){
-    begin_op();
-    iput(ff.ip);
-    end_op();
+  } else if(ff.type == FD_ENTRY || ff.type == FD_DEVICE){
+    // begin_op();
+    eput(ff.ep);
+    // end_op();
   }
 }
 
@@ -92,10 +92,10 @@ filestat(struct file *f, uint64 addr)
   struct proc *p = myproc();
   struct stat st;
   
-  if(f->type == FD_INODE || f->type == FD_DEVICE){
-    ilock(f->ip);
-    stati(f->ip, &st);
-    iunlock(f->ip);
+  if(f->type == FD_ENTRY || f->type == FD_DEVICE){
+    elock(f->ep);
+    estat(f->ep, &st);
+    eunlock(f->ep);
     if(copyout(p->pagetable, addr, (char *)&st, sizeof(st)) < 0)
       return -1;
     return 0;
@@ -119,11 +119,11 @@ fileread(struct file *f, uint64 addr, int n)
     if(f->major < 0 || f->major >= NDEV || !devsw[f->major].read)
       return -1;
     r = devsw[f->major].read(1, addr, n);
-  } else if(f->type == FD_INODE){
-    ilock(f->ip);
-    if((r = readi(f->ip, 1, addr, f->off, n)) > 0)
+  } else if(f->type == FD_ENTRY){
+    elock(f->ep);
+    if((r = eread(f->ep, 1, addr, f->off, n)) > 0)
       f->off += r;
-    iunlock(f->ip);
+    eunlock(f->ep);
   } else {
     panic("fileread");
   }
@@ -147,7 +147,7 @@ filewrite(struct file *f, uint64 addr, int n)
     if(f->major < 0 || f->major >= NDEV || !devsw[f->major].write)
       return -1;
     ret = devsw[f->major].write(1, addr, n);
-  } else if(f->type == FD_INODE){
+  } else if(f->type == FD_ENTRY){
     // write a few blocks at a time to avoid exceeding
     // the maximum log transaction size, including
     // i-node, indirect block, allocation blocks,
@@ -161,12 +161,12 @@ filewrite(struct file *f, uint64 addr, int n)
       if(n1 > max)
         n1 = max;
 
-      begin_op();
-      ilock(f->ip);
-      if ((r = writei(f->ip, 1, addr + i, f->off, n1)) > 0)
+      // begin_op();
+      elock(f->ep);
+      if ((r = ewrite(f->ep, 1, addr + i, f->off, n1)) > 0)
         f->off += r;
-      iunlock(f->ip);
-      end_op();
+      eunlock(f->ep);
+      // end_op();
 
       if(r < 0)
         break;

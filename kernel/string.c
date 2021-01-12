@@ -103,7 +103,7 @@ strlen(const char *s)
 }
 
 // convert uchar string into wide char string 
-void wnstr(wchar *dst, uchar const *src, int len) {
+void wnstr(wchar *dst, char const *src, int len) {
   while (len -- && *src) {
     *(uchar*)dst = *src++;
     dst ++;
@@ -113,7 +113,7 @@ void wnstr(wchar *dst, uchar const *src, int len) {
 }
 
 // convert wide char string into uchar string 
-void snstr(uchar *dst, wchar const *src, int len) {
+void snstr(char *dst, wchar const *src, int len) {
   while (len -- && *src) {
     *dst++ = (uchar)(*src & 0xff);
     src ++;

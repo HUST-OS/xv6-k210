@@ -118,238 +118,246 @@ sys_fstat(void)
   return filestat(f, st);
 }
 
-// Create the path new as a link to the same inode as old.
-uint64
-sys_link(void)
-{
-  char name[DIRSIZ], new[MAXPATH], old[MAXPATH];
-  struct inode *dp, *ip;
+// // Create the path new as a link to the same inode as old.
+// uint64
+// sys_link(void)
+// {
+//   char name[DIRSIZ], new[MAXPATH], old[MAXPATH];
+//   struct inode *dp, *ip;
 
-  if(argstr(0, old, MAXPATH) < 0 || argstr(1, new, MAXPATH) < 0)
-    return -1;
+//   if(argstr(0, old, MAXPATH) < 0 || argstr(1, new, MAXPATH) < 0)
+//     return -1;
 
-  begin_op();
-  if((ip = namei(old)) == 0){
-    end_op();
-    return -1;
-  }
+//   begin_op();
+//   if((ip = namei(old)) == 0){
+//     end_op();
+//     return -1;
+//   }
 
-  ilock(ip);
-  if(ip->type == T_DIR){
-    iunlockput(ip);
-    end_op();
-    return -1;
-  }
+//   ilock(ip);
+//   if(ip->type == T_DIR){
+//     iunlockput(ip);
+//     end_op();
+//     return -1;
+//   }
 
-  ip->nlink++;
-  iupdate(ip);
-  iunlock(ip);
+//   ip->nlink++;
+//   iupdate(ip);
+//   iunlock(ip);
 
-  if((dp = nameiparent(new, name)) == 0)
-    goto bad;
-  ilock(dp);
-  if(dp->dev != ip->dev || dirlink(dp, name, ip->inum) < 0){
-    iunlockput(dp);
-    goto bad;
-  }
-  iunlockput(dp);
-  iput(ip);
+//   if((dp = nameiparent(new, name)) == 0)
+//     goto bad;
+//   ilock(dp);
+//   if(dp->dev != ip->dev || dirlink(dp, name, ip->inum) < 0){
+//     iunlockput(dp);
+//     goto bad;
+//   }
+//   iunlockput(dp);
+//   iput(ip);
 
-  end_op();
+//   end_op();
 
-  return 0;
+//   return 0;
 
-bad:
-  ilock(ip);
-  ip->nlink--;
-  iupdate(ip);
-  iunlockput(ip);
-  end_op();
-  return -1;
-}
+// bad:
+//   ilock(ip);
+//   ip->nlink--;
+//   iupdate(ip);
+//   iunlockput(ip);
+//   end_op();
+//   return -1;
+// }
 
-// Is the directory dp empty except for "." and ".." ?
-static int
-isdirempty(struct inode *dp)
-{
-  int off;
-  struct dirent de;
+// // Is the directory dp empty except for "." and ".." ?
+// static int
+// isdirempty(struct dir_entry *dp)
+// {
+//   // int off;
+//   // struct dirent de;
 
-  for(off=2*sizeof(de); off<dp->size; off+=sizeof(de)){
-    if(readi(dp, 0, (uint64)&de, off, sizeof(de)) != sizeof(de))
-      panic("isdirempty: readi");
-    if(de.inum != 0)
-      return 0;
-  }
-  return 1;
-}
+//   // for(off=2*sizeof(de); off<dp->size; off+=sizeof(de)){
+//   //   if(readi(dp, 0, (uint64)&de, off, sizeof(de)) != sizeof(de))
+//   //     panic("isdirempty: readi");
+//   //   if(de.inum != 0)
+//   //     return 0;
+//   // }
+//   return 1;
+// }
 
-uint64
-sys_unlink(void)
-{
-  struct inode *ip, *dp;
-  struct dirent de;
-  char name[DIRSIZ], path[MAXPATH];
-  uint off;
+// uint64
+// sys_unlink(void)
+// {
+//   struct inode *ip, *dp;
+//   struct dirent de;
+//   char name[DIRSIZ], path[MAXPATH];
+//   uint off;
 
-  if(argstr(0, path, MAXPATH) < 0)
-    return -1;
+//   if(argstr(0, path, MAXPATH) < 0)
+//     return -1;
 
-  begin_op();
-  if((dp = nameiparent(path, name)) == 0){
-    end_op();
-    return -1;
-  }
+//   begin_op();
+//   if((dp = nameiparent(path, name)) == 0){
+//     end_op();
+//     return -1;
+//   }
 
-  ilock(dp);
+//   ilock(dp);
 
-  // Cannot unlink "." or "..".
-  if(namecmp(name, ".") == 0 || namecmp(name, "..") == 0)
-    goto bad;
+//   // Cannot unlink "." or "..".
+//   if(namecmp(name, ".") == 0 || namecmp(name, "..") == 0)
+//     goto bad;
 
-  if((ip = dirlookup(dp, name, &off)) == 0)
-    goto bad;
-  ilock(ip);
+//   if((ip = dirlookup(dp, name, &off)) == 0)
+//     goto bad;
+//   ilock(ip);
 
-  if(ip->nlink < 1)
-    panic("unlink: nlink < 1");
-  if(ip->type == T_DIR && !isdirempty(ip)){
-    iunlockput(ip);
-    goto bad;
-  }
+//   if(ip->nlink < 1)
+//     panic("unlink: nlink < 1");
+//   if(ip->type == T_DIR && !isdirempty(ip)){
+//     iunlockput(ip);
+//     goto bad;
+//   }
 
-  memset(&de, 0, sizeof(de));
-  if(writei(dp, 0, (uint64)&de, off, sizeof(de)) != sizeof(de))
-    panic("unlink: writei");
-  if(ip->type == T_DIR){
-    dp->nlink--;
-    iupdate(dp);
-  }
-  iunlockput(dp);
+//   memset(&de, 0, sizeof(de));
+//   if(writei(dp, 0, (uint64)&de, off, sizeof(de)) != sizeof(de))
+//     panic("unlink: writei");
+//   if(ip->type == T_DIR){
+//     dp->nlink--;
+//     iupdate(dp);
+//   }
+//   iunlockput(dp);
 
-  ip->nlink--;
-  iupdate(ip);
-  iunlockput(ip);
+//   ip->nlink--;
+//   iupdate(ip);
+//   iunlockput(ip);
 
-  end_op();
+//   end_op();
 
-  return 0;
+//   return 0;
 
-bad:
-  iunlockput(dp);
-  end_op();
-  return -1;
-}
+// bad:
+//   iunlockput(dp);
+//   end_op();
+//   return -1;
+// }
 
-static struct inode*
+static struct dir_entry*
 create(char *path, short type, short major, short minor)
 {
-  struct inode *ip, *dp;
-  char name[DIRSIZ];
+  struct dir_entry *ep, *dp;
+  char name[FAT32_MAX_FILENAME];
 
-  if((dp = nameiparent(path, name)) == 0)
+  if((dp = get_parent(path, name)) == 0)
     return 0;
 
-  ilock(dp);
+  elock(dp);
 
-  if((ip = dirlookup(dp, name, 0)) != 0){
-    iunlockput(dp);
-    ilock(ip);
-    if(type == T_FILE && (ip->type == T_FILE || ip->type == T_DEVICE))
-      return ip;
-    iunlockput(ip);
+  if((ep = get_entry(path)) != 0){
+    eunlock(dp);
+    eput(dp);
+    elock(ep);
+    if(type == T_FILE && (ep->type == T_FILE || ep->type == T_DEVICE))
+      return ep;
+    eunlock(ep);
+    eput(ep);
     return 0;
   }
 
-  if((ip = ialloc(dp->dev, type)) == 0)
+  if((ep = ealloc(dp, name)) == 0)
     panic("create: ialloc");
 
-  ilock(ip);
-  ip->major = major;
-  ip->minor = minor;
-  ip->nlink = 1;
-  iupdate(ip);
+  elock(ep);
+  // ip->major = major;
+  // ip->minor = minor;
+  // ip->nlink = 1;
+  // iupdate(ip);
 
   if(type == T_DIR){  // Create . and .. entries.
-    dp->nlink++;  // for ".."
-    iupdate(dp);
-    // No ip->nlink++ for ".": avoid cyclic ref count.
-    if(dirlink(ip, ".", ip->inum) < 0 || dirlink(ip, "..", dp->inum) < 0)
-      panic("create dots");
+    // dp->nlink++;  // for ".."
+    // iupdate(dp);
+    // // No ip->nlink++ for ".": avoid cyclic ref count.
+    // if(dirlink(ip, ".", ip->inum) < 0 || dirlink(ip, "..", dp->inum) < 0)
+    //   panic("create dots");
+    ep->attribute = ATTR_DIRECTORY;
+    // Create . and .. entries.
   }
 
-  if(dirlink(dp, name, ip->inum) < 0)
-    panic("create: dirlink");
+  // if(dirlink(dp, name, ip->inum) < 0)
+  //   panic("create: dirlink");
 
-  iunlockput(dp);
+  eunlock(dp);
+  eput(dp);
 
-  return ip;
+  return ep;
 }
 
 uint64
 sys_open(void)
 {
-  char path[MAXPATH];
+  char path[FAT32_MAX_PATH];
   int fd, omode;
   struct file *f;
-  struct inode *ip;
+  struct dir_entry *ep;
   int n;
 
   if((n = argstr(0, path, MAXPATH)) < 0 || argint(1, &omode) < 0)
     return -1;
 
-  begin_op();
+  // begin_op();
 
   if(omode & O_CREATE){
-    ip = create(path, T_FILE, 0, 0);
-    if(ip == 0){
-      end_op();
+    ep = create(path, T_FILE, 0, 0);
+    if(ep == 0){
+      // end_op();
       return -1;
     }
   } else {
-    if((ip = namei(path)) == 0){
-      end_op();
+    if((ep = get_entry(path)) == 0){
+      // end_op();
       return -1;
     }
-    ilock(ip);
-    if(ip->type == T_DIR && omode != O_RDONLY){
-      iunlockput(ip);
-      end_op();
+    elock(ep);
+    if(ep->attribute == ATTR_DIRECTORY && omode != O_RDONLY){
+      eunlock(ep);
+      eput(ep);
+      // end_op();
       return -1;
     }
   }
 
-  if(ip->type == T_DEVICE && (ip->major < 0 || ip->major >= NDEV)){
-    iunlockput(ip);
-    end_op();
+  if(ep->type == T_DEVICE /* && (ep->major < 0 || ep->major >= NDEV) */){
+    eunlock(ep);
+    eput(ep);
+    // end_op();
     return -1;
   }
 
   if((f = filealloc()) == 0 || (fd = fdalloc(f)) < 0){
     if(f)
       fileclose(f);
-    iunlockput(ip);
-    end_op();
+    eunlock(ep);
+    eput(ep);
+    // end_op();
     return -1;
   }
 
-  if(ip->type == T_DEVICE){
+  if(ep->type == T_DEVICE){
     f->type = FD_DEVICE;
-    f->major = ip->major;
+    // f->major = ep->major;
   } else {
-    f->type = FD_INODE;
+    f->type = FD_ENTRY;
     f->off = 0;
   }
-  f->ip = ip;
+  f->ep = ep;
   f->readable = !(omode & O_WRONLY);
   f->writable = (omode & O_WRONLY) || (omode & O_RDWR);
 
-  if((omode & O_TRUNC) && ip->type == T_FILE){
-    itrunc(ip);
-  }
+  // if((omode & O_TRUNC) && ep->type == T_FILE){
+  //   itrunc(ip);
+  // }
 
-  iunlock(ip);
-  end_op();
+  eunlock(ep);
+  // end_op();
 
   return fd;
 }
@@ -357,36 +365,38 @@ sys_open(void)
 uint64
 sys_mkdir(void)
 {
-  char path[MAXPATH];
-  struct inode *ip;
+  char path[FAT32_MAX_PATH];
+  struct dir_entry *ep;
 
-  begin_op();
-  if(argstr(0, path, MAXPATH) < 0 || (ip = create(path, T_DIR, 0, 0)) == 0){
-    end_op();
+  // begin_op();
+  if(argstr(0, path, FAT32_MAX_PATH) < 0 || (ep = create(path, T_DIR, 0, 0)) == 0){
+    // end_op();
     return -1;
   }
-  iunlockput(ip);
-  end_op();
+  eunlock(ep);
+  eput(ep);
+  // end_op();
   return 0;
 }
 
 uint64
 sys_mknod(void)
 {
-  struct inode *ip;
-  char path[MAXPATH];
+  struct dir_entry *ep;
+  char path[FAT32_MAX_PATH];
   int major, minor;
 
-  begin_op();
-  if((argstr(0, path, MAXPATH)) < 0 ||
+  // begin_op();
+  if((argstr(0, path, FAT32_MAX_PATH)) < 0 ||
      argint(1, &major) < 0 ||
      argint(2, &minor) < 0 ||
-     (ip = create(path, T_DEVICE, major, minor)) == 0){
-    end_op();
+     (ep = create(path, T_DEVICE, major, minor)) == 0){
+    // end_op();
     return -1;
   }
-  iunlockput(ip);
-  end_op();
+  eunlock(ep);
+  eput(ep);
+  // end_op();
   return 0;
 }
 
@@ -394,25 +404,25 @@ uint64
 sys_chdir(void)
 {
   char path[MAXPATH];
-  struct dir_entry *ip;
+  struct dir_entry *ep;
   struct proc *p = myproc();
   
   // begin_op();
-  if(argstr(0, path, MAXPATH) < 0 || (ip = get_entry(path)) == 0){
+  if(argstr(0, path, MAXPATH) < 0 || (ep = get_entry(path)) == 0){
     // end_op();
     return -1;
   }
-  elock(ip);
-  if(ip->attribute != ATTR_DIRECTORY){
-    eunlock(ip);
-    eput(ip);
+  elock(ep);
+  if(ep->attribute != ATTR_DIRECTORY){
+    eunlock(ep);
+    eput(ep);
     // end_op();
     return -1;
   }
-  eunlock(ip);
+  eunlock(ep);
   eput(p->cwd);
   // end_op();
-  p->cwd = ip;
+  p->cwd = ep;
   return 0;
 }
 

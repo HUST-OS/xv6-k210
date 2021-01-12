@@ -40,13 +40,13 @@ void            disk_write(struct buf *b);
 
 // fat32.c
 int             fat32_init(void);
+struct dir_entry *ealloc(struct dir_entry *dir, char *name);
 struct dir_entry *edup(struct dir_entry *entry);
 void            eupdate(struct dir_entry *entry);
 void            eput(struct dir_entry *entry);
+void            estat(struct dir_entry *ep, struct stat *st);
 void            elock(struct dir_entry *entry);
 void            eunlock(struct dir_entry *entry);
-void            read_entry_name(ushort *filename, uint8 *raw_entry, int longcnt);
-void            read_entry_info(struct dir_entry *entry, uint8 *raw_entry);
 struct dir_entry *get_entry(char *path);
 struct dir_entry *get_parent(char *path, char *name);
 int             eread(struct dir_entry *entry, int user_dst, uint64 dst, uint off, uint n);
@@ -155,8 +155,8 @@ char*           safestrcpy(char*, const char*, int);
 int             strlen(const char*);
 int             strncmp(const char*, const char*, uint);
 char*           strncpy(char*, const char*, int);
-void            wnstr(wchar *dst, uchar const *src, int len);
-void            snstr(uchar *dst, wchar const *src, int len);
+void            wnstr(wchar *dst, char const *src, int len);
+void            snstr(char *dst, wchar const *src, int len);
 int             wcsncmp(wchar const *s1, wchar const *s2, int len);
 
 // syscall.c

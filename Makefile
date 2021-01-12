@@ -24,8 +24,6 @@ OBJS += \
   $K/syscall.o \
   $K/sysproc.o \
   $K/bio.o \
-  $K/fs.o \
-  $K/log.o \
   $K/sleeplock.o \
   $K/file.o \
   $K/pipe.o \
@@ -35,6 +33,8 @@ OBJS += \
   $K/timer.o \
   $K/logo.o \
   $K/fat32.o 
+#   $K/fs.o 
+#   $K/log.o 
 #   $K/test.o 
 
 ifeq ($(platform), k210)
