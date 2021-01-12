@@ -540,8 +540,8 @@ scheduler(void)
       release(&p->lock);
     }
     if(found == 0) {
-      intr_on();
-      asm volatile("wfi");
+      // intr_on();
+      // asm volatile("wfi");
     }
   }
 }

@@ -61,6 +61,12 @@ int fat32_init()
     fat.data_clus_cnt = fat.data_sec_cnt / fat.bpb.sec_per_clus;
     brelse(b);
 
+    // printf("[FAT32 init]byts_per_sec: %d\n", fat.bpb.byts_per_sec);
+    // printf("[FAT32 init]root_clus: %d\n", fat.bpb.root_clus);
+    // printf("[FAT32 init]sec_per_clus: %d\n", fat.bpb.sec_per_clus);
+    // printf("[FAT32 init]fat_cnt: %d\n", fat.bpb.fat_cnt);
+    // printf("[FAT32 init]fat_sz: %d\n", fat.bpb.fat_sz);
+
 	// make sure that byts_per_sec has the same value with BSIZE 
 	if (BSIZE != fat.bpb.byts_per_sec) 
 		panic("byts_per_sec != BSIZE");

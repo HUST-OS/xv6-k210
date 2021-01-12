@@ -47,8 +47,10 @@ OBJS += \
 
 else
 OBJS += \
-  $K/disk_virtio.o \
-  $K/_plic.o 
+  $K/virtio_disk.o \
+  $K/plic.o \
+  $K/_uart.o \
+  $K/_console.o
 
 endif
 

@@ -33,10 +33,11 @@ void timer_tick();
 // exec.c
 int             exec(char*, char**);
 
-// disk_virtio.c
+// virtio_disk.c
 void            disk_init(void);
 void            disk_read(struct buf *b);
 void            disk_write(struct buf *b);
+void            disk_intr(void);
 
 // fat32.c
 int             fat32_init(void);

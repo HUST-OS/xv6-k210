@@ -37,8 +37,8 @@ main(unsigned long hartid, unsigned long dtb_pa)
     fpioa_pin_init();
     sdcard_init();
     #endif
-    //plicinit();      // set up interrupt controller
-    //plicinithart();  // ask PLIC for device interrupts
+    plicinit();      // set up interrupt controller
+    plicinithart();  // ask PLIC for device interrupts
     disk_init();
     binit();         // buffer cache
     // iinit();         // inode cache
