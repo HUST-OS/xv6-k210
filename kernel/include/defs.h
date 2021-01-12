@@ -1,5 +1,6 @@
 struct buf;
 struct context;
+struct dir_entry;
 struct file;
 struct inode;
 struct pipe;
@@ -32,6 +33,25 @@ void timer_tick();
 // exec.c
 int             exec(char*, char**);
 
+// disk_virtio.c
+void            disk_init(void);
+void            disk_read(struct buf *b);
+void            disk_write(struct buf *b);
+
+// fat32.c
+int             fat32_init(void);
+struct dir_entry *edup(struct dir_entry *entry);
+void            eupdate(struct dir_entry *entry);
+void            eput(struct dir_entry *entry);
+void            elock(struct dir_entry *entry);
+void            eunlock(struct dir_entry *entry);
+void            read_entry_name(ushort *filename, uint8 *raw_entry, int longcnt);
+void            read_entry_info(struct dir_entry *entry, uint8 *raw_entry);
+struct dir_entry *get_entry(char *path);
+struct dir_entry *get_parent(char *path, char *name);
+int             eread(struct dir_entry *entry, int user_dst, uint64 dst, uint off, uint n);
+int             ewrite(struct dir_entry *entry, int user_src, uint64 src, uint off, uint n);
+
 // file.c
 struct file*    filealloc(void);
 void            fileclose(struct file*);
@@ -60,11 +80,6 @@ int             readi(struct inode*, int, uint64, uint, uint);
 void            stati(struct inode*, struct stat*);
 int             writei(struct inode*, int, uint64, uint, uint);
 void            itrunc(struct inode*);
-
-// ramdisk.c
-void            ramdiskinit(void);
-void            ramdiskintr(void);
-void            ramdiskrw(struct buf*);
 
 // kalloc.c
 void*           kalloc(void);
@@ -140,6 +155,9 @@ char*           safestrcpy(char*, const char*, int);
 int             strlen(const char*);
 int             strncmp(const char*, const char*, uint);
 char*           strncpy(char*, const char*, int);
+void            wnstr(wchar *dst, uchar const *src, int len);
+void            snstr(uchar *dst, wchar const *src, int len);
+int             wcsncmp(wchar const *s1, wchar const *s2, int len);
 
 // syscall.c
 int             argint(int, int*);
@@ -191,11 +209,6 @@ void            plicinit(void);
 void            plicinithart(void);
 int             plic_claim(void);
 void            plic_complete(int);
-
-// virtio_disk.c
-void            virtio_disk_init(void);
-void            virtio_disk_rw(struct buf *, int);
-void            virtio_disk_intr(void);
 
 // logo.c
 void            print_logo(void);

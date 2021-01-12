@@ -20,7 +20,7 @@ void
 kvminit()
 {
   kernel_pagetable = (pagetable_t) kalloc();
-  printf("kernel_pagetable: %p\n", kernel_pagetable);
+  // printf("kernel_pagetable: %p\n", kernel_pagetable);
 
   memset(kernel_pagetable, 0, PGSIZE);
 

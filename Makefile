@@ -1,4 +1,4 @@
-platform	:= k210
+platform	:= qemu
 K=kernel
 U=xv6-user
 T=target
@@ -34,7 +34,8 @@ OBJS += \
   $K/kernelvec.o \
   $K/timer.o \
   $K/logo.o \
-  $K/test.o \
+  $K/fat32.o 
+#   $K/test.o 
 
 ifeq ($(platform), k210)
 OBJS += \
@@ -46,7 +47,8 @@ OBJS += \
 
 else
 OBJS += \
-  $K/virtio_disk.o \
+  $K/disk_virtio.o \
+  $K/_plic.o 
 
 endif
 
@@ -58,7 +60,7 @@ else
 RUSTSBI = ./bootloader/SBI/sbi-qemu
 endif
 
-TOOLPREFIX	:= riscv64-unknown-elf-
+TOOLPREFIX	:= riscv64-linux-gnu-
 CC = $(TOOLPREFIX)gcc
 AS = $(TOOLPREFIX)gas
 LD = $(TOOLPREFIX)ld
@@ -93,7 +95,7 @@ $T/kernel: $(OBJS) $(linker) $U/initcode
 	@$(OBJDUMP) -S $T/kernel > $T/kernel.asm
 	@$(OBJDUMP) -t $T/kernel | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$$/d' > $T/kernel.sym
   
-build: $T/kernel
+build: $T/kernel userproc
 
 # Compile RustSBI
 RUSTSBI:
@@ -115,6 +117,10 @@ CPUS := 2
 endif
 
 QEMUOPTS = -machine virt -bios $(RUSTSBI) -kernel $T/kernel -m 128M -smp $(CPUS) -nographic
+
+# import virtual disk image
+QEMUOPTS += -drive file=fs.img,if=none,format=raw,id=x0 
+QEMUOPTS += -device virtio-blk-device,drive=x0,bus=virtio-mmio-bus.0
 
 run: build
 ifeq ($(platform), k210)
@@ -166,24 +172,28 @@ mkfs/mkfs: mkfs/mkfs.c $K/include/fs.h $K/include/param.h
 .PRECIOUS: %.o
 
 UPROGS=\
-	$U/_cat\
-	$U/_echo\
-	$U/_forktest\
-	$U/_grep\
-	$U/_init\
-	$U/_kill\
-	$U/_ln\
-	$U/_ls\
-	$U/_mkdir\
-	$U/_rm\
-	$U/_sh\
-	$U/_stressfs\
-	$U/_usertests\
-	$U/_grind\
-	$U/_wc\
-	$U/_zombie\
+	$U/_init2\
+	$U/_test
+	# $U/_cat\
+	# $U/_echo\
+	# $U/_forktest\
+	# $U/_grep\
+	# $U/_init\
+	# $U/_kill\
+	# $U/_ln\
+	# $U/_ls\
+	# $U/_mkdir\
+	# $U/_rm\
+	# $U/_sh\
+	# $U/_stressfs\
+	# $U/_usertests\
+	# $U/_grind\
+	# $U/_wc\
+	# $U/_zombie\
 
 UEXTRA = $U/xargstest.sh
+
+userproc: $(UEXTRA) $(UPROGS)
 
 # Make fs image
 fs.img: mkfs/mkfs README $(UEXTRA) $(UPROGS)
@@ -204,7 +214,7 @@ clean:
 	*/*.o */*.d */*.asm */*.sym \
 	$T/* \
 	$U/initcode $U/initcode.out \
-	$K/kernel fs.img \
+	$K/kernel \
 	mkfs/mkfs .gdbinit \
         $U/usys.S \
 	$(UPROGS)
