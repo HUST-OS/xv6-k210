@@ -268,7 +268,7 @@ void device_init(unsigned long pa, uint64 hartid) {
   uint32 *hart0_m_int_enable_hi = (uint32*)(PLIC_MENABLE(hartid) + 0x04);
   *(hart0_m_int_enable_hi) = (1 << 0x1);
   // *(uint32*)0x0c002004 = (1 << 0x1);
-  sbi_set_extern_interrupt((uint64)supervisor_external_handler);
+  // sbi_set_extern_interrupt((uint64)supervisor_external_handler);
   #else
   *((uint32*)0x0c002080) = (1 << 10);
   *((uint8*)0x10000004) = 0x0b;
