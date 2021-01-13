@@ -15,7 +15,8 @@ int main()
     if(pid == 0){
       exec("_test", argv);
       exit(1);
-      test_proc();
+      while (1)
+        test_proc();
     }
 
     for(;;){
@@ -24,7 +25,7 @@ int main()
       wpid = wait((int *) 0);
       if(wpid == pid){
         // the shell exited; restart it.
-        // break;
+        break;
       } else if(wpid < 0){
         exit(1);
       } else {

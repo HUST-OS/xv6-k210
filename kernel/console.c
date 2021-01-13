@@ -26,8 +26,17 @@
 #define BACKSPACE 0x100
 #define C(x)  ((x)-'@')  // Control-x
 
-void consputc(int ch) {
-    sbi_console_putchar(ch);
+void consputc(int c) {
+  #ifndef QEMU
+    sbi_console_putchar(c);
+  #else
+    if(c == BACKSPACE){
+      // if the user typed backspace, overwrite with a space.
+      uartputc_sync('\b'); uartputc_sync(' '); uartputc_sync('\b');
+    } else {
+      uartputc_sync(c);
+    }
+  #endif
 }
 struct {
   struct spinlock lock;

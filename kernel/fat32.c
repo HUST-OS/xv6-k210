@@ -84,6 +84,7 @@ int fat32_init()
         root.next->prev = de;
         root.next = de;
     }
+    strncpy(root.filename, ".root", 5);
     root.attribute = ATTR_DIRECTORY;
     root.first_clus = fat.bpb.root_clus;
     
@@ -198,7 +199,7 @@ static uint32 alloc_clus()
 //     write_fat(cluster, 0);
 // }
 
-// should never root by eget
+// should never get root by eget
 static struct dir_entry *eget(uint dev, uint32 parent, char *name)
 {
     struct dir_entry *ep;
@@ -219,6 +220,11 @@ static struct dir_entry *eget(uint dev, uint32 parent, char *name)
             release(&ecache.lock);
             return ep;
         }
+    }
+    for (int i = 0; i < ENTRY_CACHE_NUM; i++) {
+        printf("%s, %d\n", ecache.entries[i].filename, ecache.entries[i].ref);
+
+
     }
     panic("eget: insufficient ecache");
     return 0;
@@ -247,22 +253,7 @@ struct dir_entry *edup(struct dir_entry *entry)
 // only update file size
 void eupdate(struct dir_entry *entry)
 {
-    uint const byts_per_clus = fat.bpb.sec_per_clus * fat.bpb.byts_per_sec;
-    int clus_num = entry->off / byts_per_clus;
-    int off = entry->off % byts_per_clus;
-    uint32 cluster = entry->parent;
-    while (clus_num-- > 0) {
-        cluster = read_fat(cluster);
-        if (cluster >= FAT32_EOC) {
-            panic("eupdate");
-        }
-    }
-    uint sec = first_sec_of_clus(cluster) + off / fat.bpb.byts_per_sec;
-    off = off % fat.bpb.byts_per_sec;
-    struct buf *b = bread(entry->dev, sec);
-    *(uint32 *)(b->data + off + 28) = entry->file_size;
-    bwrite(b);
-    brelse(b);
+
 }
 
 void etrunc(struct dir_entry *entry)
@@ -279,7 +270,6 @@ void elock(struct dir_entry *entry)
 
 }
 
-
 void eunlock(struct dir_entry *entry)
 {
     if (entry == 0 || !holdingsleep(&entry->lock) || entry->ref < 1)
@@ -287,11 +277,10 @@ void eunlock(struct dir_entry *entry)
     releasesleep(&entry->lock);
 }
 
-
 void eput(struct dir_entry *entry)
 {
     acquire(&ecache.lock);
-    if (entry->ref == 1) {
+    if (entry->valid && entry->ref == 1) {
         // ref == 1 means no other process can have entry locked,
         // so this acquiresleep() won't block (or deadlock).
         acquiresleep(&entry->lock);
@@ -315,12 +304,10 @@ void eput(struct dir_entry *entry)
     release(&ecache.lock);
 }
 
-
 void estat(struct dir_entry *ep, struct stat *st)
 {
 
 }
-
 
 /**
  * Read filename from directory entry.
@@ -354,7 +341,6 @@ static void read_entry_name(wchar *buffer, uint8 *raw_entry, int longcnt)
     }
 }
 
-
 /**
  * Read entry_info from directory entry.
  * @param   entry       pointer to the structure that stores the entry info
@@ -374,7 +360,6 @@ static void read_entry_info(struct dir_entry *entry, uint8 *raw_entry)
     entry->file_size = *(uint32 *)(raw_entry + 28);
 }
 
-
 /**
  * Seacher for the entry in a directory and return a structure.
  * @param   entry       entry of a directory file
@@ -390,15 +375,14 @@ static struct dir_entry *lookup_dir(struct dir_entry *entry, char *filename, int
     uint32 sec1 = first_sec_of_clus(cluster);
     uint32 sec = sec1;
     uint32 clus_cnt = 0;
-    int entcnt = (len + CHAR_LONG_NAME - 1) / CHAR_LONG_NAME;               // count of l-n-entries, rounds up
-    int skip = 0;                   // while switching sector, skip some entry;
+    int entcnt = (len + CHAR_LONG_NAME - 1) / CHAR_LONG_NAME;   // count of l-n-entries, rounds up
+    int skip = 0;                                               // while switching sector, skip some entry;
     int match = 0;
     wchar buffer[CHAR_LONG_NAME] = {0};
     wchar wname[FAT32_MAX_FILENAME] = {0};
     wnstr(wname, filename, len);
     while (cluster < FAT32_EOC) {
         struct buf *b = bread(0, sec);
-        if (b == 0) { return 0; }
         uint8 *ep = b->data + skip;
         while (ep < b->data + fat.bpb.byts_per_sec) {
             if (ep[0] == EMPTY_ENTRY) {
@@ -406,12 +390,13 @@ static struct dir_entry *lookup_dir(struct dir_entry *entry, char *filename, int
                 continue;
             } else if (ep[0] == END_OF_ENTRY) {
                 brelse(b);
+                eput(de);
                 return 0;
             }
             if (ep[11] == ATTR_LONG_NAME) {
                 int count = ep[0] & ~LAST_LONG_ENTRY;
-                if ((ep[0] & LAST_LONG_ENTRY) && count != entcnt) {         // meet first l-n-e, and count is unequal
-                    ep += (count + 1) << 5;                                   // skip over, plus corresponding s-n-e
+                if ((ep[0] & LAST_LONG_ENTRY) && count != entcnt) { // meet first l-n-e, and count is unequal
+                    ep += (count + 1) << 5;                         // skip over, plus corresponding s-n-e
                 } else {
                     read_entry_name(buffer, ep, count);
                     int offset = (count - 1) * CHAR_LONG_NAME;
@@ -443,16 +428,15 @@ static struct dir_entry *lookup_dir(struct dir_entry *entry, char *filename, int
         }
         skip = ep - (b->data + fat.bpb.byts_per_sec);       // set offset after switching sectors
         brelse(b);
-        sec++;
-        if (sec - sec1 >= fat.bpb.sec_per_clus) {
+        if (sec++ - sec1 >= fat.bpb.sec_per_clus) {
             cluster = read_fat(cluster);
             sec = sec1 = first_sec_of_clus(cluster);
             clus_cnt++;
         }
     }
+    eput(de);
     return 0;
 }
-
 
 static int skipelem(char **path, char *name)
 {
@@ -477,7 +461,6 @@ static int skipelem(char **path, char *name)
     }
     return len;
 }
-
 
 /**
  * FAT32 version of namex in xv6's original file system.
@@ -595,11 +578,9 @@ int eread(struct dir_entry *entry, int user_dst, uint64 dst, uint off, uint n)
 static uint ewrite_clus(uint32 cluster, int user_src, uint64 src, uint off, uint n)
 {
 	int const MAX_OFFSET = fat.bpb.byts_per_sec * fat.bpb.sec_per_clus;
-
 	if (off + n > MAX_OFFSET) {
 		panic("offset out of range");
 	}
-
     uint tot, m;
     struct buf *bp;
     uint sec = first_sec_of_clus(cluster) + off / fat.bpb.byts_per_sec;
@@ -627,7 +608,6 @@ int ewrite(struct dir_entry *entry, int user_src, uint64 src, uint off, uint n)
     if (off > entry->file_size || off + n < off) {
         return -1;
     }
-
     uint const byts_per_clus = fat.bpb.sec_per_clus * fat.bpb.byts_per_sec;
     int clus_num = off / byts_per_clus;
     off = off % byts_per_clus;

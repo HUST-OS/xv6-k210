@@ -52,21 +52,17 @@ int exec(char *path, char **argv)
 
   // begin_op();
   if((ep = get_entry(path)) == 0){
-    printf("exec: can't find %s\n", path);
+    // printf("exec: can't find %s\n", path);
     // end_op();
     return -1;
   }
   elock(ep);
 
   // Check ELF header
-  if(eread(ep, 0, (uint64) &elf, 0, sizeof(elf)) != sizeof(elf)) {
-    printf("[exec]reach bad, pid = %d, fs = %u\n", p->pid, ep->file_size);
+  if(eread(ep, 0, (uint64) &elf, 0, sizeof(elf)) != sizeof(elf))
     goto bad;
-  }
-  if(elf.magic != ELF_MAGIC) {
-    printf("[exec]magic err: %x\n", elf.magic);
+  if(elf.magic != ELF_MAGIC)
     goto bad;
-  } 
 
   if((pagetable = proc_pagetable(p)) == 0)
     goto bad;

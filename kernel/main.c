@@ -22,6 +22,7 @@ main(unsigned long hartid, unsigned long dtb_pa)
   inithartid(hartid);
   
   if (hartid == 0) {
+    consoleinit();
     printfinit();   // init a lock for printf 
     print_logo();
     printf("hart %d enter main()...\n", hartid);
@@ -36,13 +37,13 @@ main(unsigned long hartid, unsigned long dtb_pa)
     device_init(dtb_pa, hartid);
     fpioa_pin_init();
     sdcard_init();
-    #endif
+    #else
     plicinit();      // set up interrupt controller
     plicinithart();  // ask PLIC for device interrupts
     disk_init();
+    #endif
     binit();         // buffer cache
-    // iinit();         // inode cache
-    // fileinit();      // file table
+    fileinit();      // file table
     userinit();      // first user process
     // test_proc_init(8);   // test porc init
 
@@ -65,12 +66,13 @@ main(unsigned long hartid, unsigned long dtb_pa)
     while (started == 0)
       ;
     __sync_synchronize();
-    // printfinit();   // init a lock for printf 
     printf("hart %d enter main()...\n", hartid);
     kvminithart();
     trapinithart();
     #ifndef QEMU
     device_init(dtb_pa, hartid);
+    #else
+    plicinithart();  // ask PLIC for device interrupts
     #endif
     printf("hart 1 init done\n");
   }
