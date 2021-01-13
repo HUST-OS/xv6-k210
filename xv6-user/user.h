@@ -24,6 +24,7 @@ char* sbrk(int);
 int sleep(int);
 int uptime(void);
 int test_proc(void);
+int dev(int, short, short);
 
 // ulib.c
 int stat(const char*, struct stat*);

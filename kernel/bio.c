@@ -21,7 +21,7 @@
 #include "include/sleeplock.h"
 #include "include/riscv.h"
 #include "include/defs.h"
-#include "include/fs.h"
+// #include "include/fs.h"
 #include "include/buf.h"
 #include "include/sdcard.h"
 

@@ -7,7 +7,7 @@
 #include "include/riscv.h"
 #include "include/defs.h"
 #include "include/param.h"
-#include "include/fs.h"
+// #include "include/fs.h"
 #include "include/spinlock.h"
 #include "include/sleeplock.h"
 #include "include/file.h"
@@ -78,9 +78,7 @@ fileclose(struct file *f)
   if(ff.type == FD_PIPE){
     pipeclose(ff.pipe, ff.writable);
   } else if(ff.type == FD_ENTRY || ff.type == FD_DEVICE){
-    // begin_op();
     eput(ff.ep);
-    // end_op();
   }
 }
 
@@ -136,7 +134,7 @@ fileread(struct file *f, uint64 addr, int n)
 int
 filewrite(struct file *f, uint64 addr, int n)
 {
-  int r, ret = 0;
+  int ret = 0;
 
   if(f->writable == 0)
     return -1;
@@ -148,33 +146,14 @@ filewrite(struct file *f, uint64 addr, int n)
       return -1;
     ret = devsw[f->major].write(1, addr, n);
   } else if(f->type == FD_ENTRY){
-    // write a few blocks at a time to avoid exceeding
-    // the maximum log transaction size, including
-    // i-node, indirect block, allocation blocks,
-    // and 2 blocks of slop for non-aligned writes.
-    // this really belongs lower down, since writei()
-    // might be writing a device like the console.
-    int max = ((MAXOPBLOCKS-1-1-2) / 2) * BSIZE;
-    int i = 0;
-    while(i < n){
-      int n1 = n - i;
-      if(n1 > max)
-        n1 = max;
-
-      // begin_op();
-      elock(f->ep);
-      if ((r = ewrite(f->ep, 1, addr + i, f->off, n1)) > 0)
-        f->off += r;
-      eunlock(f->ep);
-      // end_op();
-
-      if(r < 0)
-        break;
-      if(r != n1)
-        panic("short filewrite");
-      i += r;
+    elock(f->ep);
+    if (ewrite(f->ep, 1, addr, f->off, n) == n) {
+      ret = n;
+      f->off += n;
+    } else {
+      ret = -1;
     }
-    ret = (i == n ? n : -1);
+    eunlock(f->ep);
   } else {
     panic("filewrite");
   }

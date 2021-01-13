@@ -41,9 +41,10 @@ void            disk_intr(void);
 
 // fat32.c
 int             fat32_init(void);
-struct dir_entry *ealloc(struct dir_entry *dir, char *name);
+struct dir_entry *ealloc(struct dir_entry *dp, char *name, int dir);
 struct dir_entry *edup(struct dir_entry *entry);
 void            eupdate(struct dir_entry *entry);
+void            etrunc(struct dir_entry *entry);
 void            eput(struct dir_entry *entry);
 void            estat(struct dir_entry *ep, struct stat *st);
 void            elock(struct dir_entry *entry);
@@ -63,24 +64,24 @@ int             filestat(struct file*, uint64 addr);
 int             filewrite(struct file*, uint64, int n);
 
 // fs.c
-void            fsinit(int);
-int             dirlink(struct inode*, char*, uint);
-struct inode*   dirlookup(struct inode*, char*, uint*);
-struct inode*   ialloc(uint, short);
-struct inode*   idup(struct inode*);
-void            iinit();
-void            ilock(struct inode*);
-void            iput(struct inode*);
-void            iunlock(struct inode*);
-void            iunlockput(struct inode*);
-void            iupdate(struct inode*);
-int             namecmp(const char*, const char*);
-struct inode*   namei(char*);
-struct inode*   nameiparent(char*, char*);
-int             readi(struct inode*, int, uint64, uint, uint);
-void            stati(struct inode*, struct stat*);
-int             writei(struct inode*, int, uint64, uint, uint);
-void            itrunc(struct inode*);
+// void            fsinit(int);
+// int             dirlink(struct inode*, char*, uint);
+// struct inode*   dirlookup(struct inode*, char*, uint*);
+// struct inode*   ialloc(uint, short);
+// struct inode*   idup(struct inode*);
+// void            iinit();
+// void            ilock(struct inode*);
+// void            iput(struct inode*);
+// void            iunlock(struct inode*);
+// void            iunlockput(struct inode*);
+// void            iupdate(struct inode*);
+// int             namecmp(const char*, const char*);
+// struct inode*   namei(char*);
+// struct inode*   nameiparent(char*, char*);
+// int             readi(struct inode*, int, uint64, uint, uint);
+// void            stati(struct inode*, struct stat*);
+// int             writei(struct inode*, int, uint64, uint, uint);
+// void            itrunc(struct inode*);
 
 // kalloc.c
 void*           kalloc(void);
@@ -88,10 +89,10 @@ void            kfree(void *);
 void            kinit(void);
 
 // log.c
-void            initlog(int, struct superblock*);
-void            log_write(struct buf*);
-void            begin_op(void);
-void            end_op(void);
+// void            initlog(int, struct superblock*);
+// void            log_write(struct buf*);
+// void            begin_op(void);
+// void            end_op(void);
 
 // pipe.c
 int             pipealloc(struct file**, struct file**);

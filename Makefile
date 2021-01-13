@@ -174,19 +174,20 @@ mkfs/mkfs: mkfs/mkfs.c $K/include/fs.h $K/include/param.h
 .PRECIOUS: %.o
 
 UPROGS=\
+	$U/_init\
 	$U/_init2\
+	$U/_sh\
 	$U/_test
+
 	# $U/_cat\
 	# $U/_echo\
 	# $U/_forktest\
 	# $U/_grep\
-	# $U/_init\
 	# $U/_kill\
 	# $U/_ln\
 	# $U/_ls\
 	# $U/_mkdir\
 	# $U/_rm\
-	# $U/_sh\
 	# $U/_stressfs\
 	# $U/_usertests\
 	# $U/_grind\

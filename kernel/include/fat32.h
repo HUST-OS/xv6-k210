@@ -33,7 +33,6 @@ struct dir_entry {
     uint     dev;
     int     valid;
     int     ref;
-    int     type;
     uint32  parent;     // because FAT32 doesn't have such thing like inum, use this for cache trick
     uint32  off;        // offset in the parent dir entry, for writing convenience
     struct dir_entry *next;

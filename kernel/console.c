@@ -15,7 +15,7 @@
 #include "include/param.h"
 #include "include/spinlock.h"
 #include "include/sleeplock.h"
-#include "include/fs.h"
+// #include "include/fs.h"
 #include "include/file.h"
 #include "include/memlayout.h"
 #include "include/riscv.h"

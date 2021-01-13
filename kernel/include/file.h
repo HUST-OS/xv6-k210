@@ -4,7 +4,7 @@ struct file {
   char readable;
   char writable;
   struct pipe *pipe; // FD_PIPE
-  struct inode *ip;  // FD_INODE and FD_DEVICE
+  // struct inode *ip;  // FD_INODE and FD_DEVICE
   struct dir_entry *ep;
   uint off;          // FD_ENTRY
   short major;       // FD_DEVICE
@@ -15,20 +15,20 @@ struct file {
 #define	mkdev(m,n)  ((uint)((m)<<16| (n)))
 
 // in-memory copy of an inode
-struct inode {
-  uint dev;           // Device number
-  uint inum;          // Inode number
-  int ref;            // Reference count
-  struct sleeplock lock; // protects everything below here
-  int valid;          // inode has been read from disk?
+// struct inode {
+//   uint dev;           // Device number
+//   uint inum;          // Inode number
+//   int ref;            // Reference count
+//   struct sleeplock lock; // protects everything below here
+//   int valid;          // inode has been read from disk?
 
-  short type;         // copy of disk inode
-  short major;
-  short minor;
-  short nlink;
-  uint size;
-  uint addrs[NDIRECT+1];
-};
+//   short type;         // copy of disk inode
+//   short major;
+//   short minor;
+//   short nlink;
+//   uint size;
+//   uint addrs[NDIRECT+1];
+// };
 
 // map major device number to device functions.
 struct devsw {
