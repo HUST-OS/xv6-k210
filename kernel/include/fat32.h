@@ -16,8 +16,7 @@
 #define FAT32_MAX_PATH      260
 #define ENTRY_CACHE_NUM     50
 
-struct dir_entry {
-    // uchar   path[260];
+struct dirent {
     char  filename[FAT32_MAX_FILENAME + 1];
     uint8   attribute;
     // uint8   create_time_tenth;
@@ -35,7 +34,7 @@ struct dir_entry {
     int     ref;
     uint32  parent;     // because FAT32 doesn't have such thing like inum, use this for cache trick
     uint32  off;        // offset in the parent dir entry, for writing convenience
-    struct dir_entry *next;
-    struct dir_entry *prev;
+    struct dirent *next;
+    struct dirent *prev;
     struct sleeplock    lock;
 };

@@ -281,7 +281,7 @@ userinit(void)
   p->trapframe->sp = PGSIZE;  // user stack pointer
 
   safestrcpy(p->name, "initcode", sizeof(p->name));
-  p->cwd = get_entry("/");
+  p->cwd = ename("/");
 
   p->state = RUNNABLE;
 

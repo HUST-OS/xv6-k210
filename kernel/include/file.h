@@ -5,7 +5,7 @@ struct file {
   char writable;
   struct pipe *pipe; // FD_PIPE
   // struct inode *ip;  // FD_INODE and FD_DEVICE
-  struct dir_entry *ep;
+  struct dirent *ep;
   uint off;          // FD_ENTRY
   short major;       // FD_DEVICE
 };

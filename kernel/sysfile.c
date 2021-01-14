@@ -120,7 +120,7 @@ sys_fstat(void)
 
 // // Is the directory dp empty except for "." and ".." ?
 // static int
-// isdirempty(struct dir_entry *dp)
+// isdirempty(struct dirent *dp)
 // {
 //   // int off;
 //   // struct dirent de;
@@ -134,18 +134,18 @@ sys_fstat(void)
 //   return 1;
 // }
 
-static struct dir_entry*
+static struct dirent*
 create(char *path, short type)
 {
-  struct dir_entry *ep, *dp;
+  struct dirent *ep, *dp;
   char name[FAT32_MAX_FILENAME];
 
-  if((dp = get_parent(path, name)) == 0)
+  if((dp = enameparent(path, name)) == 0)
     return 0;
 
   elock(dp);
 
-  if((ep = get_entry(path)) != 0){
+  if((ep = dirlookup(dp, name, 0)) != 0){
     eunlock(dp);
     eput(dp);
     elock(ep);
@@ -155,12 +155,12 @@ create(char *path, short type)
   if((ep = ealloc(dp, name, type == T_DIR)) == 0)
     panic("create: ialloc");
 
-  // elock(ep);
+  elock(ep);
 
   // what needs to do ?
 
-  // eunlock(dp);
-  // eput(dp);
+  eunlock(dp);
+  eput(dp);
 
   return ep;
 }
@@ -171,7 +171,7 @@ sys_open(void)
   char path[FAT32_MAX_PATH];
   int fd, omode;
   struct file *f;
-  struct dir_entry *ep;
+  struct dirent *ep;
 
   if(argstr(0, path, MAXPATH) < 0 || argint(1, &omode) < 0)
     return -1;
@@ -182,7 +182,7 @@ sys_open(void)
       return -1;
     }
   } else {
-    if((ep = get_entry(path)) == 0){
+    if((ep = ename(path)) == 0){
       return -1;
     }
     elock(ep);
@@ -226,7 +226,7 @@ uint64
 sys_mkdir(void)
 {
   char path[FAT32_MAX_PATH];
-  struct dir_entry *ep;
+  struct dirent *ep;
 
   if(argstr(0, path, FAT32_MAX_PATH) < 0 || (ep = create(path, T_DIR)) == 0){
     return -1;
@@ -239,7 +239,7 @@ sys_mkdir(void)
 // uint64
 // sys_mknod(void)
 // {
-//   struct dir_entry *ep;
+//   struct dirent *ep;
 //   char path[FAT32_MAX_PATH];
 //   int major, minor;
 
@@ -258,10 +258,10 @@ uint64
 sys_chdir(void)
 {
   char path[MAXPATH];
-  struct dir_entry *ep;
+  struct dirent *ep;
   struct proc *p = myproc();
   
-  if(argstr(0, path, MAXPATH) < 0 || (ep = get_entry(path)) == 0){
+  if(argstr(0, path, MAXPATH) < 0 || (ep = ename(path)) == 0){
     return -1;
   }
   elock(ep);

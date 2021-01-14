@@ -1,12 +1,15 @@
 #include "kernel/include/types.h"
 #include "kernel/include/stat.h"
 #include "xv6-user/user.h"
-#include "kernel/include/fs.h"
+// #include "kernel/include/fs.h"
+#include "kernel/include/fat32.h"
+
+#define FILENAME_LENGTH 32
 
 char*
 fmtname(char *path)
 {
-  static char buf[DIRSIZ+1];
+  static char buf[FILENAME_LENGTH+1];
   char *p;
 
   // Find first character after last slash.
@@ -15,10 +18,10 @@ fmtname(char *path)
   p++;
 
   // Return blank-padded name.
-  if(strlen(p) >= DIRSIZ)
+  if(strlen(p) >= FILENAME_LENGTH)
     return p;
   memmove(buf, p, strlen(p));
-  memset(buf+strlen(p), ' ', DIRSIZ-strlen(p));
+  memset(buf+strlen(p), ' ', FILENAME_LENGTH-strlen(p));
   return buf;
 }
 
@@ -27,7 +30,7 @@ ls(char *path)
 {
   char buf[512], *p;
   int fd;
-  struct dirent de;
+  // struct dirent de;
   struct stat st;
 
   if((fd = open(path, 0)) < 0){
@@ -41,31 +44,30 @@ ls(char *path)
     return;
   }
 
-  switch(st.type){
-  case T_FILE:
-    printf("%s %d %d %l\n", fmtname(path), st.type, st.ino, st.size);
-    break;
+  if (st.attribute == ATTR_DIRECTORY){
 
-  case T_DIR:
-    if(strlen(path) + 1 + DIRSIZ + 1 > sizeof buf){
+    if(strlen(path) + 1 + FILENAME_LENGTH + 1 > sizeof buf){
       printf("ls: path too long\n");
-      break;
     }
     strcpy(buf, path);
     p = buf+strlen(buf);
     *p++ = '/';
+
+// CAN'T WORK NOW
+
     while(read(fd, &de, sizeof(de)) == sizeof(de)){
-      if(de.inum == 0)
-        continue;
-      memmove(p, de.name, DIRSIZ);
-      p[DIRSIZ] = 0;
+      // if(de.inum == 0)
+      //   continue;
+      // memmove(p, de.name, FILENAME_LENGTH);
+      // p[DIRSIZ] = 0;
       if(stat(buf, &st) < 0){
         printf("ls: cannot stat %s\n", buf);
         continue;
       }
-      printf("%s %d %d %d\n", fmtname(buf), st.type, st.ino, st.size);
+      printf("%s %d %d\n", fmtname(buf), st.attribute, st.size);
     }
-    break;
+  } else {
+    printf("%s %d %l\n", fmtname(path), st.attribute, st.size);
   }
   close(fd);
 }

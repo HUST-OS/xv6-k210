@@ -16,7 +16,7 @@
 // and the pages from va to va+sz must already be mapped.
 // Returns 0 on success, -1 on failure.
 static int
-loadseg(pagetable_t pagetable, uint64 va, struct dir_entry *ep, uint offset, uint sz)
+loadseg(pagetable_t pagetable, uint64 va, struct dirent *ep, uint offset, uint sz)
 {
   uint i, n;
   uint64 pa;
@@ -45,13 +45,13 @@ int exec(char *path, char **argv)
   int i, off;
   uint64 argc, sz = 0, sp, ustack[MAXARG+1], stackbase;
   struct elfhdr elf;
-  struct dir_entry *ep;
+  struct dirent *ep;
   struct proghdr ph;
   pagetable_t pagetable = 0, oldpagetable;
   struct proc *p = myproc();
 
   // begin_op();
-  if((ep = get_entry(path)) == 0){
+  if((ep = ename(path)) == 0){
     // printf("exec: can't find %s\n", path);
     // end_op();
     return -1;
@@ -156,6 +156,6 @@ int exec(char *path, char **argv)
     eput(ep);
     // end_op();
   }
-  printf("[exec]bad, pid = %d\n", p->pid);
+  // printf("[exec]bad, pid = %d\n", p->pid);
   return -1;
 }

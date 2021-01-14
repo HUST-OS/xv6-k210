@@ -1,6 +1,6 @@
 struct buf;
 struct context;
-struct dir_entry;
+struct dirent;
 struct file;
 struct inode;
 struct pipe;
@@ -41,18 +41,19 @@ void            disk_intr(void);
 
 // fat32.c
 int             fat32_init(void);
-struct dir_entry *ealloc(struct dir_entry *dp, char *name, int dir);
-struct dir_entry *edup(struct dir_entry *entry);
-void            eupdate(struct dir_entry *entry);
-void            etrunc(struct dir_entry *entry);
-void            eput(struct dir_entry *entry);
-void            estat(struct dir_entry *ep, struct stat *st);
-void            elock(struct dir_entry *entry);
-void            eunlock(struct dir_entry *entry);
-struct dir_entry *get_entry(char *path);
-struct dir_entry *get_parent(char *path, char *name);
-int             eread(struct dir_entry *entry, int user_dst, uint64 dst, uint off, uint n);
-int             ewrite(struct dir_entry *entry, int user_src, uint64 src, uint off, uint n);
+struct dirent*  dirlookup(struct dirent *entry, char *filename, uint *poff);
+struct dirent*  ealloc(struct dirent *dp, char *name, int dir);
+struct dirent*  edup(struct dirent *entry);
+void            eupdate(struct dirent *entry);
+void            etrunc(struct dirent *entry);
+void            eput(struct dirent *entry);
+void            estat(struct dirent *ep, struct stat *st);
+void            elock(struct dirent *entry);
+void            eunlock(struct dirent *entry);
+struct dirent*  ename(char *path);
+struct dirent*  enameparent(char *path, char *name);
+int             eread(struct dirent *entry, int user_dst, uint64 dst, uint off, uint n);
+int             ewrite(struct dirent *entry, int user_src, uint64 src, uint off, uint n);
 
 // file.c
 struct file*    filealloc(void);

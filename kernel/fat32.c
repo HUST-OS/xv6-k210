@@ -1,5 +1,3 @@
-// test operating fat32 sd card.
-
 #include "include/param.h"
 #include "include/types.h"
 #include "include/riscv.h"
@@ -30,13 +28,12 @@ static struct {
 
 } fat;
 
-// how about a entry pool with lock?
 static struct entry_cache {
     struct spinlock lock;
-    struct dir_entry entries[ENTRY_CACHE_NUM];
+    struct dirent entries[ENTRY_CACHE_NUM];
 } ecache;
 
-static struct dir_entry root;
+static struct dirent root;
 
 /**
  * Read the Boot Parameter Block.
@@ -46,10 +43,8 @@ static struct dir_entry root;
 int fat32_init()
 {
     struct buf *b = bread(0, 0);
-    if (strncmp((char const*)(b->data + 82), "FAT32", 5)) {
-        brelse(b);
-        return -1;
-    }
+    if (strncmp((char const*)(b->data + 82), "FAT32", 5))
+        panic("not FAT32 volume");
     fat.bpb.byts_per_sec = *(uint16 *)(b->data + 11);
     fat.bpb.sec_per_clus = *(b->data + 13);
     fat.bpb.rsvd_sec_cnt = *(uint16 *)(b->data + 14);
@@ -70,19 +65,19 @@ int fat32_init()
     // printf("[FAT32 init]fat_cnt: %d\n", fat.bpb.fat_cnt);
     // printf("[FAT32 init]fat_sz: %d\n", fat.bpb.fat_sz);
 
-	// make sure that byts_per_sec has the same value with BSIZE 
-	if (BSIZE != fat.bpb.byts_per_sec) 
-		panic("byts_per_sec != BSIZE");
+    // make sure that byts_per_sec has the same value with BSIZE 
+    if (BSIZE != fat.bpb.byts_per_sec) 
+        panic("byts_per_sec != BSIZE");
     
-    memset(ecache.entries, 0, sizeof(struct dir_entry) * ENTRY_CACHE_NUM);
-    memset(&root, 0, sizeof(root));
     initlock(&ecache.lock, "ecache");
+    memset(&root, 0, sizeof(root));
     initsleeplock(&root.lock, "entry");
     root.attribute = ATTR_DIRECTORY;
     root.first_clus = fat.bpb.root_clus;
     root.prev = &root;
     root.next = &root;
-    for(struct dir_entry *de = ecache.entries; de < ecache.entries + ENTRY_CACHE_NUM; de++) {
+    for(struct dirent *de = ecache.entries; de < ecache.entries + ENTRY_CACHE_NUM; de++) {
+        de->valid = 0;
         de->next = root.next;
         de->prev = &root;
         initsleeplock(&de->lock, "entry");
@@ -140,6 +135,11 @@ static uint32 read_fat(uint32 cluster)
     return next_clus;
 }
 
+/**
+ * Write the FAT region content corresponded to the given cluster number.
+ * @param   cluster     the number of cluster to write its content in FAT table
+ * @param   content     the content which should be the next cluster number of FAT end of chain flag
+ */
 static int write_fat(uint32 cluster, uint32 content)
 {
     if (cluster > fat.data_clus_cnt + 1) {
@@ -194,33 +194,39 @@ static void free_clus(uint32 cluster)
     write_fat(cluster, 0);
 }
 
-static uint eread_clus(uint32 cluster, int user_dst, uint64 dst, uint off, uint n)
+static uint rw_clus(uint32 cluster, int write, int user, uint64 data, uint off, uint n)
 {
-	if (off + n > fat.byts_per_clus) {
-		panic("offset out of range");
-	}
+    if (off + n > fat.byts_per_clus)
+        panic("offset out of range");
     uint tot, m;
     struct buf *bp;
     uint sec = first_sec_of_clus(cluster) + off / fat.bpb.byts_per_sec;
     off = off % fat.bpb.byts_per_sec;
 
-    for (tot = 0; tot < n; tot += m, off += m, dst += m, sec++) {
+    int bad = 0;
+    for (tot = 0; tot < n; tot += m, off += m, data += m, sec++) {
         bp = bread(0, sec);
         m = BSIZE - off % BSIZE;
         if (n - tot < m) {
             m = n - tot;
         }
-        if (either_copyout(user_dst, dst, bp->data + (off % BSIZE), m) == -1) {
-            brelse(bp);
-            break;
+        if (write) {
+            if ((bad = either_copyin(bp->data + (off % BSIZE), user, data, m)) != -1) {
+                bwrite(bp);
+            }
+        } else {
+            bad = either_copyout(user, data, bp->data + (off % BSIZE), m);
         }
         brelse(bp);
+        if (bad == -1) {
+            break;
+        }
     }
     return tot;
 }
 
 /* like the original readi, but "reade" is odd, let alone "writee" */
-int eread(struct dir_entry *entry, int user_dst, uint64 dst, uint off, uint n)
+int eread(struct dirent *entry, int user_dst, uint64 dst, uint off, uint n)
 {
     if (off > entry->file_size || off + n < off) {
         return 0;
@@ -241,7 +247,7 @@ int eread(struct dir_entry *entry, int user_dst, uint64 dst, uint off, uint n)
         if (n - tot < m) {
             m = n - tot;
         }
-        if (eread_clus(cluster, user_dst, dst, off % fat.byts_per_clus, m) != m) {
+        if (rw_clus(cluster, 0, user_dst, dst, off % fat.byts_per_clus, m) != m) {
             break;
         }
         cluster = read_fat(cluster);
@@ -249,40 +255,18 @@ int eread(struct dir_entry *entry, int user_dst, uint64 dst, uint off, uint n)
     return tot;
 }
 
-static uint ewrite_clus(uint32 cluster, int user_src, uint64 src, uint off, uint n)
-{
-	if (off + n > fat.byts_per_clus) {
-		panic("offset out of range");
-	}
-    uint tot, m;
-    struct buf *bp;
-    uint sec = first_sec_of_clus(cluster) + off / fat.bpb.byts_per_sec;
-    off = off % fat.bpb.byts_per_sec;
-
-    for (tot = 0; tot < n; tot += m, off += m, src += m, sec++) {
-        bp = bread(0, sec);
-        m = BSIZE - off % BSIZE;
-        if (n - tot < m) {
-            m = n - tot;
-        }
-        if (either_copyin(bp->data + (off % BSIZE), user_src, src, m) == -1) {
-            brelse(bp);
-            break;
-        }
-        bwrite(bp);
-        brelse(bp);
-    }
-    return tot;
-}
-
 // Caller must hold entry->lock.
-int ewrite(struct dir_entry *entry, int user_src, uint64 src, uint off, uint n)
+int ewrite(struct dirent *entry, int user_src, uint64 src, uint off, uint n)
 {
     if (off > entry->file_size || off + n < off) {
         return -1;
     }
     int clus_num = off / fat.byts_per_clus;
     off = off % fat.byts_per_clus;
+    if (entry->first_clus == 0) {
+        entry->first_clus = alloc_clus();
+        eupdate(entry);
+    }
     uint32 cluster = entry->first_clus;
     while (clus_num-- > 0) {
         cluster = read_fat(cluster);
@@ -298,7 +282,7 @@ int ewrite(struct dir_entry *entry, int user_src, uint64 src, uint off, uint n)
         if (n - tot < m) {
             m = n - tot;
         }
-        if (ewrite_clus(cluster, user_src, src, off % fat.byts_per_clus, m) != m) {
+        if (rw_clus(cluster, 1, user_src, src, off % fat.byts_per_clus, m) != m) {
             break;
         }
         cluster = read_fat(cluster);
@@ -313,9 +297,9 @@ int ewrite(struct dir_entry *entry, int user_src, uint64 src, uint off, uint n)
 }
 
 // should never get root by eget
-static struct dir_entry *eget(uint dev, uint32 parent, char *name)
+static struct dirent *eget(uint dev, uint32 parent, char *name)
 {
-    struct dir_entry *ep;
+    struct dirent *ep;
     acquire(&ecache.lock);
     for (ep = root.next; ep != &root; ep = ep->next) {
         if (ep->dev == dev && ep->parent == parent
@@ -330,44 +314,100 @@ static struct dir_entry *eget(uint dev, uint32 parent, char *name)
         if (ep->ref == 0) {
             ep->ref = 1;
             ep->dev = dev;
+            ep->off = 0;
             ep->valid = 0;
             release(&ecache.lock);
             return ep;
         }
     }
-    for (int i = 0; i < ENTRY_CACHE_NUM; i++) {
-        printf("%s, %d\n", ecache.entries[i].filename, ecache.entries[i].ref);
-
-
-    }
     panic("eget: insufficient ecache");
     return 0;
 }
 
-struct dir_entry *ealloc(struct dir_entry *dp, char *name, int dir)
+static void wnstr_lazy(wchar *dst, char const *src, int len) {
+    while (len-- && *src) {
+        *dst = *src++;
+        dst++;
+    }
+}
+
+struct dirent *ealloc(struct dirent *dp, char *name, int dir)
 {
     if (dp->attribute != ATTR_DIRECTORY) { return 0; }
-    struct dir_entry *ep = eget(dp->dev, dp->parent, name);
-    if (ep->valid) {
+    struct dirent *ep;
+    uint off = 0;
+    ep = dirlookup(dp, name, &off);
+    if (ep != 0) {      // entry exists
+        return 0;
+    }
+    ep = eget(dp->dev, dp->parent, name);
+    if (ep->valid) {    // shouldn't be valid
         panic("ealloc");
     }
     elock(ep);
+
     ep->attribute = 0;
     ep->file_size = 0;
     ep->first_clus = 0;
-    strncpy(ep->filename, name, FAT32_MAX_FILENAME);
-    if(dir){
-        ep->attribute |= ATTR_DIRECTORY;
+    ep->parent = dp->first_clus;
+    ep->off = off;
+    strncpy(ep->filename, name, FAT32_MAX_FILENAME);    
 
-    } else {
-        ep->attribute |= ATTR_LONG_NAME;
+    int len = strlen(name);
+    int entcnt = (len + CHAR_LONG_NAME - 1) / CHAR_LONG_NAME;   // count of l-n-entries, rounds up
+    uint clus = dp->first_clus;
+    int clus_cnt = off / fat.byts_per_clus;
+    off %= fat.byts_per_clus;
+    while (clus_cnt-- != 0) {
+        clus = read_fat(clus);
     }
+
+    uint8 ebuf[32] = {0};
+    if(dir){    // generate "." and ".." for ep
+        ep->attribute |= ATTR_DIRECTORY;
+        ep->first_clus = alloc_clus();
+        strncpy((char *)ebuf, ".", 11);
+        ebuf[11] = ATTR_DIRECTORY;
+        *(uint16 *)(ebuf + 20) = (uint16)(ep->first_clus >> 16);
+        *(uint16 *)(ebuf + 26) = (uint16)(ep->first_clus & 0xff);
+        *(uint32 *)(ebuf + 28) = 0;
+        rw_clus(clus, 1, 0, (uint64)ebuf, 0, sizeof(ebuf));
+        strncpy((char *)ebuf, "..", 11);
+        ebuf[11] = ATTR_DIRECTORY;
+        *(uint16 *)(ebuf + 20) = (uint16)(dp->first_clus >> 16);
+        *(uint16 *)(ebuf + 26) = (uint16)(dp->first_clus & 0xff);
+        *(uint32 *)(ebuf + 28) = 0;
+        rw_clus(clus, 1, 0, (uint64)ebuf, 32, sizeof(ebuf));
+    } else {
+        ep->attribute |= ATTR_ARCHIVE;
+    }
+    memset(ebuf, 0, sizeof(ebuf));
+    for (uint8 i = entcnt; i > 0; i--) {                          // ignore checksum
+        ebuf[0] = i;
+        if (i == entcnt) {
+            ebuf[0] |= LAST_LONG_ENTRY;
+            memset(ebuf + 1, 0xff, 10);
+            memset(ebuf + 14, 0xff, 12);
+            memset(ebuf + 28, 0xff, 4);
+        }
+        ebuf[11] = ATTR_LONG_NAME;
+        wnstr_lazy((wchar *) (ebuf + 1), ep->filename + i * CHAR_LONG_NAME, 5);
+        wnstr_lazy((wchar *) (ebuf + 14), ep->filename + i * CHAR_LONG_NAME + 5, 6);
+        wnstr_lazy((wchar *) (ebuf + 28), ep->filename + i * CHAR_LONG_NAME + 11, 2);
+        rw_clus(clus, 1, 0, (uint64)ebuf, off, sizeof(ebuf));
+        off += 32;
+        if (off >= fat.byts_per_clus) {
+            clus = read_fat(clus);
+            off -= fat.byts_per_clus;
+        }
+    }
+    eupdate(ep);
     ep->valid = 1;
     eunlock(ep);
     return ep;
 }
 
-struct dir_entry *edup(struct dir_entry *entry)
+struct dirent *edup(struct dirent *entry)
 {
     acquire(&ecache.lock);
     entry->ref++;
@@ -376,30 +416,42 @@ struct dir_entry *edup(struct dir_entry *entry)
 }
 
 // only update file size
-void eupdate(struct dir_entry *entry)
+void eupdate(struct dirent *entry)
 {
     uint entcnt;
-    uint32 clus = entry->parent + entry->off / fat.byts_per_clus;
+    uint32 clus = entry->parent;
     uint32 off = entry->off % fat.byts_per_clus;
-    eread_clus(clus, 0, (uint64) &entcnt, off, 1);
-    entcnt &= ~LAST_LONG_ENTRY;
-    off += (entcnt << 5) + 28;
-    if (off / fat.byts_per_clus != 0) {
+    for (uint clus_cnt = entry->off / fat.byts_per_clus; clus_cnt > 0; clus_cnt--) {
         clus = read_fat(clus);
     }
-    ewrite_clus(clus, 0, (uint64) &entry->file_size, off % fat.byts_per_clus, sizeof(uint32));
+    rw_clus(clus, 0, 0, (uint64) &entcnt, off, 1);
+    entcnt &= ~LAST_LONG_ENTRY;
+    off += (entcnt << 5);
+    if (off / fat.byts_per_clus != 0) {
+        clus = read_fat(clus);
+        off %= fat.byts_per_clus;
+    }
+    uint16 clus_high = (uint16)(entry->first_clus >> 16);
+    uint16 clus_low = (uint16)(entry->first_clus & 0xff);
+    rw_clus(clus, 1, 0, (uint64) &entry->attribute, off + 11, sizeof(entry->attribute));
+    rw_clus(clus, 1, 0, (uint64) &clus_high, off + 20, sizeof(clus_high));
+    rw_clus(clus, 1, 0, (uint64) &clus_low, off + 26, sizeof(clus_low));
+    rw_clus(clus, 1, 0, (uint64) &entry->file_size, off + 28, sizeof(entry->file_size));
 }
 
-void etrunc(struct dir_entry *entry)
+void etrunc(struct dirent *entry)
 {
     uint entcnt;
-    uint32 clus = entry->parent + entry->off / fat.byts_per_clus;
+    uint32 clus = entry->parent;
     uint32 off = entry->off % fat.byts_per_clus;
-    eread_clus(clus, 0, (uint64) &entcnt, off, 1);
+    for (uint clus_cnt = entry->off / fat.byts_per_clus; clus_cnt > 0; clus_cnt--) {
+        clus = read_fat(clus);
+    }
+    rw_clus(clus, 0, 0, (uint64) &entcnt, off, 1);
     entcnt &= ~LAST_LONG_ENTRY;
     uint8 flag = EMPTY_ENTRY;
     for (int i = 0; i <= entcnt; i++) {
-        ewrite_clus(clus, 0, (uint64) &flag, off, 1);
+        rw_clus(clus, 1, 0, (uint64) &flag, off, 1);
         off += 32;
         if (off / fat.byts_per_clus != 0) {
             off %= fat.byts_per_clus;
@@ -414,21 +466,21 @@ void etrunc(struct dir_entry *entry)
     }
 }
 
-void elock(struct dir_entry *entry)
+void elock(struct dirent *entry)
 {
     if (entry == 0 || entry->ref < 1)
         panic("elock");
     acquiresleep(&entry->lock);
 }
 
-void eunlock(struct dir_entry *entry)
+void eunlock(struct dirent *entry)
 {
     if (entry == 0 || !holdingsleep(&entry->lock) || entry->ref < 1)
         panic("eunlock");
     releasesleep(&entry->lock);
 }
 
-void eput(struct dir_entry *entry)
+void eput(struct dirent *entry)
 {
     acquire(&ecache.lock);
     if (entry->valid && entry->ref == 1) {
@@ -452,9 +504,11 @@ void eput(struct dir_entry *entry)
     release(&ecache.lock);
 }
 
-void estat(struct dir_entry *ep, struct stat *st)
+void estat(struct dirent *entry, struct stat *st)
 {
-
+    st->attribute = entry->attribute;
+    st->dev = entry->dev;
+    st->size = entry->file_size;
 }
 
 /**
@@ -463,14 +517,12 @@ void estat(struct dir_entry *ep, struct stat *st)
  * @param   raw_entry   pointer to the entry in a sector buffer
  * @param   islong      if non-zero, read as l-n-e, otherwise s-n-e.
  */
-static void read_entry_name(wchar *buffer, uint8 *raw_entry, int longcnt)
+static void read_entry_name(char *buffer, uint8 *raw_entry, int islong)
 {
-    if (longcnt) {                       // long entry branch
-        memmove(buffer, raw_entry + 1, 10);
-        buffer += 5;
-        memmove(buffer, raw_entry + 14, 12);
-        buffer += 6;
-        memmove(buffer, raw_entry + 28, 4);
+    if (islong) {                       // long entry branch
+        snstr(buffer, (wchar *) (raw_entry + 1), 5);
+        snstr(buffer + 5, (wchar *) (raw_entry + 14), 6);
+        snstr(buffer + 11, (wchar *) (raw_entry + 28), 2);
     } else {
         // assert: only "." and ".." will enter this branch
         memset(buffer, 0, 12 << 1);
@@ -492,9 +544,9 @@ static void read_entry_name(wchar *buffer, uint8 *raw_entry, int longcnt)
 /**
  * Read entry_info from directory entry.
  * @param   entry       pointer to the structure that stores the entry info
- * @param   raw_entry   pointer to the entry in a sector buffer    
+ * @param   raw_entry   pointer to the entry in a sector buffer
  */
-static void read_entry_info(struct dir_entry *entry, uint8 *raw_entry)
+static void read_entry_info(struct dirent *entry, uint8 *raw_entry)
 {
     entry->attribute = raw_entry[11];
     // entry->create_time_tenth = raw_entry[13];
@@ -512,118 +564,124 @@ static void read_entry_info(struct dir_entry *entry, uint8 *raw_entry)
  * Seacher for the entry in a directory and return a structure.
  * @param   entry       entry of a directory file
  * @param   filename    target filename
- * @param   len         length of the filename
+ * @param   poff        offset of proper empty entries slot from the dir
  */
-static struct dir_entry *lookup_dir(struct dir_entry *entry, char *filename, int len)
+struct dirent *dirlookup(struct dirent *entry, char *filename, uint *poff)
 {
-    if (entry->attribute != ATTR_DIRECTORY) { return 0; }
-    struct dir_entry *de = eget(entry->dev, entry->first_clus, filename);
-    if (de->valid) { return de; }
-    uint32 cluster = entry->first_clus;
-    uint32 sec1 = first_sec_of_clus(cluster);
-    uint32 sec = sec1;
-    uint32 clus_cnt = 0;
+    if (entry->attribute != ATTR_DIRECTORY)
+        panic("dirlookup not DIR");
+    
+    struct dirent *de = eget(entry->dev, entry->first_clus, filename);
+    if (de->valid) { return de; }                               // ecache hits
+
+    uint8 ebuf[32];
+    char name[CHAR_LONG_NAME];
+    int len = strlen(filename);
     int entcnt = (len + CHAR_LONG_NAME - 1) / CHAR_LONG_NAME;   // count of l-n-entries, rounds up
-    int skip = 0;                                               // while switching sector, skip some entry;
+    uint32 cluster = entry->first_clus;
+    uint clus_cnt = 0;
+    uint off = 0;
     int match = 0;
-    wchar buffer[CHAR_LONG_NAME] = {0};
-    wchar wname[FAT32_MAX_FILENAME] = {0};
-    wnstr(wname, filename, len);
+    int first = 1;
+    int empty_cnt = entcnt;
+    
     while (cluster < FAT32_EOC) {
-        struct buf *b = bread(0, sec);
-        uint8 *ep = b->data + skip;
-        while (ep < b->data + fat.bpb.byts_per_sec) {
-            if (ep[0] == EMPTY_ENTRY) {
-                ep += 32;
-                continue;
-            } else if (ep[0] == END_OF_ENTRY) {
-                brelse(b);
-                eput(de);
-                return 0;
+        while (off < fat.byts_per_clus) {
+            if (rw_clus(cluster, 0, 0, (uint64)ebuf, off, 32) != 32 || ebuf[0] == END_OF_ENTRY) {
+                goto miss;
             }
-            if (ep[11] == ATTR_LONG_NAME) {
-                int count = ep[0] & ~LAST_LONG_ENTRY;
-                if ((ep[0] & LAST_LONG_ENTRY) && count != entcnt) { // meet first l-n-e, and count is unequal
-                    ep += (count + 1) << 5;                         // skip over, plus corresponding s-n-e
-                } else {
-                    read_entry_name(buffer, ep, count);
-                    int offset = (count - 1) * CHAR_LONG_NAME;
-                    if (wcsncmp(buffer, wname + offset, CHAR_LONG_NAME) != 0) {
-                        ep += (count + 1) << 5;
-                    } else {
-                        if (count == 1) {
-                            match = 1;
-                        }
-                        ep += 32;
+            if (ebuf[0] == EMPTY_ENTRY) {
+                if (poff) {
+                    if (first) {
+                        empty_cnt = entcnt;
+                        first = 0;
+                    } else if (--empty_cnt == 0) {
+                        *poff = clus_cnt * fat.byts_per_clus + off - (entcnt << 5);
+                        poff = 0;
                     }
                 }
+                off += 32;
+                continue;
+            } else if (poff) {
+                first = 1;
+            }
+            if (ebuf[11] == ATTR_LONG_NAME) {
+                int count = ebuf[0] & ~LAST_LONG_ENTRY;
+                if ((ebuf[0] & LAST_LONG_ENTRY) && count != entcnt) {   // meet first l-n-e, and if count is unequal
+                    off += (count + 1) << 5;                            // skip over, plus corresponding s-n-e
+                    continue;
+                }
+                read_entry_name(name, ebuf, 1);
+                int offset = (count - 1) * CHAR_LONG_NAME;
+                if (strncmp(name, filename + offset, CHAR_LONG_NAME) != 0) {
+                    off += (count + 1) << 5;
+                    continue;
+                }
+                if (count == 1) {
+                    match = 1;
+                }
+                off += 32;
             } else {
                 if (!match) {
-                    read_entry_name(buffer, ep, 0);
-                    if (strncmp((char *)buffer, filename, 11) != 0) {
-                        ep += 32;
+                    read_entry_name(name, ebuf, 0);
+                    if (strncmp(name, filename, 11) != 0) {
+                        off += 32;
                         continue;
                     }
                 }
                 strncpy(de->filename, filename, len);
-                de->valid = 1;
+                read_entry_info(de, ebuf);
                 de->parent = entry->first_clus;
-                de->off = (clus_cnt * fat.bpb.sec_per_clus + (sec - sec1)) * fat.bpb.byts_per_sec + (ep - b->data) - (entcnt << 5);
-                read_entry_info(de, ep);
-                brelse(b);
+                de->off = clus_cnt * fat.byts_per_clus + off - (entcnt << 5);
+                de->valid = 1;
                 return de;
             }
         }
-        skip = ep - (b->data + fat.bpb.byts_per_sec);       // set offset after switching sectors
-        brelse(b);
-        if (sec++ - sec1 >= fat.bpb.sec_per_clus) {
-            cluster = read_fat(cluster);
-            sec = sec1 = first_sec_of_clus(cluster);
-            clus_cnt++;
-        }
+        off -= fat.byts_per_clus;
+        cluster = read_fat(cluster);
+        clus_cnt++;
+    }
+miss:
+    if (poff) {
+        *poff = clus_cnt * fat.byts_per_clus + off;
     }
     eput(de);
     return 0;
 }
 
-static int skipelem(char **path, char *name)
+static char *skipelem(char *path, char *name)
 {
-    int len;
-    while (**path == '/') {
-        (*path)++;
+    while (*path == '/') {
+        path++;
     }
-    if (**path == 0) { return -1; }
-    char *s = *path;
-    while (**path != '/' && **path != 0) {
-        (*path)++;
+    if (*path == 0) { return 0; }
+    char *s = path;
+    while (*path != '/' && *path != 0) {
+        path++;
     }
-    len = *path - s;
+    int len = path - s;
     if (len > FAT32_MAX_FILENAME) {
         len = FAT32_MAX_FILENAME;
     } else {
         name[len] = 0;
     }
     memmove(name, s, len);
-    while (**path == '/') {
-        (*path)++;
+    while (*path == '/') {
+        path++;
     }
-    return len;
+    return path;
 }
 
-/**
- * FAT32 version of namex in xv6's original file system.
- * 
- */
-static struct dir_entry *lookup_path(char *path, int parent, char *name)
+// FAT32 version of namex in xv6's original file system.
+static struct dirent *lookup_path(char *path, int parent, char *name)
 {
-    struct dir_entry *entry, *next;
+    struct dirent *entry, *next;
     if (*path == '/') {
         entry = edup(&root);
     } else {
         entry = edup(myproc()->cwd);
     }
-    int len;
-    while ((len = skipelem(&path, name)) != -1) {
+    while ((path = skipelem(path, name)) != 0) {
         elock(entry);
         if (entry->attribute != ATTR_DIRECTORY) {
             eunlock(entry);
@@ -634,7 +692,7 @@ static struct dir_entry *lookup_path(char *path, int parent, char *name)
             eunlock(entry);
             return entry;
         }
-        if ((next = lookup_dir(entry, name, len)) == 0) {
+        if ((next = dirlookup(entry, name, 0)) == 0) {
             eunlock(entry);
             eput(entry);
             return 0;
@@ -650,13 +708,13 @@ static struct dir_entry *lookup_path(char *path, int parent, char *name)
     return entry;
 }
 
-struct dir_entry *get_entry(char *path)
+struct dirent *ename(char *path)
 {
-	char name[FAT32_MAX_FILENAME + 1] = {0};
-	return lookup_path(path, 0, name);
+    char name[FAT32_MAX_FILENAME + 1] = {0};
+    return lookup_path(path, 0, name);
 }
 
-struct dir_entry *get_parent(char *path, char *name)
+struct dirent *enameparent(char *path, char *name)
 {
-	return lookup_path(path, 1, name);
+    return lookup_path(path, 1, name);
 }

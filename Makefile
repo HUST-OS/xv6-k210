@@ -1,4 +1,4 @@
-platform	:= qemu
+platform	:= k210
 K=kernel
 U=xv6-user
 T=target
@@ -62,6 +62,7 @@ else
 RUSTSBI = ./bootloader/SBI/sbi-qemu
 endif
 
+# TOOLPREFIX	:= riscv64-unknown-elf-
 TOOLPREFIX	:= riscv64-linux-gnu-
 CC = $(TOOLPREFIX)gcc
 AS = $(TOOLPREFIX)gas
@@ -177,9 +178,9 @@ UPROGS=\
 	$U/_init\
 	$U/_init2\
 	$U/_sh\
+	$U/_cat\
 	$U/_test
 
-	# $U/_cat\
 	# $U/_echo\
 	# $U/_forktest\
 	# $U/_grep\
