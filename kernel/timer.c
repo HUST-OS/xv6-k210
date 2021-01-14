@@ -31,7 +31,7 @@ void timer_tick() {
     set_next_timeout();
     tick++;
     if((tick % 10) == 0) {
-        printf("[Timer]tick: %d\n", tick);
+        printf("[Timer]tick: %d from hart %d\n", tick, r_tp());
         #ifndef QEMU
         uint32 c = *(uint32*)(UARTHS + UARTHS_REG_RXFIFO);
         if(c <= 255) {
