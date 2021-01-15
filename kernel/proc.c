@@ -281,7 +281,7 @@ userinit(void)
   p->trapframe->sp = PGSIZE;  // user stack pointer
 
   safestrcpy(p->name, "initcode", sizeof(p->name));
-  p->cwd = namei("/");
+  p->cwd = ename("/");
 
   p->state = RUNNABLE;
 
@@ -343,7 +343,7 @@ fork(void)
   for(i = 0; i < NOFILE; i++)
     if(p->ofile[i])
       np->ofile[i] = filedup(p->ofile[i]);
-  np->cwd = idup(p->cwd);
+  np->cwd = edup(p->cwd);
 
   safestrcpy(np->name, p->name, sizeof(p->name));
 
@@ -402,9 +402,9 @@ exit(int status)
     }
   }
 
-  begin_op();
-  iput(p->cwd);
-  end_op();
+  // begin_op();
+  eput(p->cwd);
+  // end_op();
   p->cwd = 0;
 
   // we might re-parent a child to init. we can't be precise about
@@ -601,7 +601,9 @@ forkret(void)
     // be run from main().
     // printf("[forkret]first scheduling\n");
     first = 0;
-    // fsinit(ROOTDEV);
+    #ifdef QEMU
+    fat32_init();
+    #endif
   }
   // printf("[forket]call usertrapret\n");
   usertrapret();

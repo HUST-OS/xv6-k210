@@ -33,6 +33,7 @@ void timer_tick() {
     if((tick % 10) == 0) {
         printf("[Timer]tick: %d from hart %d\n", tick, r_tp());
         #ifndef QEMU
+        printf("[Timer]tick: %d from hart %d\n", tick, r_tp());
         uint32 c = *(uint32*)(UARTHS + UARTHS_REG_RXFIFO);
         if(c <= 255) {
             printf("[UARTHS]receive: %p, ", c);

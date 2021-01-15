@@ -1,5 +1,6 @@
 struct buf;
 struct context;
+struct dirent;
 struct file;
 struct inode;
 struct pipe;
@@ -29,8 +30,30 @@ void timerinit();
 void set_next_timeout();
 void timer_tick();
 
+// disk.c
+void            disk_init(void);
+void            disk_read(struct buf *b);
+void            disk_write(struct buf *b);
+void            disk_intr(void);
+
 // exec.c
 int             exec(char*, char**);
+
+// fat32.c
+int             fat32_init(void);
+struct dirent*  dirlookup(struct dirent *entry, char *filename, uint *poff);
+struct dirent*  ealloc(struct dirent *dp, char *name, int dir);
+struct dirent*  edup(struct dirent *entry);
+void            eupdate(struct dirent *entry);
+void            etrunc(struct dirent *entry);
+void            eput(struct dirent *entry);
+void            estat(struct dirent *ep, struct stat *st);
+void            elock(struct dirent *entry);
+void            eunlock(struct dirent *entry);
+struct dirent*  ename(char *path);
+struct dirent*  enameparent(char *path, char *name);
+int             eread(struct dirent *entry, int user_dst, uint64 dst, uint off, uint n);
+int             ewrite(struct dirent *entry, int user_src, uint64 src, uint off, uint n);
 
 // file.c
 struct file*    filealloc(void);
@@ -42,29 +65,24 @@ int             filestat(struct file*, uint64 addr);
 int             filewrite(struct file*, uint64, int n);
 
 // fs.c
-void            fsinit(int);
-int             dirlink(struct inode*, char*, uint);
-struct inode*   dirlookup(struct inode*, char*, uint*);
-struct inode*   ialloc(uint, short);
-struct inode*   idup(struct inode*);
-void            iinit();
-void            ilock(struct inode*);
-void            iput(struct inode*);
-void            iunlock(struct inode*);
-void            iunlockput(struct inode*);
-void            iupdate(struct inode*);
-int             namecmp(const char*, const char*);
-struct inode*   namei(char*);
-struct inode*   nameiparent(char*, char*);
-int             readi(struct inode*, int, uint64, uint, uint);
-void            stati(struct inode*, struct stat*);
-int             writei(struct inode*, int, uint64, uint, uint);
-void            itrunc(struct inode*);
-
-// ramdisk.c
-void            ramdiskinit(void);
-void            ramdiskintr(void);
-void            ramdiskrw(struct buf*);
+// void            fsinit(int);
+// int             dirlink(struct inode*, char*, uint);
+// struct inode*   dirlookup(struct inode*, char*, uint*);
+// struct inode*   ialloc(uint, short);
+// struct inode*   idup(struct inode*);
+// void            iinit();
+// void            ilock(struct inode*);
+// void            iput(struct inode*);
+// void            iunlock(struct inode*);
+// void            iunlockput(struct inode*);
+// void            iupdate(struct inode*);
+// int             namecmp(const char*, const char*);
+// struct inode*   namei(char*);
+// struct inode*   nameiparent(char*, char*);
+// int             readi(struct inode*, int, uint64, uint, uint);
+// void            stati(struct inode*, struct stat*);
+// int             writei(struct inode*, int, uint64, uint, uint);
+// void            itrunc(struct inode*);
 
 // kalloc.c
 void*           kalloc(void);
@@ -72,10 +90,10 @@ void            kfree(void *);
 void            kinit(void);
 
 // log.c
-void            initlog(int, struct superblock*);
-void            log_write(struct buf*);
-void            begin_op(void);
-void            end_op(void);
+// void            initlog(int, struct superblock*);
+// void            log_write(struct buf*);
+// void            begin_op(void);
+// void            end_op(void);
 
 // pipe.c
 int             pipealloc(struct file**, struct file**);
@@ -140,6 +158,9 @@ char*           safestrcpy(char*, const char*, int);
 int             strlen(const char*);
 int             strncmp(const char*, const char*, uint);
 char*           strncpy(char*, const char*, int);
+void            wnstr(wchar *dst, char const *src, int len);
+void            snstr(char *dst, wchar const *src, int len);
+int             wcsncmp(wchar const *s1, wchar const *s2, int len);
 
 // syscall.c
 int             argint(int, int*);
@@ -186,16 +207,16 @@ int             copyout(pagetable_t, uint64, char *, uint64);
 int             copyin(pagetable_t, char *, uint64, uint64);
 int             copyinstr(pagetable_t, char *, uint64, uint64);
 
+// virtio_disk.c
+void            virtio_disk_init(void);
+void            virtio_disk_rw(struct buf *b, int write);
+void            virtio_disk_intr(void);
+
 // plic.c
 void            plicinit(void);
 void            plicinithart(void);
 int             plic_claim(void);
 void            plic_complete(int);
-
-// virtio_disk.c
-void            virtio_disk_init(void);
-void            virtio_disk_rw(struct buf *, int);
-void            virtio_disk_intr(void);
 
 // logo.c
 void            print_logo(void);

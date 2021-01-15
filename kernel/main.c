@@ -22,6 +22,9 @@ main(unsigned long hartid, unsigned long dtb_pa)
   inithartid(hartid);
   
   if (hartid == 0) {
+    #ifdef QEMU
+    consoleinit();
+    #endif
     printfinit();   // init a lock for printf 
     print_logo();
     printf("hart %d enter main()...\n", hartid);
@@ -35,20 +38,19 @@ main(unsigned long hartid, unsigned long dtb_pa)
     #ifndef QEMU
     device_init(dtb_pa, hartid);
     fpioa_pin_init();
-    sdcard_init();
-    #endif
-    //plicinit();      // set up interrupt controller
-    //plicinithart();  // ask PLIC for device interrupts
-    // binit();         // buffer cache
-    // iinit();         // inode cache
-    // fileinit();      // file table
-    // userinit();      // first user process
-    test_proc_init(8);   // test porc init
+    // sdcard_init();
 
-    test_kalloc();    // test kalloc
-    test_vm(hartid);       // test kernel pagetable
-    #ifndef QEMU
-    test_sdcard();
+    test_proc_init(8);   // test porc init
+    // test_sdcard();
+    // test_kalloc();    // test kalloc
+    // test_vm(hartid);       // test kernel pagetable
+    #else
+    plicinit();      // set up interrupt controller
+    plicinithart();  // ask PLIC for device interrupts
+    disk_init();
+    binit();         // buffer cache
+    fileinit();      // file table
+    userinit();      // first user process
     #endif
 
     printf("hart 0 init done\n");
@@ -64,13 +66,14 @@ main(unsigned long hartid, unsigned long dtb_pa)
     while (started == 0)
       ;
     __sync_synchronize();
-    printfinit();   // init a lock for printf 
     printf("hart %d enter main()...\n", hartid);
     kvminithart();
     trapinithart();
     timerinit();     // set up timer interrupt handler
     #ifndef QEMU
     device_init(dtb_pa, hartid);
+    #else
+    plicinithart();  // ask PLIC for device interrupts
     #endif
     printf("hart 1 init done\n");
   }

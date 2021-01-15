@@ -20,7 +20,7 @@ void
 kvminit()
 {
   kernel_pagetable = (pagetable_t) kalloc();
-  printf("kernel_pagetable: %p\n", kernel_pagetable);
+  // printf("kernel_pagetable: %p\n", kernel_pagetable);
 
   memset(kernel_pagetable, 0, PGSIZE);
 
@@ -36,10 +36,10 @@ kvminit()
   kvmmap(VIRTIO0, VIRTIO0, PGSIZE, PTE_R | PTE_W);
   #endif
   // CLINT
-  kvmmap(CLINT, CLINT, 0x1000, PTE_R | PTE_W);
+  kvmmap(CLINT, CLINT, 0x10000, PTE_R | PTE_W);
 
   // PLIC
-  kvmmap(PLIC, PLIC, 0x4000, PTE_R | PTE_W);
+  kvmmap(PLIC, PLIC, 0x400000, PTE_R | PTE_W);
 
   #ifndef QEMU
   // GPIOHS

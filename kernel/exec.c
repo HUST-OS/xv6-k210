@@ -4,35 +4,62 @@
 #include "include/memlayout.h"
 #include "include/riscv.h"
 #include "include/spinlock.h"
+#include "include/sleeplock.h"
 #include "include/proc.h"
 #include "include/defs.h"
 #include "include/elf.h"
 
+#include "include/fat32.h"
 
-static int loadseg(pde_t *pgdir, uint64 addr, struct inode *ip, uint offset, uint sz);
+// Load a program segment into pagetable at virtual address va.
+// va must be page-aligned
+// and the pages from va to va+sz must already be mapped.
+// Returns 0 on success, -1 on failure.
+static int
+loadseg(pagetable_t pagetable, uint64 va, struct dirent *ep, uint offset, uint sz)
+{
+  uint i, n;
+  uint64 pa;
+  if((va % PGSIZE) != 0)
+    panic("loadseg: va must be page aligned");
 
-int
-exec(char *path, char **argv)
+  for(i = 0; i < sz; i += PGSIZE){
+    pa = walkaddr(pagetable, va + i);
+    if(pa == 0)
+      panic("loadseg: address should exist");
+    if(sz - i < PGSIZE)
+      n = sz - i;
+    else
+      n = PGSIZE;
+    if(eread(ep, 0, (uint64)pa, offset+i, n) != n)
+      return -1;
+  }
+
+  return 0;
+}
+
+
+int exec(char *path, char **argv)
 {
   char *s, *last;
   int i, off;
   uint64 argc, sz = 0, sp, ustack[MAXARG+1], stackbase;
   struct elfhdr elf;
-  struct inode *ip;
+  struct dirent *ep;
   struct proghdr ph;
   pagetable_t pagetable = 0, oldpagetable;
   struct proc *p = myproc();
 
-  begin_op();
-
-  if((ip = namei(path)) == 0){
-    end_op();
+  // begin_op();
+  if((ep = ename(path)) == 0){
+    // printf("exec: can't find %s\n", path);
+    // end_op();
     return -1;
   }
-  ilock(ip);
+  elock(ep);
 
   // Check ELF header
-  if(readi(ip, 0, (uint64)&elf, 0, sizeof(elf)) != sizeof(elf))
+  if(eread(ep, 0, (uint64) &elf, 0, sizeof(elf)) != sizeof(elf))
     goto bad;
   if(elf.magic != ELF_MAGIC)
     goto bad;
@@ -42,7 +69,7 @@ exec(char *path, char **argv)
 
   // Load program into memory.
   for(i=0, off=elf.phoff; i<elf.phnum; i++, off+=sizeof(ph)){
-    if(readi(ip, 0, (uint64)&ph, off, sizeof(ph)) != sizeof(ph))
+    if(eread(ep, 0, (uint64)&ph, off, sizeof(ph)) != sizeof(ph))
       goto bad;
     if(ph.type != ELF_PROG_LOAD)
       continue;
@@ -56,12 +83,13 @@ exec(char *path, char **argv)
     sz = sz1;
     if(ph.vaddr % PGSIZE != 0)
       goto bad;
-    if(loadseg(pagetable, ph.vaddr, ip, ph.off, ph.filesz) < 0)
+    if(loadseg(pagetable, ph.vaddr, ep, ph.off, ph.filesz) < 0)
       goto bad;
   }
-  iunlockput(ip);
-  end_op();
-  ip = 0;
+  eunlock(ep);
+  eput(ep);
+  // end_op();
+  ep = 0;
 
   p = myproc();
   uint64 oldsz = p->sz;
@@ -123,37 +151,11 @@ exec(char *path, char **argv)
  bad:
   if(pagetable)
     proc_freepagetable(pagetable, sz);
-  if(ip){
-    iunlockput(ip);
-    end_op();
+  if(ep){
+    eunlock(ep);
+    eput(ep);
+    // end_op();
   }
+  // printf("[exec]bad, pid = %d\n", p->pid);
   return -1;
-}
-
-// Load a program segment into pagetable at virtual address va.
-// va must be page-aligned
-// and the pages from va to va+sz must already be mapped.
-// Returns 0 on success, -1 on failure.
-static int
-loadseg(pagetable_t pagetable, uint64 va, struct inode *ip, uint offset, uint sz)
-{
-  uint i, n;
-  uint64 pa;
-
-  if((va % PGSIZE) != 0)
-    panic("loadseg: va must be page aligned");
-
-  for(i = 0; i < sz; i += PGSIZE){
-    pa = walkaddr(pagetable, va + i);
-    if(pa == 0)
-      panic("loadseg: address should exist");
-    if(sz - i < PGSIZE)
-      n = sz - i;
-    else
-      n = PGSIZE;
-    if(readi(ip, 0, (uint64)pa, offset+i, n) != n)
-      return -1;
-  }
-  
-  return 0;
 }

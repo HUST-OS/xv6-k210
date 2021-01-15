@@ -1,6 +1,7 @@
 typedef unsigned int   uint;
 typedef unsigned short ushort;
 typedef unsigned char  uchar;
+typedef unsigned short wchar;
 
 typedef unsigned char uint8;
 typedef unsigned short uint16;

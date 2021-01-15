@@ -94,19 +94,20 @@ extern uint64 sys_fork(void);
 extern uint64 sys_fstat(void);
 extern uint64 sys_getpid(void);
 extern uint64 sys_kill(void);
-extern uint64 sys_link(void);
+// extern uint64 sys_link(void);
 extern uint64 sys_mkdir(void);
-extern uint64 sys_mknod(void);
+// extern uint64 sys_mknod(void);
 extern uint64 sys_open(void);
 extern uint64 sys_pipe(void);
 extern uint64 sys_read(void);
 extern uint64 sys_sbrk(void);
 extern uint64 sys_sleep(void);
-extern uint64 sys_unlink(void);
+// extern uint64 sys_unlink(void);
 extern uint64 sys_wait(void);
 extern uint64 sys_write(void);
 extern uint64 sys_uptime(void);
 extern uint64 sys_test_proc(void);
+extern uint64 sys_dev(void);
 
 static uint64 (*syscalls[])(void) = {
 [SYS_fork]    sys_fork,
@@ -125,12 +126,13 @@ static uint64 (*syscalls[])(void) = {
 [SYS_uptime]  sys_uptime,
 [SYS_open]    sys_open,
 [SYS_write]   sys_write,
-[SYS_mknod]   sys_mknod,
-[SYS_unlink]  sys_unlink,
-[SYS_link]    sys_link,
+// [SYS_mknod]   sys_mknod,
+// [SYS_unlink]  sys_unlink,
+// [SYS_link]    sys_link,
 [SYS_mkdir]   sys_mkdir,
 [SYS_close]   sys_close,
 [SYS_test_proc]    sys_test_proc,
+[SYS_dev]     sys_dev,
 };
 
 void

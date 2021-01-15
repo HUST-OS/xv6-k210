@@ -378,7 +378,7 @@ uint8 sd_init(void)
     }
     if (index == 0)
     {
-        printf("SD_CMD0 is %X\n", result);
+        printf("SD_CMD0 is %x\n", result);
         return 0xFF;
     }
 
@@ -389,7 +389,7 @@ uint8 sd_init(void)
 	sd_end_cmd();
 	if (result != 0x01)
 	{
-        printf("SD_CMD8 is %X\n", result);
+        printf("SD_CMD8 is %x\n", result);
 		return 0xFF;
     }
 	index = 0xFF;
@@ -407,7 +407,7 @@ uint8 sd_init(void)
 	}
 	if (index == 0)
 	{
-        printf("SD_CMD55 is %X\n", result);
+        printf("SD_CMD55 is %x\n", result);
 		return 0xFF;
     }
 	index = 255;
@@ -422,7 +422,7 @@ uint8 sd_init(void)
 	}
 	if(index == 0)
 	{
-	    printf("SD_CMD58 is %X\n", result);
+	    printf("SD_CMD58 is %x\n", result);
 		return 0xFF;
 	}
 	if ((frame[0] & 0x40) == 0)

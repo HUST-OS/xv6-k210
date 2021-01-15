@@ -9,17 +9,18 @@
 #include "xv6-user/user.h"
 #include "kernel/include/fcntl.h"
 
-char *argv[] = { "sh", 0 };
+char *argv[] = { "_sh", 0 };
 
 int
 main(void)
 {
   int pid, wpid;
 
-  if(open("console", O_RDWR) < 0){
-    mknod("console", CONSOLE, 0);
-    open("console", O_RDWR);
-  }
+  // if(open("console", O_RDWR) < 0){
+  //   mknod("console", CONSOLE, 0);
+  //   open("console", O_RDWR);
+  // }
+  dev(O_RDWR, CONSOLE, 0);
   dup(0);  // stdout
   dup(0);  // stderr
 
@@ -31,7 +32,7 @@ main(void)
       exit(1);
     }
     if(pid == 0){
-      exec("sh", argv);
+      exec("_sh", argv);
       printf("init: exec sh failed\n");
       exit(1);
     }

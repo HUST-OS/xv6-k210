@@ -14,7 +14,6 @@
 #include "include/memlayout.h"
 #include "include/spinlock.h"
 #include "include/sleeplock.h"
-#include "include/fs.h"
 #include "include/buf.h"
 #include "include/virtio.h"
 
@@ -171,7 +170,7 @@ alloc3_desc(int *idx)
 void
 virtio_disk_rw(struct buf *b, int write)
 {
-  uint64 sector = b->blockno * (BSIZE / 512);
+  uint64 sector = b->sectorno;
 
   acquire(&disk.vdisk_lock);
 
