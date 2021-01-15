@@ -32,10 +32,11 @@ OBJS += \
   $K/kernelvec.o \
   $K/timer.o \
   $K/logo.o \
+  $K/test.o \
+  $K/disk.o \
   $K/fat32.o 
 #   $K/fs.o 
 #   $K/log.o 
-#   $K/test.o 
 
 ifeq ($(platform), k210)
 OBJS += \
@@ -62,8 +63,8 @@ else
 RUSTSBI = ./bootloader/SBI/sbi-qemu
 endif
 
-# TOOLPREFIX	:= riscv64-unknown-elf-
-TOOLPREFIX	:= riscv64-linux-gnu-
+TOOLPREFIX	:= riscv64-unknown-elf-
+# TOOLPREFIX	:= riscv64-linux-gnu-
 CC = $(TOOLPREFIX)gcc
 AS = $(TOOLPREFIX)gas
 LD = $(TOOLPREFIX)ld
@@ -98,7 +99,7 @@ $T/kernel: $(OBJS) $(linker) $U/initcode
 	@$(OBJDUMP) -S $T/kernel > $T/kernel.asm
 	@$(OBJDUMP) -t $T/kernel | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$$/d' > $T/kernel.sym
   
-build: $T/kernel userproc
+build: $T/kernel userprogs
 
 # Compile RustSBI
 RUSTSBI:
@@ -176,7 +177,6 @@ mkfs/mkfs: mkfs/mkfs.c $K/include/fs.h $K/include/param.h
 
 UPROGS=\
 	$U/_init\
-	$U/_init2\
 	$U/_sh\
 	$U/_cat\
 	$U/_test
@@ -197,7 +197,7 @@ UPROGS=\
 
 UEXTRA = $U/xargstest.sh
 
-userproc: $(UEXTRA) $(UPROGS)
+userprogs: $(UEXTRA) $(UPROGS)
 
 # Make fs image
 fs.img: mkfs/mkfs README $(UEXTRA) $(UPROGS)

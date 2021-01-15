@@ -48,7 +48,7 @@ static struct disk {
 } __attribute__ ((aligned (PGSIZE))) disk;
 
 void
-disk_init(void)
+virtio_disk_init(void)
 {
   uint32 status = 0;
 
@@ -251,7 +251,7 @@ virtio_disk_rw(struct buf *b, int write)
 }
 
 void
-disk_intr()
+virtio_disk_intr()
 {
   acquire(&disk.vdisk_lock);
 
@@ -269,16 +269,4 @@ disk_intr()
   *R(VIRTIO_MMIO_INTERRUPT_ACK) = *R(VIRTIO_MMIO_INTERRUPT_STATUS) & 0x3;
 
   release(&disk.vdisk_lock);
-}
-
-void 
-disk_read(struct buf *b) {
-	virtio_disk_rw(b, 0);
-}
-
-/* 
- * Write content into disk 
- */
-void disk_write(struct buf *b) {
-	virtio_disk_rw(b, 1);
 }

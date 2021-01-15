@@ -30,14 +30,14 @@ void timerinit();
 void set_next_timeout();
 void timer_tick();
 
-// exec.c
-int             exec(char*, char**);
-
-// virtio_disk.c
+// disk.c
 void            disk_init(void);
 void            disk_read(struct buf *b);
 void            disk_write(struct buf *b);
 void            disk_intr(void);
+
+// exec.c
+int             exec(char*, char**);
 
 // fat32.c
 int             fat32_init(void);
@@ -206,6 +206,11 @@ uint64          walkaddr(pagetable_t, uint64);
 int             copyout(pagetable_t, uint64, char *, uint64);
 int             copyin(pagetable_t, char *, uint64, uint64);
 int             copyinstr(pagetable_t, char *, uint64, uint64);
+
+// virtio_disk.c
+void            virtio_disk_init(void);
+void            virtio_disk_rw(struct buf *b, int write);
+void            virtio_disk_intr(void);
 
 // plic.c
 void            plicinit(void);

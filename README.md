@@ -54,6 +54,8 @@ Then run the command:
 ```bash
 make run platform=qemu
 ```
+Ps: Press Ctrl + A then X to quit qemu. 
+Besides, file system and uesr programs are available on qemu. More details [here](./doc/fs.md).
 
 ## Progress
 - [x] Multicore boot
