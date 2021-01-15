@@ -8,6 +8,7 @@
 
 + FAT32不支持日志系统，我们去掉了xv6文件系统的log层（log.c）；
 + FAT32没有inode，文件的元数据直接存放在目录项中，因此我们去掉了`struct inode`，替换为目录项`struct dirent`（directory entry）；
++ FAT32没有link，因此删除了相关的系统调用；
 + 重新实现xv6文件系统（fs.c）中的各个函数，将函数接口中的inode替换成了entry，函数命名上保留原函数的特征但也做了修改以示区分，如`ilock`变为`elock`、`writei`变为`ewrite`等等；
 + 关于buf层，由于FAT32的一个簇的大小较大，并且依不同的存储设备而变，因此我们目前以扇区为单位作缓存。
 
