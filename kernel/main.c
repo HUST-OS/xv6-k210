@@ -69,7 +69,7 @@ main(unsigned long hartid, unsigned long dtb_pa)
     printf("hart %d enter main()...\n", hartid);
     kvminithart();
     trapinithart();
-    timerinit();
+    timerinit();     // set up timer interrupt handler
     #ifndef QEMU
     device_init(dtb_pa, hartid);
     #else
