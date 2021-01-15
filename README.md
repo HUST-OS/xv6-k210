@@ -1,5 +1,6 @@
 # XV6-RISCV On K210
 Run xv6-riscv on k210 board  
+[English](./README.md) [中文](./README_cn.md)   
 
 ```
  (`-')           (`-')                   <-.(`-')                            
@@ -55,7 +56,24 @@ Then run the command:
 make run platform=qemu
 ```
 Ps: Press Ctrl + A then X to quit qemu. 
-Besides, file system and uesr programs are available on qemu. More details [here](./doc/fs.md).
+Besides, file system and uesr programs are available on qemu. More details [here](./doc/fs.md).  
+
+## Quick Start to run `Shell` on `qemu`
+```bash
+$ dd if=/dev/zero of=fs.img bs=512k count=2048
+$ mkfs.vfat -F 32 fs.img
+$ make fs
+$ (sudo)mount fs.img /mnt
+$ (sudo)cp xv6-user/_init /mnt/init
+$ (sudo)cp xv6-user/_sh /mnt
+$ (sudo)cp xv6-user/_cat /mnt
+$ (sudo)cp xv6-user/init.c /mnt
+$ (sudo)umount /mnt
+$ make run platform=qemu
+```
+
+After entering `qemu`, type `_cat init.c`, and it will read the contents of `init.c` in `fs.img`, output to the terminal.   
+The `init.c` can be any text file.  
 
 ## Progress
 - [x] Multicore boot
@@ -67,8 +85,11 @@ Besides, file system and uesr programs are available on qemu. More details [here
 - [x] Receive uarths message
 - [x] SD card driver
 - [x] Process management
-- [ ] File system
-- [ ] User program
+- [x] File system(qemu)
+- [ ] File system(k210)
+- [x] User program(qemu)
+- [ ] User program(k210)
 
 ## TODO
-The rest part of xv6-kernel and xv6-fs
+File system on k210 platform.  
+

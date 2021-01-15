@@ -38,10 +38,11 @@ $ mkfs.vfat -F 32 fs.img
 注意：必须将xv6-user目录下的"\_init"拷贝至镜像中，并且重命名为"init"（这是xv6原本的设定，目前我们暂未更改），还需拷贝"\_sh"至镜像中，才能启动shell。编写的用户程序也需要放在xv6-user目录下，同时需要添加至Makefile的`UPROGS`目标中，才能连同内核一起编译链接。
 
 ```bash
-$ mount fs.img /mnt
-$ cp xv6-user/_init /mnt/init
-$ cp xv6-user/_sh /mnt
-$ cp xv6-user/... /mnt
+$ make fs
+$ (sudo)mount fs.img /mnt
+$ (sudo)cp xv6-user/_init /mnt/init
+$ (sudo)cp xv6-user/_sh /mnt
+$ (sudo)cp xv6-user/... /mnt
 $ ...
-$ umount /mnt
+$ (sudo)umount /mnt
 ```

@@ -200,7 +200,7 @@ UEXTRA = $U/xargstest.sh
 userprogs: $(UEXTRA) $(UPROGS)
 
 # Make fs image
-fs.img: mkfs/mkfs README $(UEXTRA) $(UPROGS)
+fs: mkfs/mkfs README $(UEXTRA) $(UPROGS)
 	@mkfs/mkfs fs.img README $(UEXTRA) $(UPROGS)
 
 -include kernel/*.d user/*.d
@@ -208,7 +208,7 @@ fs.img: mkfs/mkfs README $(UEXTRA) $(UPROGS)
 SDCARD		?= /dev/sdb
 
 # Write sdcard
-sdcard: fs.img
+sdcard: fs
 	@echo "flashing into sd card..."
 	@sudo dd if=/dev/zero of=$(SDCARD) bs=1M count=50
 	@sudo dd if=fs.img of=$(SDCARD)
