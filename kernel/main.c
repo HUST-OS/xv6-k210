@@ -36,12 +36,12 @@ main(unsigned long hartid, unsigned long dtb_pa)
     timerinit();     // set up timer interrupt handler
     procinit();
     #ifndef QEMU
-    device_init(dtb_pa, hartid);
+    //device_init(dtb_pa, hartid);
     fpioa_pin_init();
-    // sdcard_init();
+    sdcard_init();
 
-    test_proc_init(8);   // test porc init
-    // test_sdcard();
+    //test_proc_init(8);   // test porc init
+    test_sdcard();
     // test_kalloc();    // test kalloc
     // test_vm(hartid);       // test kernel pagetable
     #else
