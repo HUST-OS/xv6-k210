@@ -402,9 +402,7 @@ exit(int status)
     }
   }
 
-  // begin_op();
   eput(p->cwd);
-  // end_op();
   p->cwd = 0;
 
   // we might re-parent a child to init. we can't be precise about

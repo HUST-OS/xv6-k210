@@ -50,6 +50,7 @@ void            eput(struct dirent *entry);
 void            estat(struct dirent *ep, struct stat *st);
 void            elock(struct dirent *entry);
 void            eunlock(struct dirent *entry);
+int             enext(struct dirent *dp, struct dirent *ep, uint off, int *count);
 struct dirent*  ename(char *path);
 struct dirent*  enameparent(char *path, char *name);
 int             eread(struct dirent *entry, int user_dst, uint64 dst, uint off, uint n);
@@ -63,6 +64,7 @@ void            fileinit(void);
 int             fileread(struct file*, uint64, int n);
 int             filestat(struct file*, uint64 addr);
 int             filewrite(struct file*, uint64, int n);
+int             dirnext(struct file *f, uint64 addr);
 
 // fs.c
 // void            fsinit(int);

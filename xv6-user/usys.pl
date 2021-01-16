@@ -38,3 +38,5 @@ entry("sleep");
 entry("uptime");
 entry("test_proc");
 entry("dev");
+entry("dir");
+entry("getcwd");

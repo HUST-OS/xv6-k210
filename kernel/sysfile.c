@@ -144,16 +144,8 @@ create(char *path, short type)
     return 0;
 
   elock(dp);
-
-  if((ep = dirlookup(dp, name, 0)) != 0){
-    eunlock(dp);
-    eput(dp);
-    elock(ep);
-    return ep;
-  }
-
   if((ep = ealloc(dp, name, type == T_DIR)) == 0)
-    panic("create: ialloc");
+    return 0;
 
   elock(ep);
 
@@ -186,7 +178,7 @@ sys_open(void)
       return -1;
     }
     elock(ep);
-    if(ep->attribute == ATTR_DIRECTORY && omode != O_RDONLY){
+    if((ep->attribute & ATTR_DIRECTORY) && omode != O_RDONLY){
       eunlock(ep);
       eput(ep);
       return -1;
@@ -265,7 +257,7 @@ sys_chdir(void)
     return -1;
   }
   elock(ep);
-  if(ep->attribute != ATTR_DIRECTORY){
+  if(!(ep->attribute & ATTR_DIRECTORY)){
     eunlock(ep);
     eput(ep);
     return -1;
@@ -349,6 +341,7 @@ sys_pipe(void)
   return 0;
 }
 
+// To open console device.
 uint64
 sys_dev(void)
 {
@@ -381,4 +374,52 @@ sys_dev(void)
   f->writable = (omode & O_WRONLY) || (omode & O_RDWR);
 
   return fd;
+}
+
+// To support ls command
+uint64
+sys_dir(void)
+{
+  struct file *f;
+  uint64 p;
+
+  if(argfd(0, 0, &f) < 0 || argaddr(1, &p) < 0)
+    return -1;
+  return dirnext(f, p);
+}
+
+// get absolute cwd string
+uint64
+sys_getcwd(void)
+{
+  uint64 addr;
+  if (argaddr(0, &addr) < 0)
+    return -1;
+
+  struct dirent *de = myproc()->cwd;
+  char path[MAXPATH];
+  char *s;
+  int len;
+
+  if (de->parent == 0) {
+    s = "/";
+  } else {
+    s = path + MAXPATH - 1;
+    *s-- = '\0';
+    while (de->parent) {
+      len = strlen(de->filename);
+      s -= len;
+      if (s <= path)          // can't reach root "/"
+        return -1;
+      strncpy(s, de->filename, len);
+      *--s = '/';
+      de = de->parent;
+    }
+  }
+
+  if (copyout(myproc()->pagetable, addr, s, strlen(s) + 1) < 0)
+    return -1;
+  
+  return 0;
+
 }

@@ -108,6 +108,8 @@ extern uint64 sys_write(void);
 extern uint64 sys_uptime(void);
 extern uint64 sys_test_proc(void);
 extern uint64 sys_dev(void);
+extern uint64 sys_dir(void);
+extern uint64 sys_getcwd(void);
 
 static uint64 (*syscalls[])(void) = {
 [SYS_fork]    sys_fork,
@@ -133,6 +135,8 @@ static uint64 (*syscalls[])(void) = {
 [SYS_close]   sys_close,
 [SYS_test_proc]    sys_test_proc,
 [SYS_dev]     sys_dev,
+[SYS_dir]     sys_dir,
+[SYS_getcwd]  sys_getcwd,
 };
 
 void

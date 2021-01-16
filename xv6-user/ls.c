@@ -1,37 +1,31 @@
 #include "kernel/include/types.h"
 #include "kernel/include/stat.h"
 #include "xv6-user/user.h"
-// #include "kernel/include/fs.h"
-#include "kernel/include/fat32.h"
-
-#define FILENAME_LENGTH 32
 
 char*
-fmtname(char *path)
+fmtname(char *name)
 {
-  static char buf[FILENAME_LENGTH+1];
-  char *p;
-
-  // Find first character after last slash.
-  for(p=path+strlen(path); p >= path && *p != '/'; p--)
-    ;
-  p++;
+  static char buf[STAT_MAX_NAME+1];
+  int len = strlen(name);
 
   // Return blank-padded name.
-  if(strlen(p) >= FILENAME_LENGTH)
-    return p;
-  memmove(buf, p, strlen(p));
-  memset(buf+strlen(p), ' ', FILENAME_LENGTH-strlen(p));
+  if(len >= STAT_MAX_NAME)
+    return name;
+  memmove(buf, name, len);
+  memset(buf + len, ' ', STAT_MAX_NAME - len);
+  buf[STAT_MAX_NAME] = '\0';
   return buf;
 }
 
 void
 ls(char *path)
 {
-  char buf[512], *p;
   int fd;
-  // struct dirent de;
   struct stat st;
+  char *types[] = {
+    [T_DIR]   "DIR ",
+    [T_FILE]  "FILE",
+  };
 
   if((fd = open(path, 0)) < 0){
     fprintf(2, "ls: cannot open %s\n", path);
@@ -44,30 +38,12 @@ ls(char *path)
     return;
   }
 
-  if (st.attribute == ATTR_DIRECTORY){
-
-    if(strlen(path) + 1 + FILENAME_LENGTH + 1 > sizeof buf){
-      printf("ls: path too long\n");
-    }
-    strcpy(buf, path);
-    p = buf+strlen(buf);
-    *p++ = '/';
-
-// CAN'T WORK NOW
-
-    while(read(fd, &de, sizeof(de)) == sizeof(de)){
-      // if(de.inum == 0)
-      //   continue;
-      // memmove(p, de.name, FILENAME_LENGTH);
-      // p[DIRSIZ] = 0;
-      if(stat(buf, &st) < 0){
-        printf("ls: cannot stat %s\n", buf);
-        continue;
-      }
-      printf("%s %d %d\n", fmtname(buf), st.attribute, st.size);
+  if (st.type == T_DIR){
+    while(dir(fd, &st) == 1){
+      printf("%s %s\t%d\n", fmtname(st.name), types[st.type], st.size);
     }
   } else {
-    printf("%s %d %l\n", fmtname(path), st.attribute, st.size);
+    printf("%s %s\t%l\n", fmtname(st.name), types[st.type], st.size);
   }
   close(fd);
 }
