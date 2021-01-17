@@ -600,6 +600,7 @@ int enext(struct dirent *dp, struct dirent *ep, uint off, int *count)
 
     uint8 ebuf[32];
     int cnt = 0;
+    memset(ep->filename, 0, FAT32_MAX_FILENAME + 1);
     for (uint off2 = reloc_clus(dp, off); dp->cur_clus < FAT32_EOC; off2 = reloc_clus(dp, off2 + 32)) {
         if (rw_clus(dp->cur_clus, 0, 0, (uint64)ebuf, off2, 32) != 32 || ebuf[0] == END_OF_ENTRY) {
             return -1;
@@ -616,7 +617,6 @@ int enext(struct dirent *dp, struct dirent *ep, uint off, int *count)
             if (ebuf[0] & LAST_LONG_ENTRY) {
                 *count = lcnt + 1;                              // plus the s-n-e;
                 count = 0;
-                *(ep->filename + lcnt * CHAR_LONG_NAME) = '\0'; // if filename aligns CHAR_LONG_NAME, then no '\0' is stored in the raw entry.
             }
             read_entry_name(ep->filename + (lcnt - 1) * CHAR_LONG_NAME, ebuf, 1);
         } else {

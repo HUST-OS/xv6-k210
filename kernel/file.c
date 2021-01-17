@@ -181,7 +181,6 @@ dirnext(struct file *f, uint64 addr)
   struct stat st;
   int count = 0;
   int ret;
-  memset(&de, 0, sizeof(de));
   elock(f->ep);
   while ((ret = enext(f->ep, &de, f->off, &count)) == 0) {  // skip empty entry
     f->off += count * 32;
