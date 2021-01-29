@@ -62,7 +62,7 @@ Besides, file system and uesr programs are available on qemu. More details [here
 ```bash
 $ dd if=/dev/zero of=fs.img bs=512k count=2048
 $ mkfs.vfat -F 32 fs.img
-$ make fs
+$ make build
 $ (sudo)mount fs.img /mnt
 $ (sudo)cp xv6-user/_init /mnt/init
 $ (sudo)cp xv6-user/_sh /mnt
@@ -73,7 +73,12 @@ $ make run platform=qemu
 ```
 
 After entering `qemu`, type `_cat init.c`, and it will read the contents of `init.c` in `fs.img`, output to the terminal.   
-The `init.c` can be any text file.  
+The `init.c` can be any text file. In addition, `shell` supports some shortcut keys as below:
+
+- Ctrl-H -- backspace  
+- Ctrl-U -- kill a line  
+- Ctrl-D -- end of file (EOF)  
+- Ctrl-P -- print process list  
 
 ## Progress
 - [x] Multicore boot

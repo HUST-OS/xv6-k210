@@ -28,12 +28,16 @@ struct dirent {
     // uint16  last_write_date;
     uint32  file_size;
 
+    uint32  cur_clus;
+    uint    clus_cnt;
+
     /* for OS */
-    uint     dev;
-    int     valid;
+    uint8   dev;
+    uint8   dirty;
+    uint8   valid;
     int     ref;
-    uint32  parent;     // because FAT32 doesn't have such thing like inum, use this for cache trick
-    uint32  off;        // offset in the parent dir entry, for writing convenience
+    uint32  off;            // offset in the parent dir entry, for writing convenience
+    struct dirent *parent;  // because FAT32 doesn't have such thing like inum, use this for cache trick
     struct dirent *next;
     struct dirent *prev;
     struct sleeplock    lock;

@@ -2,11 +2,12 @@
 #define T_FILE    2   // File
 #define T_DEVICE  3   // Device
 
+#define STAT_MAX_NAME 32
+
 struct stat {
+  char name[STAT_MAX_NAME + 1];
   int dev;     // File system's disk device
-  uint8 attribute;
-  // short type;  // Type of file
-  // short nlink; // Number of links to file
+  short type;  // Type of file
   uint64 size; // Size of file in bytes
 };
 

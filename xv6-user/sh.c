@@ -133,7 +133,14 @@ runcmd(struct cmd *cmd)
 int
 getcmd(char *buf, int nbuf)
 {
-  fprintf(2, "$ ");
+  #ifndef QEMU
+  static char pf[] = "xv6-k210";
+  #else
+  static char pf[] = "xv6-qemu";
+  #endif
+  char cur[128];
+  getcwd(cur);
+  fprintf(2, "%s@%s$ ", pf, cur);
   memset(buf, 0, nbuf);
   gets(buf, nbuf);
   if(buf[0] == 0) // EOF
@@ -148,7 +155,7 @@ main(void)
   int fd;
 
   // Ensure that three file descriptors are open.
-  while((fd = open("console", O_RDWR)) >= 0){
+  while((fd = dev(O_RDWR, 1, 0)) >= 0){
     if(fd >= 3){
       close(fd);
       break;

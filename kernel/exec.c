@@ -50,12 +50,8 @@ int exec(char *path, char **argv)
   pagetable_t pagetable = 0, oldpagetable;
   struct proc *p = myproc();
 
-  // begin_op();
-  if((ep = ename(path)) == 0){
-    // printf("exec: can't find %s\n", path);
-    // end_op();
+  if((ep = ename(path)) == 0)
     return -1;
-  }
   elock(ep);
 
   // Check ELF header
@@ -88,7 +84,6 @@ int exec(char *path, char **argv)
   }
   eunlock(ep);
   eput(ep);
-  // end_op();
   ep = 0;
 
   p = myproc();
@@ -154,8 +149,6 @@ int exec(char *path, char **argv)
   if(ep){
     eunlock(ep);
     eput(ep);
-    // end_op();
   }
-  // printf("[exec]bad, pid = %d\n", p->pid);
   return -1;
 }

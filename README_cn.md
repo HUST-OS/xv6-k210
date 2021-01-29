@@ -62,7 +62,7 @@ Ps: 按 `Ctrl + A` 然后 `X` 退出 `qemu`。
 ```bash
 $ dd if=/dev/zero of=fs.img bs=512k count=2048
 $ mkfs.vfat -F 32 fs.img
-$ make fs
+$ make build
 $ (sudo)mount fs.img /mnt
 $ (sudo)cp xv6-user/_init /mnt/init
 $ (sudo)cp xv6-user/_sh /mnt
@@ -73,7 +73,11 @@ $ make run platform=qemu
 ```
 
 进入 `qemu` 后输入命令 `_cat init.c`，将会读取 `fs.img` 中的 `init.c` 文件内容并输出到终端。  
-这里的 `init.c` 文件可以是任意文本文件。  
+这里的 `init.c` 文件可以是任意文本文件。此外，`shell`支持下列快捷键：  
+- Ctrl-H -- 退格  
+- Ctrl-U -- 删除行  
+- Ctrl-D -- 文件尾（EOF）  
+- Ctrl-P -- 打印进程列表
 
 ## 进度
 - [x] 多核启动

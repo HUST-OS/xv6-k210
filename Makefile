@@ -1,4 +1,5 @@
 platform	:= k210
+# platform	:= qemu
 K=kernel
 U=xv6-user
 T=target
@@ -179,14 +180,14 @@ UPROGS=\
 	$U/_init\
 	$U/_sh\
 	$U/_cat\
+	$U/_echo\
+	$U/_grep\
+	$U/_ls\
 	$U/_test
 
-	# $U/_echo\
 	# $U/_forktest\
-	# $U/_grep\
 	# $U/_kill\
 	# $U/_ln\
-	# $U/_ls\
 	# $U/_mkdir\
 	# $U/_rm\
 	# $U/_stressfs\
