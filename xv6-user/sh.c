@@ -53,6 +53,13 @@ int fork1(void);  // Fork but panics on failure.
 void panic(char*);
 struct cmd *parsecmd(char*);
 
+#ifndef QEMU
+char platform[] = "k210";
+#else
+char platform[] = "qemu";
+#endif
+char mycwd[128];
+
 // Execute cmd.  Never returns.
 void
 runcmd(struct cmd *cmd)
@@ -133,14 +140,7 @@ runcmd(struct cmd *cmd)
 int
 getcmd(char *buf, int nbuf)
 {
-  #ifndef QEMU
-  static char pf[] = "xv6-k210";
-  #else
-  static char pf[] = "xv6-qemu";
-  #endif
-  char cur[128];
-  getcwd(cur);
-  fprintf(2, "%s@%s$ ", pf, cur);
+  fprintf(2, "%s@xv6-riscv:%s$ ", platform, mycwd);
   memset(buf, 0, nbuf);
   gets(buf, nbuf);
   if(buf[0] == 0) // EOF
@@ -161,7 +161,7 @@ main(void)
       break;
     }
   }
-
+  getcwd(mycwd);
   // Read and run input commands.
   while(getcmd(buf, sizeof(buf)) >= 0){
     if(buf[0] == 'c' && buf[1] == 'd' && buf[2] == ' '){
@@ -169,6 +169,7 @@ main(void)
       buf[strlen(buf)-1] = 0;  // chop \n
       if(chdir(buf+3) < 0)
         fprintf(2, "cannot cd %s\n", buf+3);
+      getcwd(mycwd);
       continue;
     }
     if(fork1() == 0)
