@@ -1,3 +1,8 @@
+#ifndef __FAT32_H
+#define __FAT32_H
+
+#include "sleeplock.h"
+
 #define ATTR_READ_ONLY      0x01
 #define ATTR_HIDDEN         0x02
 #define ATTR_SYSTEM         0x04
@@ -42,3 +47,5 @@ struct dirent {
     struct dirent *prev;
     struct sleeplock    lock;
 };
+
+#endif

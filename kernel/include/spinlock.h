@@ -1,7 +1,7 @@
 #ifndef __SPINLOCK_H
 #define __SPINLOCK_H
 
-#include "include/proc.h"
+struct cpu;
 
 // Mutual exclusion lock.
 struct spinlock {

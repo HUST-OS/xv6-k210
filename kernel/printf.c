@@ -6,14 +6,13 @@
 
 #include "include/types.h"
 #include "include/param.h"
-#include "include/spinlock.h"
-#include "include/sleeplock.h"
-// #include "include/fs.h"
-#include "include/file.h"
-#include "include/memlayout.h"
 #include "include/riscv.h"
 #include "include/defs.h"
 #include "include/proc.h"
+#include "include/spinlock.h"
+#include "include/sleeplock.h"
+#include "include/file.h"
+#include "include/memlayout.h"
 #include "include/sbi.h"
 
 volatile int panicked = 0;

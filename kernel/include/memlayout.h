@@ -1,3 +1,6 @@
+#ifndef __MEMLAYOUT_H
+#define __MEMLAYOUT_H
+
 // Physical memory layout
 
 // k210 peripherals
@@ -109,3 +112,5 @@
 //   TRAPFRAME (p->trapframe, used by the trampoline)
 //   TRAMPOLINE (the same page as in the kernel)
 #define TRAPFRAME (TRAMPOLINE - PGSIZE)
+
+#endif

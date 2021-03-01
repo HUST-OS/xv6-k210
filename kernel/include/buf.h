@@ -1,3 +1,6 @@
+#ifndef __BUF_H
+#define __BUF_H
+
 #define BSIZE 512
 
 struct buf {
@@ -11,3 +14,5 @@ struct buf {
   struct buf *next;
   uchar data[BSIZE];
 };
+
+#endif

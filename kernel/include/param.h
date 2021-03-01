@@ -1,3 +1,6 @@
+#ifndef __PARAM_H
+#define __PARAM_H
+
 #define NPROC        16  // maximum number of processes
 #define NCPU          2  // maximum number of CPUs
 #define NOFILE       16  // open files per process
@@ -12,3 +15,5 @@
 #define FSSIZE       1000  // size of file system in blocks
 #define MAXPATH      128   // maximum file path name
 #define INTERVAL     (390000000 / 200) // timer interrupt interval
+
+#endif
