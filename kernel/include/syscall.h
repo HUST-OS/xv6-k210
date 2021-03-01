@@ -1,3 +1,6 @@
+#ifndef __SYSCALL_H
+#define __SYSCALL_H
+
 // System call numbers
 #define SYS_fork    1
 #define SYS_exit    2
@@ -24,3 +27,5 @@
 #define SYS_dev    23
 #define SYS_dir    24
 #define SYS_getcwd 25
+
+#endif

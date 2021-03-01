@@ -1,3 +1,6 @@
+#ifndef __VIRTIO_H
+#define __VIRTIO_H
+
 //
 // virtio device definitions.
 // for both the mmio interface, and virtio descriptors.
@@ -70,3 +73,5 @@ struct UsedArea {
   uint16 id;
   struct VRingUsedElem elems[NUM];
 };
+
+#endif

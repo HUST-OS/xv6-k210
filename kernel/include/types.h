@@ -1,3 +1,6 @@
+#ifndef __TYPES_H
+#define __TYPES_H
+
 typedef unsigned int   uint;
 typedef unsigned short ushort;
 typedef unsigned char  uchar;
@@ -12,3 +15,5 @@ typedef unsigned long uintptr_t;
 typedef uint64 pde_t;
 
 #define NULL ((void *)0)
+
+#endif
