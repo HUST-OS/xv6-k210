@@ -1,3 +1,29 @@
+#ifndef __RISCV_H
+#include "riscv.h"
+#define __RISCV_H
+#endif
+
+#ifndef __TYPES_H
+#include "types.h"
+#define __TYPES_H
+#endif
+
+#ifndef __SPINLOCK_H
+#include "spinlock.h"
+#define __SPINLOCK_H
+#endif
+
+#ifndef __FILE_H
+#include "file.h"
+#define __FILE_H
+#endif
+
+#ifndef __FAT32_H
+#include "fat32.h"
+#define __FAT32_H
+#endif
+
+
 // Saved registers for kernel context switches.
 struct context {
   uint64 ra;
