@@ -13,7 +13,6 @@
 void freerange(void *pa_start, void *pa_end);
 
 extern char kernel_end[]; // first address after kernel.
-                   // defined by k210.ld.
 
 struct run {
   struct run *next;
