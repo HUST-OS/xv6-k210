@@ -385,6 +385,7 @@ struct dirent *ealloc(struct dirent *dp, char *name, int dir)
     if(dir){    // generate "." and ".." for ep
         ep->attribute |= ATTR_DIRECTORY;
         ep->cur_clus = ep->first_clus = alloc_clus(dp->dev);
+        // printf("[ealloc] off=%d, sec=%d, entcnt=%d\n", off, first_sec_of_clus(ep->first_clus), entcnt);
         strncpy((char *)ebuf, ".", 11);
         ebuf[11] = ATTR_DIRECTORY;
         *(uint16 *)(ebuf + 20) = (uint16)(ep->first_clus >> 16);
@@ -411,9 +412,9 @@ struct dirent *ealloc(struct dirent *dp, char *name, int dir)
             memset(ebuf + 28, 0xff, 4);
         }
         ebuf[11] = ATTR_LONG_NAME;
-        wnstr_lazy((wchar *) (ebuf + 1), ep->filename + i * CHAR_LONG_NAME, 5);
-        wnstr_lazy((wchar *) (ebuf + 14), ep->filename + i * CHAR_LONG_NAME + 5, 6);
-        wnstr_lazy((wchar *) (ebuf + 28), ep->filename + i * CHAR_LONG_NAME + 11, 2);
+        wnstr_lazy((wchar *) (ebuf + 1), ep->filename + (i - 1) * CHAR_LONG_NAME, 5);
+        wnstr_lazy((wchar *) (ebuf + 14), ep->filename + (i - 1) * CHAR_LONG_NAME + 5, 6);
+        wnstr_lazy((wchar *) (ebuf + 28), ep->filename + (i - 1) * CHAR_LONG_NAME + 11, 2);
         rw_clus(dp->cur_clus, 1, 0, (uint64)ebuf, off, sizeof(ebuf));
         off = reloc_clus(dp, off + 32);
     }
@@ -437,7 +438,7 @@ struct dirent *edup(struct dirent *entry)
 void eupdate(struct dirent *entry)
 {
     if (!entry->dirty) { return; }
-    printf("[eupdate] %s\n", entry->filename);
+    // printf("[eupdate] %s\n", entry->filename);
     uint entcnt;
     uint32 clus = entry->parent->first_clus;
     uint32 off = entry->off % fat.byts_per_clus;
@@ -453,6 +454,7 @@ void eupdate(struct dirent *entry)
     }
     uint16 clus_high = (uint16)(entry->first_clus >> 16);
     uint16 clus_low = (uint16)(entry->first_clus & 0xff);
+    rw_clus(clus, 1, 0, (uint64) &entry->filename, off, 11);
     rw_clus(clus, 1, 0, (uint64) &entry->attribute, off + 11, sizeof(entry->attribute));
     rw_clus(clus, 1, 0, (uint64) &clus_high, off + 20, sizeof(clus_high));
     rw_clus(clus, 1, 0, (uint64) &clus_low, off + 26, sizeof(clus_low));

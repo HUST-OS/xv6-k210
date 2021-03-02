@@ -140,7 +140,7 @@ runcmd(struct cmd *cmd)
 int
 getcmd(char *buf, int nbuf)
 {
-  fprintf(2, "%s@xv6-riscv:%s$ ", platform, mycwd);
+  fprintf(2, "xv6@%s:%s$ ", platform, mycwd);
   memset(buf, 0, nbuf);
   gets(buf, nbuf);
   if(buf[0] == 0) // EOF
