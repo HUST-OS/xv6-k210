@@ -312,7 +312,6 @@ int ewrite(struct dirent *entry, int user_src, uint64 src, uint off, uint n)
         if (n - tot < m) {
             m = n - tot;
         }
-        printf("[ewrite] tot=%d, off=%d, m=%d n=%d\n", tot, off, m, n);
         if (rw_clus(entry->cur_clus, 1, user_src, src, off % fat.byts_per_clus, m) != m) {
             break;
         }
@@ -324,7 +323,6 @@ int ewrite(struct dirent *entry, int user_src, uint64 src, uint off, uint n)
             // eupdate(entry);
         }
     }
-    printf("[ewrite] return, tot=%d\n", tot);
     return tot;
 }
 
@@ -584,9 +582,9 @@ static void read_entry_info(struct dirent *entry, uint8 *raw_entry)
     entry->cur_clus = entry->first_clus;
     entry->clus_cnt = 0;
 }
+
 /**
- * Read a directory from off
- * 
+ * Read a directory from off, return the next entry in the directory
  * 
  */
 int enext(struct dirent *dp, struct dirent *ep, uint off, int *count)
