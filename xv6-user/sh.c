@@ -11,7 +11,16 @@
 #define LIST  4
 #define BACK  5
 
+#define NENVS 16
 #define MAXARGS 10
+
+struct env{
+  char name[32];
+  char value[96];
+};
+
+struct env envs[NENVS];
+int nenv = 0;
 
 struct cmd {
   int type;
@@ -60,6 +69,33 @@ char platform[] = "qemu";
 #endif
 char mycwd[128];
 
+int
+export(char *argv[])
+{
+  if(!strcmp(argv[1], "-p"))
+  {
+    if(!nenv)
+    {
+      printf("NO env var exported\n");
+      return 0;
+    }
+    for(int i=0; i<nenv; i++)
+      printf("export %s=%s\n", envs[i].name, envs[i].value);
+    return 0;
+  }
+  else if(nenv == NENVS)
+  {
+    fprintf(2, "too many env vars\n");
+    return -1;
+  }
+  if(argv[2][strlen(argv[2])-1] == '/')
+    argv[2][strlen(argv[2])-1] = 0;
+  strcpy(envs[nenv].name, argv[1]);
+  strcpy(envs[nenv].value, argv[2]);
+  nenv++;
+  return 0;
+}
+
 // Execute cmd.  Never returns.
 void
 runcmd(struct cmd *cmd)
@@ -82,14 +118,24 @@ runcmd(struct cmd *cmd)
     ecmd = (struct execcmd*)cmd;
     if(ecmd->argv[0] == 0)
       exit(1);
-	/*
-    char env_cmd[64];
-    strcpy(env_cmd, ENV);
-    strcat(env_cmd, ecmd->argv[0]);
     
-    exec(env_cmd, ecmd->argv);
-    */
     exec(ecmd->argv[0], ecmd->argv);
+
+    int i;
+    char env_cmd[64];
+    for(i=0; i<nenv; i++)
+    {
+      char *s_tmp = env_cmd;
+      char *d_tmp = envs[i].value;
+      while((*s_tmp = *d_tmp++))
+        s_tmp++;
+      *s_tmp++ = '/';
+      d_tmp = ecmd->argv[0];
+      while((*s_tmp++ = *d_tmp++))
+        ;
+
+      exec(env_cmd, ecmd->argv);
+    }
     fprintf(2, "exec %s failed\n", ecmd->argv[0]);
     break;
 
@@ -147,7 +193,7 @@ runcmd(struct cmd *cmd)
 int
 getcmd(char *buf, int nbuf)
 {
-  fprintf(2, "xv6@%s:%s$ ", platform, mycwd);
+  fprintf(2, "-> xv6@%s: %s $ ", platform, mycwd);
   memset(buf, 0, nbuf);
   gets(buf, nbuf);
   if(buf[0] == 0) // EOF
@@ -168,6 +214,12 @@ main(void)
       break;
     }
   }
+
+  // Add an embedded env var(for basic commands in shell)
+  strcpy(envs[nenv].name, "SHELL");
+  strcpy(envs[nenv].value, "/xv6sh");
+  nenv++;
+
   getcwd(mycwd);
   // Read and run input commands.
   while(getcmd(buf, sizeof(buf)) >= 0){
@@ -177,10 +229,23 @@ main(void)
       if(chdir(buf+3) < 0)
         fprintf(2, "cannot cd %s\n", buf+3);
       getcwd(mycwd);
-      continue;
     }
-    if(fork1() == 0)
-      runcmd(parsecmd(buf));
+    else{
+      struct cmd *cmd = parsecmd(buf);
+      struct execcmd *ecmd;
+
+      ecmd = (struct execcmd*)cmd;
+      if(ecmd->argv[0] == 0)
+        exit(1);
+      else if(!strcmp(ecmd->argv[0], "export"))
+      {
+        // Export must be called by the parent, not the child.
+        if(export(ecmd->argv) < 0)
+          fprintf(2, "export failed\n");
+      }
+      else if(fork1() == 0)
+        runcmd(cmd);
+    }
     wait(0);
   }
   exit(0);

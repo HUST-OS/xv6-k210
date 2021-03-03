@@ -18,8 +18,8 @@ char*
 strcat(char *s, const char *t)
 {
   char *os = s;
-  while(*s++)
-    ;
+  while(*s)
+    s++;
   while((*s++ = *t++))
     ;
   return os;
