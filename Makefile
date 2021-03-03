@@ -136,6 +136,7 @@ ifeq ($(platform), k210)
 	@sudo chmod 777 $(k210-serialport)
 	@python3 ./tools/kflash.py -p $(k210-serialport) -b 1500000 -t $(k210)
 else
+	@./fs.sh
 	@$(QEMU) $(QEMUOPTS)
 endif
 
