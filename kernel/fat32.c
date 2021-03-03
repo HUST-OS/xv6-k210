@@ -45,7 +45,8 @@ int fat32_init()
     struct buf *b = bread(0, 0);
     if (strncmp((char const*)(b->data + 82), "FAT32", 5))
         panic("not FAT32 volume");
-    fat.bpb.byts_per_sec = *(uint16 *)(b->data + 11);
+    // fat.bpb.byts_per_sec = *(uint16 *)(b->data + 11);
+    memmove(&fat.bpb.byts_per_sec, b->data + 11, 2);
     fat.bpb.sec_per_clus = *(b->data + 13);
     fat.bpb.rsvd_sec_cnt = *(uint16 *)(b->data + 14);
     fat.bpb.fat_cnt = *(b->data + 16);
@@ -362,17 +363,19 @@ static void make_entry(struct dirent *dp, uint off, char *name, uint8 attr, uint
     if ((ebuf[11] = attr) == ATTR_LONG_NAME) {
         ebuf[0] = data;
         name += ((data & ~LAST_LONG_ENTRY) - 1) * CHAR_LONG_NAME;
-        wchar *w = (wchar *)(ebuf + 1);
+        uint8 *w = ebuf + 1;
         int end = 0;
         for (int i = 1; i <= CHAR_LONG_NAME; i++) {
             if (end) {
-                *w++ = 0xffff;
+                *w++ = 0xff;
+                *w++ = 0xff;
             } else if ((*w++ = *name++) == 0) {
                 end = 1;
             }
+            *w++ = 0;
             switch (i) {
-                case 5:     w = (wchar *)(ebuf + 14); break;
-                case 11:    w = (wchar *)(ebuf + 28); break;
+                case 5:     w = ebuf + 14; break;
+                case 11:    w = ebuf + 28; break;
             }
         }
     } else {
@@ -541,7 +544,9 @@ void estat(struct dirent *entry, struct stat *st)
 static void read_entry_name(char *buffer, uint8 *raw_entry, int islong)
 {
     if (islong) {                       // long entry branch
-        snstr(buffer, (wchar *) (raw_entry + 1), 5);
+        wchar temp[10];
+        memmove(temp, raw_entry + 1, 10);
+        snstr(buffer, temp, 5);
         snstr(buffer + 5, (wchar *) (raw_entry + 14), 6);
         snstr(buffer + 11, (wchar *) (raw_entry + 28), 2);
     } else {
