@@ -367,12 +367,14 @@ static void make_entry(struct dirent *dp, uint off, char *name, uint8 attr, uint
         int end = 0;
         for (int i = 1; i <= CHAR_LONG_NAME; i++) {
             if (end) {
+                *w++ = 0xff;            // on k210, unaligned reading is illegal
                 *w++ = 0xff;
-                *w++ = 0xff;
-            } else if ((*w++ = *name++) == 0) {
-                end = 1;
+            } else { 
+                if ((*w++ = *name++) == 0) {
+                    end = 1;
+                }
+                *w++ = 0;
             }
-            *w++ = 0;
             switch (i) {
                 case 5:     w = ebuf + 14; break;
                 case 11:    w = ebuf + 28; break;
