@@ -13,6 +13,8 @@
 
 #define MAXARGS 10
 
+#define ENV "/mysh/"
+
 struct cmd {
   int type;
 };
@@ -82,13 +84,13 @@ runcmd(struct cmd *cmd)
     ecmd = (struct execcmd*)cmd;
     if(ecmd->argv[0] == 0)
       exit(1);
-	/*
+	
     char env_cmd[64];
     strcpy(env_cmd, ENV);
     strcat(env_cmd, ecmd->argv[0]);
-    
+    fprintf(2, "%s\n", env_cmd);
     exec(env_cmd, ecmd->argv);
-    */
+    
     exec(ecmd->argv[0], ecmd->argv);
     fprintf(2, "exec %s failed\n", ecmd->argv[0]);
     break;
