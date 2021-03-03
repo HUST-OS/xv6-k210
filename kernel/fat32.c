@@ -234,13 +234,25 @@ static uint rw_clus(uint32 cluster, int write, int user, uint64 data, uint off, 
  * for the given entry, relocate the cur_clus field based on the off
  * @param   entry       modify its cur_clus field
  * @param   off         the offset from the beginning of the relative file
+ * @param   alloc       whether alloc new cluster when meeting end of FAT chains
  * @return              the offset from the new cur_clus
  */
-static uint reloc_clus(struct dirent *entry, uint off)
+static uint reloc_clus(struct dirent *entry, uint off, int alloc)
 {
     int clus_num = off / fat.byts_per_clus;
     while (clus_num > entry->clus_cnt) {
-        entry->cur_clus = read_fat(entry->cur_clus);
+        int clus = read_fat(entry->cur_clus);
+        if (clus >= FAT32_EOC) {
+            if (alloc) {
+                clus = alloc_clus(entry->dev);
+                write_fat(entry->cur_clus, clus);
+            } else {
+                entry->cur_clus = clus;
+                entry->clus_cnt = ((uint) ~0) >> 1;
+                break;
+            }
+        }
+        entry->cur_clus = clus;
         entry->clus_cnt++;
     }
     if (clus_num < entry->clus_cnt) {
@@ -248,6 +260,9 @@ static uint reloc_clus(struct dirent *entry, uint off)
         entry->clus_cnt = 0;
         while (entry->clus_cnt < clus_num) {
             entry->cur_clus = read_fat(entry->cur_clus);
+            if (entry->cur_clus >= FAT32_EOC) {
+                panic("reloc_clus");
+            }
             entry->clus_cnt++;
         }
     }
@@ -267,7 +282,7 @@ int eread(struct dirent *entry, int user_dst, uint64 dst, uint off, uint n)
 
     uint tot, m;
     for (tot = 0; entry->cur_clus < FAT32_EOC && tot < n; tot += m, off += m, dst += m) {
-        reloc_clus(entry, off);
+        reloc_clus(entry, off, 0);
         m = fat.byts_per_clus - off % fat.byts_per_clus;
         if (n - tot < m) {
             m = n - tot;
@@ -290,18 +305,14 @@ int ewrite(struct dirent *entry, int user_src, uint64 src, uint off, uint n)
         entry->clus_cnt = 0;
         entry->dirty = 1;
     }
-
     uint tot, m;
     for (tot = 0; tot < n; tot += m, off += m, src += m) {
-        reloc_clus(entry, off);
-        if (entry->cur_clus >= FAT32_EOC) {
-            uint32 new_clus = alloc_clus(entry->dev);
-            write_fat(entry->cur_clus, new_clus);
-        }
+        reloc_clus(entry, off, 1);
         m = fat.byts_per_clus - off % fat.byts_per_clus;
         if (n - tot < m) {
             m = n - tot;
         }
+        printf("[ewrite] tot=%d, off=%d, m=%d n=%d\n", tot, off, m, n);
         if (rw_clus(entry->cur_clus, 1, user_src, src, off % fat.byts_per_clus, m) != m) {
             break;
         }
@@ -310,9 +321,10 @@ int ewrite(struct dirent *entry, int user_src, uint64 src, uint off, uint n)
         if(off > entry->file_size) {
             entry->file_size = off;
             entry->dirty = 1;
-            eupdate(entry);
+            // eupdate(entry);
         }
     }
+    printf("[ewrite] return, tot=%d\n", tot);
     return tot;
 }
 
@@ -323,9 +335,9 @@ static struct dirent *eget(struct dirent *parent, char *name)
     acquire(&ecache.lock);
     if (name) {
         for (ep = root.next; ep != &root; ep = ep->next) {
-            if (ep->parent == parent && strncmp(ep->filename, name, FAT32_MAX_FILENAME) == 0) {
+            if (ep->valid == 1 && ep->parent == parent
+                && strncmp(ep->filename, name, FAT32_MAX_FILENAME) == 0) {
                 ep->ref++;
-                ep->valid = 1;
                 release(&ecache.lock);
                 edup(ep->parent);
                 return ep;
@@ -346,16 +358,40 @@ static struct dirent *eget(struct dirent *parent, char *name)
     return 0;
 }
 
-static void wnstr_lazy(wchar *dst, char const *src, int len) {
-    while (len-- && *src) {
-        *dst = *src++;
-        dst++;
+static void make_entry(struct dirent *dp, uint off, char *name, uint8 attr, uint32 data)
+{
+    uint8 ebuf[32] = {0};
+    if ((ebuf[11] = attr) == ATTR_LONG_NAME) {
+        ebuf[0] = data;
+        name += ((data & ~LAST_LONG_ENTRY) - 1) * CHAR_LONG_NAME;
+        wchar *w = (wchar *)(ebuf + 1);
+        int end = 0;
+        for (int i = 1; i <= CHAR_LONG_NAME; i++) {
+            if (end) {
+                *w++ = 0xffff;
+            } else if ((*w++ = *name++) == 0) {
+                end = 1;
+            }
+            switch (i) {
+                case 5:     w = (wchar *)(ebuf + 14); break;
+                case 11:    w = (wchar *)(ebuf + 28); break;
+            }
+        }
+    } else {
+        strncpy((char *)ebuf, name, 11);
+        *(uint16 *)(ebuf + 20) = (uint16)(data >> 16);
+        *(uint16 *)(ebuf + 26) = (uint16)(data & 0xff);
+        *(uint32 *)(ebuf + 28) = 0;
     }
+    off = reloc_clus(dp, off, 1);
+    rw_clus(dp->cur_clus, 1, 0, (uint64)ebuf, off, sizeof(ebuf));
 }
 
 struct dirent *ealloc(struct dirent *dp, char *name, int dir)
 {
-    if (!(dp->attribute & ATTR_DIRECTORY)) { return 0; }
+    if (!(dp->attribute & ATTR_DIRECTORY)) {
+        panic("ealloc not dir");
+    }
     struct dirent *ep;
     uint off = 0;
     ep = dirlookup(dp, name, &off);
@@ -368,7 +404,6 @@ struct dirent *ealloc(struct dirent *dp, char *name, int dir)
         panic("ealloc");
     }
     elock(ep);
-
     ep->attribute = 0;
     ep->file_size = 0;
     ep->first_clus = 0;
@@ -376,50 +411,27 @@ struct dirent *ealloc(struct dirent *dp, char *name, int dir)
     ep->off = off;
     ep->clus_cnt = 0;
     ep->cur_clus = 0;
+    ep->dirty = 0;
     strncpy(ep->filename, name, FAT32_MAX_FILENAME);    
 
-    int len = strlen(name);
-    int entcnt = (len + CHAR_LONG_NAME - 1) / CHAR_LONG_NAME;   // count of l-n-entries, rounds up
-
-    uint8 ebuf[32] = {0};
+    int entcnt = (strlen(name) + CHAR_LONG_NAME - 1) / CHAR_LONG_NAME;   // count of l-n-entries, rounds up
     if(dir){    // generate "." and ".." for ep
         ep->attribute |= ATTR_DIRECTORY;
         ep->cur_clus = ep->first_clus = alloc_clus(dp->dev);
-        // printf("[ealloc] off=%d, sec=%d, entcnt=%d\n", off, first_sec_of_clus(ep->first_clus), entcnt);
-        strncpy((char *)ebuf, ".", 11);
-        ebuf[11] = ATTR_DIRECTORY;
-        *(uint16 *)(ebuf + 20) = (uint16)(ep->first_clus >> 16);
-        *(uint16 *)(ebuf + 26) = (uint16)(ep->first_clus & 0xff);
-        *(uint32 *)(ebuf + 28) = 0;
-        rw_clus(ep->cur_clus, 1, 0, (uint64)ebuf, 0, sizeof(ebuf));
-        strncpy((char *)ebuf, "..", 11);
-        ebuf[11] = ATTR_DIRECTORY;
-        *(uint16 *)(ebuf + 20) = (uint16)(dp->first_clus >> 16);
-        *(uint16 *)(ebuf + 26) = (uint16)(dp->first_clus & 0xff);
-        *(uint32 *)(ebuf + 28) = 0;
-        rw_clus(ep->cur_clus, 1, 0, (uint64)ebuf, 32, sizeof(ebuf));
+        make_entry(ep, 0, ".", ATTR_DIRECTORY, ep->first_clus);
+        make_entry(ep, 32, "..", ATTR_DIRECTORY, dp->first_clus);
     } else {
         ep->attribute |= ATTR_ARCHIVE;
     }
-    memset(ebuf, 0, sizeof(ebuf));
-    off = reloc_clus(dp, off);
-    for (uint8 i = entcnt; i > 0; i--) {                          // ignore checksum
-        ebuf[0] = i;
+    for (int i = entcnt; i > 0; i--) {                          // ignore checksum
+        int longnum = i;
         if (i == entcnt) {
-            ebuf[0] |= LAST_LONG_ENTRY;
-            memset(ebuf + 1, 0xff, 10);
-            memset(ebuf + 14, 0xff, 12);
-            memset(ebuf + 28, 0xff, 4);
+            longnum |= LAST_LONG_ENTRY;
         }
-        ebuf[11] = ATTR_LONG_NAME;
-        wnstr_lazy((wchar *) (ebuf + 1), ep->filename + (i - 1) * CHAR_LONG_NAME, 5);
-        wnstr_lazy((wchar *) (ebuf + 14), ep->filename + (i - 1) * CHAR_LONG_NAME + 5, 6);
-        wnstr_lazy((wchar *) (ebuf + 28), ep->filename + (i - 1) * CHAR_LONG_NAME + 11, 2);
-        rw_clus(dp->cur_clus, 1, 0, (uint64)ebuf, off, sizeof(ebuf));
-        off = reloc_clus(dp, off + 32);
+        make_entry(dp, off, ep->filename, ATTR_LONG_NAME, longnum);
+        off += 32;
     }
-    ep->dirty = 1;
-    eupdate(ep);
+    make_entry(dp, off, ep->filename, ep->attribute, ep->first_clus);
     ep->valid = 1;
     eunlock(ep);
     return ep;
@@ -435,54 +447,36 @@ struct dirent *edup(struct dirent *entry)
     return entry;
 }
 
+// Only update filesize in this case.
 void eupdate(struct dirent *entry)
 {
     if (!entry->dirty) { return; }
-    // printf("[eupdate] %s\n", entry->filename);
     uint entcnt;
-    uint32 clus = entry->parent->first_clus;
-    uint32 off = entry->off % fat.byts_per_clus;
-    for (uint clus_cnt = entry->off / fat.byts_per_clus; clus_cnt > 0; clus_cnt--) {
-        clus = read_fat(clus);
-    }
-    rw_clus(clus, 0, 0, (uint64) &entcnt, off, 1);
+    uint32 off = reloc_clus(entry->parent, entry->off, 0);
+    rw_clus(entry->parent->cur_clus, 0, 0, (uint64) &entcnt, off, 1);
     entcnt &= ~LAST_LONG_ENTRY;
-    off += (entcnt << 5);
-    if (off / fat.byts_per_clus != 0) {
-        clus = read_fat(clus);
-        off %= fat.byts_per_clus;
-    }
-    uint16 clus_high = (uint16)(entry->first_clus >> 16);
-    uint16 clus_low = (uint16)(entry->first_clus & 0xff);
-    rw_clus(clus, 1, 0, (uint64) &entry->filename, off, 11);
-    rw_clus(clus, 1, 0, (uint64) &entry->attribute, off + 11, sizeof(entry->attribute));
-    rw_clus(clus, 1, 0, (uint64) &clus_high, off + 20, sizeof(clus_high));
-    rw_clus(clus, 1, 0, (uint64) &clus_low, off + 26, sizeof(clus_low));
-    rw_clus(clus, 1, 0, (uint64) &entry->file_size, off + 28, sizeof(entry->file_size));
+    off = reloc_clus(entry->parent, entry->off + (entcnt << 5), 0);
+    rw_clus(entry->parent->cur_clus, 1, 0, (uint64) &entry->file_size, off + 28, sizeof(entry->file_size));
     entry->dirty = 0;
 }
 
 void etrunc(struct dirent *entry)
 {
     uint entcnt;
-    uint32 clus = entry->parent->first_clus;
-    uint32 off = entry->off % fat.byts_per_clus;
-    for (uint clus_cnt = entry->off / fat.byts_per_clus; clus_cnt > 0; clus_cnt--) {
-        clus = read_fat(clus);
-    }
-    rw_clus(clus, 0, 0, (uint64) &entcnt, off, 1);
+    elock(entry->parent);
+    uint32 off = entry->off;
+    uint32 off2 = reloc_clus(entry->parent, off, 0);
+    rw_clus(entry->parent->cur_clus, 0, 0, (uint64) &entcnt, off2, 1);
     entcnt &= ~LAST_LONG_ENTRY;
     uint8 flag = EMPTY_ENTRY;
     for (int i = 0; i <= entcnt; i++) {
-        rw_clus(clus, 1, 0, (uint64) &flag, off, 1);
+        rw_clus(entry->parent->cur_clus, 1, 0, (uint64) &flag, off2, 1);
         off += 32;
-        if (off / fat.byts_per_clus != 0) {
-            off %= fat.byts_per_clus;
-            clus = read_fat(clus);
-        }
+        off2 = reloc_clus(entry->parent, off, 0);
     }
+    eunlock(entry->parent);
     entry->valid = 0;
-    for (clus = entry->first_clus; clus < FAT32_EOC; ) {
+    for (uint32 clus = entry->first_clus; clus >= 2 && clus < FAT32_EOC; ) {
         uint32 next = read_fat(clus);
         free_clus(clus);
         clus = next;
@@ -518,7 +512,11 @@ void eput(struct dirent *entry)
             entry->prev = &root;
             root.next->prev = entry;
             root.next = entry;
-            eupdate(entry);
+            if (entry->valid == 2) {
+                etrunc(entry);
+            } else {
+                eupdate(entry);
+            }
             eput(entry->parent);
         }
         releasesleep(&entry->lock);
@@ -603,7 +601,8 @@ int enext(struct dirent *dp, struct dirent *ep, uint off, int *count)
     uint8 ebuf[32];
     int cnt = 0;
     memset(ep->filename, 0, FAT32_MAX_FILENAME + 1);
-    for (uint off2 = reloc_clus(dp, off); dp->cur_clus < FAT32_EOC; off2 = reloc_clus(dp, off2 + 32)) {
+    uint off2 = reloc_clus(dp, off, 0);
+    for (; dp->cur_clus < FAT32_EOC; off += 32, off2 = reloc_clus(dp, off, 0)) {
         if (rw_clus(dp->cur_clus, 0, 0, (uint64)ebuf, off2, 32) != 32 || ebuf[0] == END_OF_ENTRY) {
             return -1;
         }
@@ -655,8 +654,8 @@ struct dirent *dirlookup(struct dirent *entry, char *filename, uint *poff)
     int entcnt = (len + CHAR_LONG_NAME - 1) / CHAR_LONG_NAME + 1;   // count of l-n-entries, rounds up
     int count = 0;
     int type;
-    uint off = reloc_clus(entry, 0);
-
+    uint off = 0;
+    reloc_clus(entry, 0, 0);
     while ((type = enext(entry, de, off, &count) != -1)) {
         if (type == 0) {
             if (poff && count >= entcnt) {
@@ -669,7 +668,7 @@ struct dirent *dirlookup(struct dirent *entry, char *filename, uint *poff)
             de->valid = 1;
             return de;
         }
-        off = reloc_clus(entry, off + count * 32);
+        off += count << 5;
     }
     if (poff) {
         *poff = off;

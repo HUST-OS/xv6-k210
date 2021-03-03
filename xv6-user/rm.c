@@ -1,5 +1,6 @@
 #include "kernel/include/types.h"
 #include "kernel/include/stat.h"
+#include "kernel/include/fcntl.h"
 #include "xv6-user/user.h"
 
 int
@@ -13,9 +14,8 @@ main(int argc, char *argv[])
   }
 
   for(i = 1; i < argc; i++){
-    if(unlink(argv[i]) < 0){
+    if(remove(argv[i]) < 0){
       fprintf(2, "rm: %s failed to delete\n", argv[i]);
-      break;
     }
   }
 

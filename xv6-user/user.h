@@ -12,10 +12,7 @@ int close(int);
 int kill(int);
 int exec(char*, char**);
 int open(const char*, int);
-int mknod(const char*, short, short);
-int unlink(const char*);
 int fstat(int fd, struct stat*);
-int link(const char*, const char*);
 int mkdir(const char*);
 int chdir(const char*);
 int dup(int);
@@ -27,6 +24,7 @@ int test_proc(void);
 int dev(int, short, short);
 int dir(int fd, struct stat*);
 int getcwd(char *);
+int remove(char *);
 
 // ulib.c
 int stat(const char*, struct stat*);

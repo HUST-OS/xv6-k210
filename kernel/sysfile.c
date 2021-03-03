@@ -118,22 +118,6 @@ sys_fstat(void)
   return filestat(f, st);
 }
 
-// // Is the directory dp empty except for "." and ".." ?
-// static int
-// isdirempty(struct dirent *dp)
-// {
-//   // int off;
-//   // struct dirent de;
-
-//   // for(off=2*sizeof(de); off<dp->size; off+=sizeof(de)){
-//   //   if(readi(dp, 0, (uint64)&de, off, sizeof(de)) != sizeof(de))
-//   //     panic("isdirempty: readi");
-//   //   if(de.inum != 0)
-//   //     return 0;
-//   // }
-//   return 1;
-// }
-
 static struct dirent*
 create(char *path, short type)
 {
@@ -144,8 +128,11 @@ create(char *path, short type)
     return 0;
 
   elock(dp);
-  if((ep = ealloc(dp, name, type == T_DIR)) == 0)
+  if((ep = ealloc(dp, name, type == T_DIR)) == 0){
+    eunlock(dp);
+    eput(dp);
     return 0;
+  }
 
   elock(ep);
 
@@ -185,15 +172,7 @@ sys_open(void)
     }
   }
 
-  // if(ep->type == T_DEVICE /* && (ep->major < 0 || ep->major >= NDEV) */){
-  //   eunlock(ep);
-  //   eput(ep);
-  //   return -1;
-  // }
-
-  if((f = filealloc()) == 0 || (fd = fdalloc(f)) < 0){
-    if(f)
-      fileclose(f);
+  if((f = filealloc()) == 0){
     eunlock(ep);
     eput(ep);
     return -1;
@@ -204,9 +183,11 @@ sys_open(void)
   f->ep = ep;
   f->readable = !(omode & O_WRONLY);
   f->writable = (omode & O_WRONLY) || (omode & O_RDWR);
-
-  if((omode & O_TRUNC)){
-    etrunc(ep);
+  
+  if ((fd = fdalloc(f)) < 0){
+    eunlock(ep);
+    fileclose(f);
+    return -1;
   }
 
   eunlock(ep);
@@ -422,4 +403,43 @@ sys_getcwd(void)
   
   return 0;
 
+}
+
+// Is the directory dp empty except for "." and ".." ?
+static int
+isdirempty(struct dirent *dp)
+{
+  struct dirent ep;
+  int count;
+  int ret;
+  memset(&ep, 0, sizeof(ep));
+  ret = enext(dp, &ep, 2 * 32, &count);   // skip the "." and ".."
+  return ret == -1;
+}
+
+uint64
+sys_remove(void)
+{
+  char path[FAT32_MAX_PATH];
+  struct dirent *ep;
+
+  if(argstr(0, path, MAXPATH) < 0)
+    return -1;
+  if((ep = ename(path)) == 0){
+    return -1;
+  }
+  elock(ep);
+
+  if(ep->ref != 1 ||
+    ((ep->attribute & ATTR_DIRECTORY) && !isdirempty(ep))){
+      eunlock(ep);
+      eput(ep);
+      return -1;
+  }
+  ep->valid = 2;    // remove mark, eput will calls eupdate(), then etrunc()
+
+  eunlock(ep);
+  eput(ep);
+
+  return 0;
 }

@@ -21,7 +21,7 @@
 
 ## 下载
 ```bash
-git clone https://github.com/SKTT1Ryze/xv6-k210
+git clone https://github.com/HUST-OS/xv6-k210
 ```
 
 ## 编译

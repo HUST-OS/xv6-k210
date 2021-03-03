@@ -18,9 +18,9 @@
 #define SYS_uptime 14
 #define SYS_open   15
 #define SYS_write  16
-#define SYS_mknod  17
-#define SYS_unlink 18
-#define SYS_link   19
+#define SYS_remove 17
+// #define SYS_unlink 18
+// #define SYS_link   19
 #define SYS_mkdir  20
 #define SYS_close  21
 #define SYS_test_proc 22

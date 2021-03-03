@@ -21,7 +21,7 @@ Run xv6-riscv on k210 board
 
 ## Installation
 ```bash
-git clone https://github.com/SKTT1Ryze/xv6-k210
+git clone https://github.com/HUST-OS/xv6-k210
 ```
 
 ## Build
