@@ -16,7 +16,7 @@
 
 struct env{
   char name[32];
-  char path[96];
+  char value[96];
 };
 
 struct env envs[NENVS];
@@ -80,7 +80,7 @@ export(char *argv[])
       return 0;
     }
     for(int i=0; i<nenv; i++)
-      printf("export %s=%s\n", envs[i].name, envs[i].path);
+      printf("export %s=%s\n", envs[i].name, envs[i].value);
     return 0;
   }
   else if(nenv == NENVS)
@@ -91,7 +91,7 @@ export(char *argv[])
   if(argv[2][strlen(argv[2])-1] == '/')
     argv[2][strlen(argv[2])-1] = 0;
   strcpy(envs[nenv].name, argv[1]);
-  strcpy(envs[nenv].path, argv[2]);
+  strcpy(envs[nenv].value, argv[2]);
   nenv++;
   return 0;
 }
@@ -126,7 +126,7 @@ runcmd(struct cmd *cmd)
     for(i=0; i<nenv; i++)
     {
       char *s_tmp = env_cmd;
-      char *d_tmp = envs[i].path;
+      char *d_tmp = envs[i].value;
       while((*s_tmp = *d_tmp++))
         s_tmp++;
       *s_tmp++ = '/';
@@ -193,7 +193,7 @@ runcmd(struct cmd *cmd)
 int
 getcmd(char *buf, int nbuf)
 {
-  fprintf(2, "xv6@%s:%s$ ", platform, mycwd);
+  fprintf(2, "-> xv6@%s: %s $ ", platform, mycwd);
   memset(buf, 0, nbuf);
   gets(buf, nbuf);
   if(buf[0] == 0) // EOF
@@ -214,6 +214,12 @@ main(void)
       break;
     }
   }
+
+  // Add an embedded env var(for basic commands in shell)
+  strcpy(envs[nenv].name, "SHELL");
+  strcpy(envs[nenv].value, "/xv6sh");
+  nenv++;
+
   getcwd(mycwd);
   // Read and run input commands.
   while(getcmd(buf, sizeof(buf)) >= 0){
