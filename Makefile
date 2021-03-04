@@ -36,8 +36,10 @@ OBJS += \
   $K/timer.o \
   $K/logo.o \
   $K/disk.o \
-  $K/fat32.o 
+  $K/fat32.o \
+  $K/console.o
 #   $K/fs.o 
+#   $K/test.o \
 #   $K/log.o 
 
 ifeq ($(platform), k210)
@@ -53,7 +55,6 @@ OBJS += \
   $K/virtio_disk.o \
   $K/plic.o \
   $K/uart.o \
-  $K/console.o
 
 endif
 

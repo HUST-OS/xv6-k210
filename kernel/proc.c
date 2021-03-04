@@ -599,9 +599,7 @@ forkret(void)
     // be run from main().
     // printf("[forkret]first scheduling\n");
     first = 0;
-    #ifdef QEMU
     fat32_init();
-    #endif
   }
   // printf("[forket]call usertrapret\n");
   usertrapret();

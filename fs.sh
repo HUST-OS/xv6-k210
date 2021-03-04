@@ -1,5 +1,5 @@
 if [ ! -f "fs.img" ]; then 
-    dd if=/dev/zero of=fs.img bs=512k count=2048
+    dd if=/dev/zero of=fs.img bs=512k count=1024
     mkfs.vfat -F 32 fs.img
 fi
 

@@ -1,8 +1,9 @@
 #include "include/printf.h"
 #include "include/types.h"
+#include "include/riscv.h"
 #include "include/spi.h"
 #include "include/gpiohs.h"
-
+#include "include/defs.h"
 #include "include/buf.h"
 #include "include/spinlock.h"
 
