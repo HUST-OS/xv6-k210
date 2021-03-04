@@ -127,7 +127,7 @@ QEMUOPTS = -machine virt -bios $(RUSTSBI) -kernel $T/kernel -m 128M -smp $(CPUS)
 QEMUOPTS += -drive file=fs.img,if=none,format=raw,id=x0 
 QEMUOPTS += -device virtio-blk-device,drive=x0,bus=virtio-mmio-bus.0
 
-run: build
+run: build fs.img
 ifeq ($(platform), k210)
 	@$(OBJCOPY) $T/kernel --strip-all -O binary $(image)
 	@$(OBJCOPY) $(RUSTSBI) --strip-all -O binary $(k210)
@@ -136,9 +136,11 @@ ifeq ($(platform), k210)
 	@sudo chmod 777 $(k210-serialport)
 	@python3 ./tools/kflash.py -p $(k210-serialport) -b 1500000 -t $(k210)
 else
-	@./fs.sh
 	@$(QEMU) $(QEMUOPTS)
 endif
+
+fs.img:	$(UPROGS)
+	@./fs.sh
 
 $U/initcode: $U/initcode.S
 	$(CC) $(CFLAGS) -march=rv64g -nostdinc -I. -Ikernel -c $U/initcode.S -o $U/initcode.o

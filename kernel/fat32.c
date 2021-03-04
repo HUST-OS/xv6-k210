@@ -450,7 +450,7 @@ struct dirent *edup(struct dirent *entry)
     return entry;
 }
 
-// Only update filesize in this case.
+// Only update filesize and first cluster in this case.
 void eupdate(struct dirent *entry)
 {
     if (!entry->dirty) { return; }
@@ -459,6 +459,10 @@ void eupdate(struct dirent *entry)
     rw_clus(entry->parent->cur_clus, 0, 0, (uint64) &entcnt, off, 1);
     entcnt &= ~LAST_LONG_ENTRY;
     off = reloc_clus(entry->parent, entry->off + (entcnt << 5), 0);
+    uint16 clus_high = (uint16)(entry->first_clus >> 16);
+    uint16 clus_low = (uint16)(entry->first_clus & 0xff);
+    rw_clus(entry->parent->cur_clus, 1, 0, (uint64) &clus_high, off + 20, sizeof(uint16));
+    rw_clus(entry->parent->cur_clus, 1, 0, (uint64) &clus_low, off + 26, sizeof(uint16));
     rw_clus(entry->parent->cur_clus, 1, 0, (uint64) &entry->file_size, off + 28, sizeof(entry->file_size));
     entry->dirty = 0;
 }

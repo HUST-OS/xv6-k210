@@ -217,7 +217,7 @@ main(void)
 
   // Add an embedded env var(for basic commands in shell)
   strcpy(envs[nenv].name, "SHELL");
-  strcpy(envs[nenv].value, "/xv6sh");
+  strcpy(envs[nenv].value, "/bin");
   nenv++;
 
   getcwd(mycwd);
