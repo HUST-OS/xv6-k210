@@ -4,10 +4,15 @@
 #include "include/riscv.h"
 #include "include/defs.h"
 
+#include "include/buf.h"
+#include "include/sdcard.h"
+
 void disk_init(void)
 {
     #ifdef QEMU
     virtio_disk_init();
+	#else 
+	sdcard_init();
     #endif
 }
 
@@ -15,14 +20,18 @@ void disk_read(struct buf *b)
 {
     #ifdef QEMU
 	virtio_disk_rw(b, 0);
-    #endif
+    #else 
+	sdcard_read_sector(b->data, b->sectorno);
+	#endif
 }
 
 void disk_write(struct buf *b)
 {
     #ifdef QEMU
 	virtio_disk_rw(b, 1);
-    #endif
+    #else 
+	sdcard_write_sector(b->data, b->sectorno);
+	#endif
 }
 
 void disk_intr(void)

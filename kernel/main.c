@@ -35,23 +35,19 @@ main(unsigned long hartid, unsigned long dtb_pa)
     trapinithart();  // install kernel trap vector
     timerinit();     // set up timer interrupt handler
     procinit();
-    #ifndef QEMU
-    //device_init(dtb_pa, hartid);
-    fpioa_pin_init();
-    sdcard_init();
 
-    //test_proc_init(8);   // test porc init
-    test_sdcard();
-    // test_kalloc();    // test kalloc
-    // test_vm(hartid);       // test kernel pagetable
-    #else
+	// init file system 
+    #ifndef QEMU
+    fpioa_pin_init();
+	#endif 
+
     plicinit();      // set up interrupt controller
     plicinithart();  // ask PLIC for device interrupts
     disk_init();
     binit();         // buffer cache
     fileinit();      // file table
+
     userinit();      // first user process
-    #endif
 
     printf("hart 0 init done\n");
     for(int i = 1; i < NCPU; i++) {
@@ -62,6 +58,9 @@ main(unsigned long hartid, unsigned long dtb_pa)
     started = 1;
   } else
   {
+  	// block core 2
+	while (1);
+
     // hart 1
     while (started == 0)
       ;
