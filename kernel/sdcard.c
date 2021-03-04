@@ -1,8 +1,9 @@
 #include "include/printf.h"
 #include "include/types.h"
+#include "include/riscv.h"
 #include "include/spi.h"
 #include "include/gpiohs.h"
-
+#include "include/defs.h"
 #include "include/buf.h"
 #include "include/spinlock.h"
 
@@ -362,7 +363,7 @@ void sdcard_write_sector(uint8 *buf, int sectorno) {
 	uint32 address;
 	static uint8 const START_BLOCK_TOKEN = 0xfe;
 	uint8 dummy_crc[2] = {0xff, 0xff};
-
+	printf("[sdcard_write_sector]\n");
 	if (is_standard_sd) {
 		address = sectorno << 9;
 	}

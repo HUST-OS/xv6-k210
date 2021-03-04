@@ -13,7 +13,6 @@
 #include "include/sleeplock.h"
 #include "include/file.h"
 #include "include/memlayout.h"
-#include "include/sbi.h"
 
 volatile int panicked = 0;
 
@@ -28,7 +27,7 @@ static struct {
 void printstring(const char* s) {
     while (*s)
     {
-        sbi_console_putchar(*s++);
+        consputc(*s++);
     }
 }
 
@@ -53,7 +52,7 @@ printint(int xx, int base, int sign)
     buf[i++] = '-';
 
   while(--i >= 0)
-    sbi_console_putchar(buf[i]);
+    consputc(buf[i]);
 }
 
 
@@ -61,10 +60,10 @@ static void
 printptr(uint64 x)
 {
   int i;
-  sbi_console_putchar('0');
-  sbi_console_putchar('x');
+  consputc('0');
+  consputc('x');
   for (i = 0; i < (sizeof(uint64) * 2); i++, x <<= 4)
-    sbi_console_putchar(digits[x >> (sizeof(uint64) * 8 - 4)]);
+    consputc(digits[x >> (sizeof(uint64) * 8 - 4)]);
 }
 
 // Print to the console. only understands %d, %x, %p, %s.
@@ -86,7 +85,7 @@ printf(char *fmt, ...)
   va_start(ap, fmt);
   for(i = 0; (c = fmt[i] & 0xff) != 0; i++){
     if(c != '%'){
-      sbi_console_putchar(c);
+      consputc(c);
       continue;
     }
     c = fmt[++i] & 0xff;
@@ -106,15 +105,15 @@ printf(char *fmt, ...)
       if((s = va_arg(ap, char*)) == 0)
         s = "(null)";
       for(; *s; s++)
-        sbi_console_putchar(*s);
+        consputc(*s);
       break;
     case '%':
-      sbi_console_putchar('%');
+      consputc('%');
       break;
     default:
       // Print unknown % sequence to draw attention.
-      sbi_console_putchar('%');
-      sbi_console_putchar(c);
+      consputc('%');
+      consputc(c);
       break;
     }
   }

@@ -62,7 +62,11 @@ consolewrite(int user_src, uint64 src, int n)
     char c;
     if(either_copyin(&c, user_src, src+i, 1) == -1)
       break;
+    #ifdef QEMU
     uartputc(c);
+    #else
+    sbi_console_putchar(c);
+    #endif
   }
   release(&cons.lock);
 
@@ -181,9 +185,9 @@ void
 consoleinit(void)
 {
   initlock(&cons.lock, "cons");
-
+#ifdef QEMU
   uartinit();
-
+#endif
   // connect read and write system calls
   // to consoleread and consolewrite.
   devsw[CONSOLE].read = consoleread;

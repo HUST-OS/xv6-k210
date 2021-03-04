@@ -235,18 +235,21 @@ main(void)
       struct execcmd *ecmd;
 
       ecmd = (struct execcmd*)cmd;
-      if(ecmd->argv[0] == 0)
-        exit(1);
+      if(ecmd->argv[0] == 0) {
+        free(cmd);
+        continue;
+      }
       else if(!strcmp(ecmd->argv[0], "export"))
       {
         // Export must be called by the parent, not the child.
         if(export(ecmd->argv) < 0)
           fprintf(2, "export failed\n");
+        continue;
       }
-      else if(fork1() == 0)
+      else if(fork1() == 0) 
         runcmd(cmd);
+      wait(0);
     }
-    wait(0);
   }
   exit(0);
 }

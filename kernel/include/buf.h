@@ -3,6 +3,8 @@
 
 #define BSIZE 512
 
+#include "sleeplock.h"
+
 struct buf {
   int valid;
   int disk;		// does disk "own" buf? 

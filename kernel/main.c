@@ -22,9 +22,7 @@ main(unsigned long hartid, unsigned long dtb_pa)
   inithartid(hartid);
   
   if (hartid == 0) {
-    #ifdef QEMU
     consoleinit();
-    #endif
     printfinit();   // init a lock for printf 
     print_logo();
     printf("hart %d enter main()...\n", hartid);
@@ -39,10 +37,11 @@ main(unsigned long hartid, unsigned long dtb_pa)
 	// init file system 
     #ifndef QEMU
     fpioa_pin_init();
-	#endif 
-
+    #else
     plicinit();      // set up interrupt controller
     plicinithart();  // ask PLIC for device interrupts
+	  #endif 
+
     disk_init();
     binit();         // buffer cache
     fileinit();      // file table
@@ -58,9 +57,6 @@ main(unsigned long hartid, unsigned long dtb_pa)
     started = 1;
   } else
   {
-  	// block core 2
-	while (1);
-
     // hart 1
     while (started == 0)
       ;
