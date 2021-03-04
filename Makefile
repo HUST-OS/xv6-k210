@@ -1,5 +1,7 @@
 platform	:= k210
 # platform	:= qemu
+mode := debug
+#mode := release
 K=kernel
 U=xv6-user
 T=target
@@ -33,7 +35,6 @@ OBJS += \
   $K/kernelvec.o \
   $K/timer.o \
   $K/logo.o \
-  $K/test.o \
   $K/disk.o \
   $K/fat32.o 
 #   $K/fs.o 
@@ -78,6 +79,10 @@ CFLAGS += -mcmodel=medany
 CFLAGS += -ffreestanding -fno-common -nostdlib -mno-relax
 CFLAGS += -I.
 CFLAGS += $(shell $(CC) -fno-stack-protector -E -x c /dev/null >/dev/null 2>&1 && echo -fno-stack-protector)
+
+ifeq ($(mode), debug) 
+CFLAGS += -DDEBUG 
+endif 
 
 ifeq ($(platform), qemu)
 CFLAGS += -D QEMU

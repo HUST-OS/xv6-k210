@@ -12,4 +12,22 @@ struct spinlock {
   struct cpu *cpu;   // The cpu holding the lock.
 };
 
+// Initialize a spinlock 
+void initlock(struct spinlock*, char*);
+
+// Acquire the spinlock
+// Must be used with release()
+void acquire(struct spinlock*);
+
+// Release the spinlock 
+// Must be used with acquire()
+void release(struct spinlock*);
+
+// Check whether this cpu is holding the lock 
+// Interrupts must be off 
+int holding(struct spinlock*);
+
+void push_off(void);
+void pop_off(void);
+
 #endif

@@ -115,7 +115,7 @@ static void sd_get_response_R7_rest(uint8 *frame) {
 static int switch_to_SPI_mode(void) {
 	int timeout = 0xff;
 
-	while (timeout--) {
+	while (--timeout) {
 		sd_send_cmd(SD_CMD0, 0, 0x95);
 		uint64 result = sd_get_response_R1();
 		sd_end_cmd();
@@ -166,7 +166,7 @@ static int read_OCR(void) {
 	int timeout;
 
 	timeout = 0xff;
-	while (timeout --) {
+	while (--timeout) {
 		sd_send_cmd(SD_CMD58, 0, 0);
 		result = sd_get_response_R1();
 		sd_get_response_R3_rest(ocr);
@@ -191,7 +191,7 @@ static int set_SDXC_capacity(void) {
 	uint8 result = 0xff;
 
 	int timeout = 0xfff;
-	while (timeout --) {
+	while (--timeout) {
 		sd_send_cmd(SD_CMD55, 0, 0);
 		result = sd_get_response_R1();
 		sd_end_cmd();
@@ -246,7 +246,7 @@ static int check_block_size(void) {
 				// setting SD card block size to BSIZE 
 				int timeout = 0xff;
 				int result = 0xff;
-				while (timeout --) {
+				while (--timeout) {
 					sd_send_cmd(SD_CMD16, BSIZE, 0);
 					result = sd_get_response_R1();
 					sd_end_cmd();
@@ -323,6 +323,10 @@ void sdcard_read_sector(uint8 *buf, int sectorno) {
 	uint32 address;
 	uint8 dummy_crc[2];
 
+	#ifdef DEBUG
+	printf("sdcard_read_sector()\n");
+	#endif
+
 	if (is_standard_sd) {
 		address = sectorno << 9;
 	}
@@ -342,7 +346,7 @@ void sdcard_read_sector(uint8 *buf, int sectorno) {
 	}
 
 	int timeout = 0xfff;
-	while (timeout--) {
+	while (--timeout) {
 		sd_read_data(&result, 1);
 		if (0xfe == result) break;
 	}
@@ -362,6 +366,10 @@ void sdcard_write_sector(uint8 *buf, int sectorno) {
 	uint32 address;
 	static uint8 const START_BLOCK_TOKEN = 0xfe;
 	uint8 dummy_crc[2] = {0xff, 0xff};
+
+	#ifdef DEBUG
+	printf("sdcard_write_sector()\n");
+	#endif
 
 	if (is_standard_sd) {
 		address = sectorno << 9;
@@ -386,13 +394,20 @@ void sdcard_write_sector(uint8 *buf, int sectorno) {
 
 	// waiting for sdcard to finish programming 
 	uint8 result;
-	sd_read_data(&result, 1);
-	if (0x05 != (result & 0x1f)) {
+	int timeout = 0xfff;
+	while (--timeout) {
+		sd_read_data(&result, 1);
+		if (0x05 == (result & 0x1f)) {
+			break;
+		}
+	}
+	if (0 == timeout) {
 		release(&sdcard_lock);
 		panic("sdcard: invalid response token");
 	}
-	int timeout = 0xfff;
-	while (timeout--) {
+	
+	timeout = 0xffffff;
+	while (--timeout) {
 		sd_read_data(&result, 1);
 		if (0 != result) break;
 	}
@@ -423,22 +438,26 @@ void sdcard_write_sector(uint8 *buf, int sectorno) {
 void test_sdcard(void) {
 	uint8 buf[BSIZE];
 
-	for (int i = 0; i < BSIZE; i ++) {
-		buf[i] = i & 0xff; 		// fill in junk
-	}
-
-	sdcard_write_sector(buf, 2);
-
-	for (int i = 0; i < BSIZE; i ++) {
-		buf[i] = 0;
-	}
-	sdcard_read_sector(buf, 2);
-
-	for (int i = 0; i < BSIZE; i ++) {
-		if (0 == i % 16) {
-			printf("\n");
+	for (int sec = 0; sec < 5; sec ++) {
+		for (int i = 0; i < BSIZE; i ++) {
+			buf[i] = 0xaa;		// data to be written 
 		}
-		printf("%x ", buf[i]);
+
+		sdcard_write_sector(buf, sec);
+
+		for (int i = 0; i < BSIZE; i ++) {
+			buf[i] = 0xff;		// fill in junk
+		}
+
+		sdcard_read_sector(buf, sec);
+		for (int i = 0; i < BSIZE; i ++) {
+			if (0 == i % 16) {
+				printf("\n");
+			}
+
+			printf("%x ", buf[i]);
+		}
+		printf("\n");
 	}
 
 	while (1) ;
