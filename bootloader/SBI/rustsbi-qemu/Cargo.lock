@@ -25,6 +25,11 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "dcb6dd1c2376d2e096796e234a70e17e94cc2d5d54ff8ce42b28cef1d0d359a4"
 
 [[package]]
+name = "device_tree"
+version = "1.0.3"
+source = "git+https://github.com/rcore-os/device_tree-rs/#b89dffc9bb2d0ee1269999c5004e66d5e85772c2"
+
+[[package]]
 name = "embedded-hal"
 version = "1.0.0-alpha.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -132,28 +137,29 @@ dependencies = [
 
 [[package]]
 name = "rustsbi"
-version = "0.0.2"
+version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9ad5911abb3c656ea578ea0fa948798d3e9037e9178f62964bb1c00d4ea732c9"
+checksum = "578054466ae594e3fafe41bab5a6e6d41fc751267721423c3458e55b427521d0"
 dependencies = [
  "embedded-hal",
  "lazy_static",
  "nb",
  "riscv 0.6.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "spin 0.6.0",
+ "spin 0.7.1",
 ]
 
 [[package]]
 name = "rustsbi-qemu"
 version = "0.1.0"
 dependencies = [
+ "device_tree",
  "embedded-hal",
  "lazy_static",
  "linked_list_allocator",
  "nb",
  "riscv 0.6.0 (git+https://github.com/rust-embedded/riscv)",
  "rustsbi",
- "spin 0.6.0",
+ "spin 0.7.1",
 ]
 
 [[package]]
@@ -185,9 +191,9 @@ checksum = "6e63cff320ae2c57904679ba7cb63280a3dc4613885beafb148ee7bf9aa9042d"
 
 [[package]]
 name = "spin"
-version = "0.6.0"
+version = "0.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ef7b840d5ef62f81f50649ade37112748461256c64a70bccefeabb4d02c515c5"
+checksum = "13287b4da9d1207a4f4929ac390916d64eacfe236a487e9a9f5b3be392be5162"
 
 [[package]]
 name = "spinning_top"

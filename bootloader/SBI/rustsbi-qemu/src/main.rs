@@ -1,4 +1,4 @@
-// Copyright 2020 Luo Jia
+// Ref: https://github.com/luojia65/rustsbi/blob/master/platform/qemu/src/main.rs
 #![no_std]
 #![no_main]
 #![feature(naked_functions)]
@@ -15,7 +15,7 @@ use core::alloc::Layout;
 use core::panic::PanicInfo;
 use linked_list_allocator::LockedHeap;
 
-use rustsbi::{print, println, enter_privileged};
+use rustsbi::{print, println};
 
 use riscv::register::{
     mcause::{self, Exception, Interrupt, Trap},
@@ -31,14 +31,28 @@ static ALLOCATOR: LockedHeap = LockedHeap::empty();
 #[cfg(not(test))]
 #[panic_handler]
 fn panic(info: &PanicInfo) -> ! {
-    println!("{}", info);
-    loop {}
+    let hart_id = mhartid::read();
+    // 输出的信息大概是“[rustsbi-panic] hart 0 panicked at ...”
+    println!("[rustsbi-panic] hart {} {}", hart_id, info);
+    println!("[rustsbi-panic] system shutdown scheduled due to RustSBI panic");
+    use rustsbi::Reset;
+    hal::Reset.system_reset(
+        rustsbi::reset::RESET_TYPE_SHUTDOWN,
+        rustsbi::reset::RESET_REASON_SYSTEM_FAILURE
+    );
+    loop { }
 }
 
 #[cfg(not(test))]
 #[alloc_error_handler]
 fn oom(_layout: Layout) -> ! {
     loop {}
+}
+
+lazy_static::lazy_static! {
+    // 最大的硬件线程编号；只在启动时写入，跨核软中断发生时读取
+    pub static ref MAX_HART_ID: spin::Mutex<usize> = 
+        spin::Mutex::new(compiled_max_hartid());
 }
 
 // #[export_name = "_mp_hook"]
@@ -75,9 +89,9 @@ pub extern "C" fn mp_hook() -> bool {
 #[export_name = "_start"]
 #[link_section = ".text.entry"] // this is stable
 #[naked]
-fn main() -> ! {
-    unsafe {
-        llvm_asm!(
+// extern "C" for Rust ABI is by now unsupported for naked functions
+unsafe extern "C" fn start() -> ! {
+    asm!(
             "
         csrr    a2, mhartid
         lui     t0, %hi(_max_hart_id)
@@ -100,16 +114,16 @@ fn main() -> ! {
     .endif
         sub     sp, sp, t0
         csrw    mscratch, zero
-        j _start_success
+        j       main
         
     _start_abort:
         wfi
         j _start_abort
-    _start_success:
-        
-    "
-        )
-    };
+    ", options(noreturn))
+}
+
+#[export_name = "main"]
+fn main() -> ! {
     // Ref: https://github.com/qemu/qemu/blob/aeb07b5f6e69ce93afea71027325e3e7a22d2149/hw/riscv/boot.c#L243
     let dtb_pa = unsafe {
         let dtb_pa: usize;
@@ -129,6 +143,7 @@ fn main() -> ! {
     unsafe {
         mtvec::write(_start_trap as usize, TrapMode::Direct);
     }
+
 
     /* main function start */
 
@@ -182,9 +197,9 @@ fn main() -> ! {
     }
 
     if mhartid::read() == 0 {
-        println!("[rustsbi] Version 0.1.0");
+        println!("[rustsbi] RustSBI version {}", rustsbi::VERSION);
         println!("{}", rustsbi::LOGO);
-        println!("[rustsbi] Platform: QEMU");
+        println!("[rustsbi] Platform: QEMU (Version {})", env!("CARGO_PKG_VERSION"));
         let isa = misa::read();
         if let Some(isa) = isa {
             let mxl_str = match isa.mxl() {
@@ -202,33 +217,79 @@ fn main() -> ! {
         }
         println!("[rustsbi] mideleg: {:#x}", mideleg::read().bits());
         println!("[rustsbi] medeleg: {:#x}", medeleg::read().bits());
+        let mut guard = MAX_HART_ID.lock();
+        *guard = unsafe { count_harts(dtb_pa) };
+        drop(guard);
         println!("[rustsbi] Kernel entry: 0x80200000");
     }
 
-    extern "C" {
-        fn _s_mode_start();
-    }
     unsafe {
-        mepc::write(_s_mode_start as usize);
+        mepc::write(s_mode_start as usize);
         mstatus::set_mpp(MPP::Supervisor);
-        enter_privileged(mhartid::read(), dtb_pa);
+        rustsbi::enter_privileged(mhartid::read(), dtb_pa)
     }
 }
 
-global_asm!(
-        "
-_s_mode_start:
-    .option push
-    .option norelax
-1:
-    auipc ra, %pcrel_hi(1f)
+#[naked]
+#[link_section = ".text"] // must add link section for all naked functions
+unsafe extern "C" fn s_mode_start() -> ! {
+    asm!("
+1:  auipc ra, %pcrel_hi(1f)
     ld ra, %pcrel_lo(1b)(ra)
     jr ra
-    .align  3
-1:
-    .dword 0x80200000
-.option pop
-");
+.align  3
+1:  .dword 0x80200000
+    ", options(noreturn))
+}
+
+unsafe fn count_harts(dtb_pa: usize) -> usize {
+    use device_tree::{DeviceTree, Node};
+    const DEVICE_TREE_MAGIC: u32 = 0xD00DFEED;
+    // 遍历“cpu_map”结构
+    // 这个结构的子结构是“处理核簇”（cluster）
+    // 每个“处理核簇”的子结构分别表示一个处理器核
+    fn enumerate_cpu_map(cpu_map_node: &Node) -> usize {
+        let mut tot = 0;
+        for cluster_node in cpu_map_node.children.iter() {
+            let name = &cluster_node.name;
+            let count = cluster_node.children.iter().count();
+            // 会输出：Hart count: cluster0 with 2 cores
+            // 在justfile的“threads := "2"”处更改
+            println!("[rustsbi-dtb] Hart count: {} with {} cores", name, count);
+            tot += count;
+        }
+        tot
+    }
+    #[repr(C)]
+    struct DtbHeader { magic: u32, size: u32 }
+    let header = &*(dtb_pa as *const DtbHeader);
+    // from_be 是大小端序的转换（from big endian）
+    let magic = u32::from_be(header.magic);
+    if magic == DEVICE_TREE_MAGIC {
+        let size = u32::from_be(header.size);
+        // 拷贝数据，加载并遍历
+        let data = core::slice::from_raw_parts(dtb_pa as *const u8, size as usize);
+        if let Ok(dt) = DeviceTree::load(data) {
+            if let Some(cpu_map) = dt.find("/cpus/cpu-map") {
+                return enumerate_cpu_map(cpu_map)
+            }
+        }
+    }
+    // 如果DTB的结构不对（读不到/cpus/cpu-map），返回默认的8个核
+    let ans = compiled_max_hartid();
+    println!("[rustsbi-dtb] Could not read '/cpus/cpu-map' from 'dtb_pa' device tree root; assuming {} cores", ans);
+    ans
+}
+
+#[inline]
+fn compiled_max_hartid() -> usize {
+    let ans;
+    unsafe { asm!("
+        lui     {ans}, %hi(_max_hart_id)
+        add     {ans}, {ans}, %lo(_max_hart_id)
+    ", ans = out(reg) ans) };
+    ans
+}
 
 global_asm!(
     "
@@ -286,7 +347,7 @@ _start_trap:
     addi    sp, sp, 16 * REGBYTES
     csrrw   sp, mscratch, sp
     mret
-"
+    "
 );
 
 // #[doc(hidden)]
@@ -301,6 +362,7 @@ _start_trap:
 // }
 
 #[allow(unused)]
+#[derive(Debug)]
 struct TrapFrame {
     ra: usize,
     t0: usize,
@@ -326,12 +388,12 @@ extern "C" fn start_trap_rust(trap_frame: &mut TrapFrame) {
     match cause {
         Trap::Exception(Exception::SupervisorEnvCall) => {
             let params = [trap_frame.a0, trap_frame.a1, trap_frame.a2, trap_frame.a3];
-            // 调用rust_sbi库的处理函数
+            // Call RustSBI procedure
             let ans = rustsbi::ecall(trap_frame.a7, trap_frame.a6, params);
-            // 把返回值送还给TrapFrame
+            // Return the return value to TrapFrame
             trap_frame.a0 = ans.error;
             trap_frame.a1 = ans.value;
-            // 跳过ecall指令
+            // Skip ecall instruction
             mepc::write(mepc::read().wrapping_add(4));
         }
         Trap::Interrupt(Interrupt::MachineSoft) => {
@@ -401,17 +463,20 @@ extern "C" fn start_trap_rust(trap_frame: &mut TrapFrame) {
         }
         #[cfg(target_pointer_width = "64")]
         cause => panic!(
-            "Unhandled exception! mcause: {:?}, mepc: {:016x?}, mtval: {:016x?}",
+            "Unhandled exception! mcause: {:?}, mepc: {:016x?}, mtval: {:016x?}, trap frame: {:p}, {:x?}",
             cause,
             mepc::read(),
-            mtval::read()
+            mtval::read(),
+            &trap_frame as *const _,
+            trap_frame
         ),
         #[cfg(target_pointer_width = "32")]
         cause => panic!(
-            "Unhandled exception! mcause: {:?}, mepc: {:08x?}, mtval: {:08x?}",
+            "Unhandled exception! mcause: {:?}, mepc: {:08x?}, mtval: {:08x?}, trap frame: {:x?}",
             cause,
             mepc::read(),
-            mtval::read()
+            mtval::read(),
+            trap_frame
         ),
     }
 }

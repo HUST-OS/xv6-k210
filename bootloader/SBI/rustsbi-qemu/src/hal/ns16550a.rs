@@ -1,4 +1,4 @@
-// Copyright 2020 Luo Jia
+// https://github.com/luojia65/rustsbi/blob/master/platform/qemu/src/hal/ns16550a.rs
 use core::convert::Infallible;
 use core::ptr::{read_volatile, write_volatile};
 use embedded_hal::serial::{Read, Write};
