@@ -1,4 +1,4 @@
-// Copyright 2020 Luo Jia
+// https://github.com/luojia65/rustsbi/blob/master/platform/qemu/src/hal/clint.rs
 // 这部分其实是运行时提供的，不应该做到实现库里面
 
 pub struct Clint {
@@ -45,14 +45,8 @@ use rustsbi::{HartMask, Ipi, Timer};
 
 impl Ipi for Clint {
     fn max_hart_id(&self) -> usize {
-        let ans: usize;
-        unsafe {
-            asm!("
-                lui     {ans}, %hi(_max_hart_id)
-                add     {ans}, {ans}, %lo(_max_hart_id)
-            ", ans = out(reg) ans)
-        };
-        ans
+        // 这个值将在初始化的时候加载，会从dtb_pa读取设备树，然后数里面有几个核
+        *crate::MAX_HART_ID.lock()
     }
 
     fn send_ipi_many(&mut self, hart_mask: HartMask) {

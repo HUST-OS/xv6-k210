@@ -36,12 +36,17 @@ main(unsigned long hartid, unsigned long dtb_pa)
 
     #ifndef QEMU
     fpioa_pin_init();
+    device_init(dtb_pa, hartid);
     #else
-    plicinit();      // set up interrupt controller
-    plicinithart();  // ask PLIC for device interrupts
-	  #endif 
+    plicinit();
+    plicinithart();
+    #endif 
 
     disk_init();
+    #ifndef QEMU
+    test_sdcard();
+    #endif
+
     binit();         // buffer cache
     fileinit();      // file table
 
@@ -67,7 +72,7 @@ main(unsigned long hartid, unsigned long dtb_pa)
     #ifndef QEMU
     device_init(dtb_pa, hartid);
     #else
-    plicinithart();  // ask PLIC for device interrupts
+    //plicinithart();  // ask PLIC for device interrupts
     #endif
     printf("hart 1 init done\n");
   }

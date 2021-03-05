@@ -1,4 +1,4 @@
-// Copyright 2020 Luo Jia
+// Ref: https://github.com/luojia65/rustsbi/blob/master/platform/k210/build.rs
 use std::env;
 use std::fs;
 use std::io::Write;
@@ -17,4 +17,3 @@ fn main() {
     println!("cargo:rerun-if-changed=build.rs");
     println!("cargo:rerun-if-changed=link-k210.ld");
 }
-
