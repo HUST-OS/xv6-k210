@@ -13,7 +13,7 @@ Run xv6-riscv on k210 board
 `--'   '--'    `-'     `----'            `--' '--' `------'  `--'   `---''   
 ```
 
-![run-k210](./img/xv6-k210_on_k210.gif)  
+![run-k210](./img/xv6-k210_run.gif)  
 
 ## Dependencies
 + `k210 board` or `qemu-system-riscv64`
@@ -38,6 +38,11 @@ make build
 ```
 
 ## Run on k210 board
+Instead of the original file system, xv6-k210 runs with FAT32. You might need an SD card with FAT32 format.  
+To start `shell`, you need to rename the "_init" and "_sh" in the "/xv6-user" to "init" and "sh" after building, 
+then copy them to the root of your SD card.  
+
+To run on k210:
 ```bash
 make run
 ```
@@ -50,30 +55,31 @@ Ps: Most of the k210-port in Linux is ttyUSB0, if you use Windows or Mac OS, thi
 may help you: [maixpy-doc](https://maixpy.sipeed.com/zh/get_started/env_install_driver.html#)  
 
 ## Run on qemu-system-riscv64
-First make sure you have the `qemu-system-riscv64` on your system.  
-Then run the command:  
+First, make sure `qemu-system-riscv64` is installed on your system.  
+Second, build the project to compile some user programs like `shell`.
+```bash
+make build platform=qemu
+```
+Then use the shell script `fs.sh`:
+```bash
+./fs.sh
+```
+It will generate a disk image file `fs.img`, and copy some programs into the file.  
+As long as the `fs.img` exists, you don't need to run this script every time.
+
+Finally, start running.
 ```bash
 make run platform=qemu
 ```
-Ps: Press Ctrl + A then X to quit qemu. 
-Besides, file system and uesr programs are available on qemu. More details [here](./doc/fs.md).  
 
-## Quick Start to run `Shell` on `qemu`
-```bash
-$ dd if=/dev/zero of=fs.img bs=512k count=2048
-$ mkfs.vfat -F 32 fs.img
-$ make build
-$ (sudo)mount fs.img /mnt
-$ (sudo)cp xv6-user/_init /mnt/init
-$ (sudo)cp xv6-user/_sh /mnt
-$ (sudo)cp xv6-user/_cat /mnt
-$ (sudo)cp xv6-user/init.c /mnt
-$ (sudo)umount /mnt
-$ make run platform=qemu
-```
+Ps: Press Ctrl + A then X to quit qemu.
 
-After entering `qemu`, type `_cat init.c`, and it will read the contents of `init.c` in `fs.img`, output to the terminal.   
-The `init.c` can be any text file. In addition, `shell` supports some shortcut keys as below:
+## About shell
+
+The shell commands are user programs, too. Those program should be put in a "/bin" directory in your SD card or the `fs.img`.  
+Now we support a few useful commands, such as `cd`, `ls`, `cat` and so on.
+
+In addition, `shell` supports some shortcut keys as below:
 
 - Ctrl-H -- backspace  
 - Ctrl-U -- kill a line  
@@ -90,11 +96,10 @@ The `init.c` can be any text file. In addition, `shell` supports some shortcut k
 - [x] Receive uarths message
 - [x] SD card driver
 - [x] Process management
-- [x] File system(qemu)
-- [ ] File system(k210)
-- [x] User program(qemu)
-- [ ] User program(k210)
+- [x] File system
+- [x] User program
+- [ ] Steady keyboard input(k210)
 
 ## TODO
-File system on k210 platform.  
+Keyboard input on k210 platform.  
 

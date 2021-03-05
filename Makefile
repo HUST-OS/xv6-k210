@@ -36,9 +36,6 @@ OBJS += \
   $K/disk.o \
   $K/fat32.o \
   $K/console.o
-#   $K/fs.o 
-#   $K/test.o \
-#   $K/log.o 
 
 ifeq ($(platform), k210)
 OBJS += \

@@ -34,7 +34,6 @@ main(unsigned long hartid, unsigned long dtb_pa)
     timerinit();     // set up timer interrupt handler
     procinit();
 
-	// init file system 
     #ifndef QEMU
     fpioa_pin_init();
     #else

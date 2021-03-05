@@ -4,18 +4,10 @@
 
 int main()
 {
-    for (int i = 0; i < 10; i++) {
-        if (fork() == 0) {
-            printf("printf from %d\n", getpid());
-            // while (1) {
-                test_proc();
-            // }
-        }
+    int n = 5;
+    while (n--) {
+        test_proc(n);
     }
-    printf("printf from %d\n", getpid());
-    // while (1) {
-        test_proc();
-    // }
 
     exit(0);
 }

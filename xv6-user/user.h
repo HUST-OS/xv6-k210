@@ -20,7 +20,7 @@ int getpid(void);
 char* sbrk(int);
 int sleep(int);
 int uptime(void);
-int test_proc(void);
+int test_proc(int);
 int dev(int, short, short);
 int dir(int fd, struct stat*);
 int getcwd(char *);
