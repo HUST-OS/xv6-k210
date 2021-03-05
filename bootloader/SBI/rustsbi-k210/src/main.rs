@@ -1,11 +1,4 @@
-// Copyright 2020 Luo Jia
-
-// Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
-
-// The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
-
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-
+// Ref: https://github.com/luojia65/rustsbi/blob/master/platform/k210/src/main.rs
 #![no_std]
 #![no_main]
 #![feature(alloc_error_handler)]
@@ -189,8 +182,8 @@ fn main() -> ! {
 
         struct Reset;
         impl rustsbi::Reset for Reset {
-            fn reset(&self) -> ! {
-                println!("[rustsbi] reset triggered! todo: shutdown all harts on k210; program halt");
+            fn system_reset(&self, reset_type: usize, reset_reason: usize) -> rustsbi::SbiRet {
+                println!("[rustsbi] reset triggered! todo: shutdown all harts on k210; program halt. Type: {}, reason: {}", reset_type, reset_reason);
                 loop {}
             }
         }
@@ -239,9 +232,9 @@ fn main() -> ! {
     }
 
     if mhartid::read() == 0 {
-        println!("[rustsbi] Version 0.1.0");
+        println!("[rustsbi] RustSBI version {}", rustsbi::VERSION);
         println!("{}", rustsbi::LOGO);
-        println!("[rustsbi] Platform: K210");
+        println!("[rustsbi] Platform: K210 (Version {})", env!("CARGO_PKG_VERSION"));
         let isa = misa::read();
         if let Some(isa) = isa {
             let mxl_str = match isa.mxl() {
@@ -371,7 +364,6 @@ extern "C" fn start_trap_rust(trap_frame: &mut TrapFrame) {
     match cause {
         Trap::Exception(Exception::SupervisorEnvCall) => {
             if trap_frame.a7 == 0x0A000004 && trap_frame.a6 == 0x210 {
-                println!("[rustsbi] set S-level external interrupt handler");
                 // We use implementation specific sbi_rustsbi_k210_sext function (extension 
                 // id: 0x0A000004, function id: 0x210) to register S-level interrupt handler
                 // for K210 chip only. This chip uses 1.9.1 version of privileged spec,

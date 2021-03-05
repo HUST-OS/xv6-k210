@@ -1,3 +1,4 @@
+/* Ref: https://github.com/luojia65/rustsbi/blob/master/platform/k210/link-k210.ld */
 MEMORY {
     /* 存储单元的物理地址 */
     SRAM : ORIGIN = 0x80000000, LENGTH = 128K

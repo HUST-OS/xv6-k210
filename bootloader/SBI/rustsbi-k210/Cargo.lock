@@ -191,15 +191,15 @@ dependencies = [
 
 [[package]]
 name = "rustsbi"
-version = "0.0.2"
+version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9ad5911abb3c656ea578ea0fa948798d3e9037e9178f62964bb1c00d4ea732c9"
+checksum = "578054466ae594e3fafe41bab5a6e6d41fc751267721423c3458e55b427521d0"
 dependencies = [
  "embedded-hal",
  "lazy_static",
  "nb 1.0.0",
  "riscv 0.6.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "spin 0.6.0",
+ "spin 0.7.1",
 ]
 
 [[package]]
@@ -242,9 +242,9 @@ checksum = "6e63cff320ae2c57904679ba7cb63280a3dc4613885beafb148ee7bf9aa9042d"
 
 [[package]]
 name = "spin"
-version = "0.6.0"
+version = "0.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ef7b840d5ef62f81f50649ade37112748461256c64a70bccefeabb4d02c515c5"
+checksum = "13287b4da9d1207a4f4929ac390916d64eacfe236a487e9a9f5b3be392be5162"
 
 [[package]]
 name = "spinning_top"

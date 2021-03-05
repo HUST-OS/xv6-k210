@@ -8,8 +8,8 @@ publish = false
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-rustsbi = "0.0.2"
-k210-hal = { git = "https://github.com/riscv-rust/k210-hal" }
+rustsbi = "0.1.1"
 riscv = { git = "https://github.com/rust-embedded/riscv", features = ["inline-asm"] }
 linked_list_allocator = "0.8"
+k210-hal = { git = "https://github.com/riscv-rust/k210-hal" }
 r0 = "1.0"
