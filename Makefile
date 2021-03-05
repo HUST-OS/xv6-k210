@@ -1,7 +1,7 @@
-# platform	:= k210
-platform	:= qemu
-mode := debug
-#mode := release
+platform	:= k210
+# platform	:= qemu
+# mode := debug
+mode := release
 K=kernel
 U=xv6-user
 T=target
