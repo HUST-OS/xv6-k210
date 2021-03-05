@@ -37,15 +37,15 @@ main(unsigned long hartid, unsigned long dtb_pa)
 	// init file system 
     #ifndef QEMU
     fpioa_pin_init();
-
-	#ifdef QEMU 
-	plicinit();
-	plicinithart();
-	#endif 
+    device_init(dtb_pa, hartid);
+    #else
+    plicinit();
+    plicinithart();
+    #endif 
 
     disk_init();
-	test_sdcard();
-	while (1);
+    test_sdcard();
+    while (1);
 
     binit();         // buffer cache
     fileinit();      // file table
