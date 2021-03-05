@@ -1,5 +1,5 @@
-platform	:= k210
-# platform	:= qemu
+# platform	:= k210
+platform	:= qemu
 mode := debug
 #mode := release
 K=kernel

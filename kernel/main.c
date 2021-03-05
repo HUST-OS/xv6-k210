@@ -44,8 +44,9 @@ main(unsigned long hartid, unsigned long dtb_pa)
     #endif 
 
     disk_init();
+    #ifndef QEMU
     test_sdcard();
-    while (1);
+    #endif
 
     binit();         // buffer cache
     fileinit();      // file table

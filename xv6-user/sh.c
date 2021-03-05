@@ -70,10 +70,28 @@ char platform[] = "qemu";
 char mycwd[128];
 
 int
+checkenvname(char* s)
+{
+  if((*s >= 'A' && *s <= 'Z') ||
+     (*s >= 'a' && *s <= 'z') ||
+      *s == '_')
+    ;
+  else
+    return 0;
+  char *tmp = s + 1;
+  while((*tmp >= 'A' && *tmp <= 'Z') ||
+        (*tmp >= 'a' && *tmp <= 'z') ||
+        (*tmp >= '0' && *tmp <= '9') ||
+         *tmp == '_')
+    tmp++;
+  return (int)(tmp - s);
+}
+
+int
 export(char *argv[])
 {
   if(!strcmp(argv[1], "-p"))
-  {
+  { // print all the env vars
     if(!nenv)
     {
       printf("NO env var exported\n");
@@ -88,12 +106,55 @@ export(char *argv[])
     fprintf(2, "too many env vars\n");
     return -1;
   }
-  if(argv[2][strlen(argv[2])-1] == '/')
-    argv[2][strlen(argv[2])-1] = 0;
-  strcpy(envs[nenv].name, argv[1]);
-  strcpy(envs[nenv].value, argv[2]);
+  char name[32], value[96];
+  char *s = argv[1], *t = name;
+
+  for(s=argv[1], t=name; (*t=*s++)!='='; t++)
+    ;
+  *t = 0;
+
+  if(checkenvname(name) != ((s - argv[1]) - 1))
+  {
+    fprintf(2, "Invalid NAME!\n");
+    return -1;
+  }
+  for(t=value; (*t=*s); s++, t++)
+    ;
+  if(*--t == '/')
+    *t = 0;
+  
+  strcpy(envs[nenv].name, name);
+  strcpy(envs[nenv].value, value);
   nenv++;
   return 0;
+}
+
+int
+replace(char *buf)
+{
+  char raw[100], name[32], *s, *t, *tmp;
+  int n = 0;
+  strcpy(raw, buf);
+  for(s=raw, t=buf; (*t=*s); t++)
+  {
+    if(*s++ == '$'){
+      tmp = name;
+      if((*s >= 'A' && *s <= 'Z') || (*s >= 'a' && *s <= 'z') || *s == '_')
+      {
+        *tmp++ = *s++;
+        while((*s >= 'A' && *s <= 'Z') || (*s >= 'a' && *s <= 'z') || (*s >= '0' && *s <= '9') || *s == '_')
+          *tmp++ = *s++;
+        *tmp = 0;
+        for(int i=0; i<nenv; i++)
+          if(!strcmp(name, envs[i].name))
+            for(tmp=envs[i].value; (*t=*tmp); t++, tmp++)
+              ;
+        t--;
+      }
+      n++;
+    }
+  }
+  return n;
 }
 
 // Execute cmd.  Never returns.
@@ -223,6 +284,7 @@ main(void)
   getcwd(mycwd);
   // Read and run input commands.
   while(getcmd(buf, sizeof(buf)) >= 0){
+    replace(buf);
     if(buf[0] == 'c' && buf[1] == 'd' && buf[2] == ' '){
       // Chdir must be called by the parent, not the child.
       buf[strlen(buf)-1] = 0;  // chop \n
@@ -242,7 +304,9 @@ main(void)
       else if(!strcmp(ecmd->argv[0], "export"))
       {
         // Export must be called by the parent, not the child.
-        if(export(ecmd->argv) < 0)
+        if(ecmd->argv[1] == NULL)
+          fprintf(2, "Usage: export [-p] [NAME=VALUE]\n");
+        else if(export(ecmd->argv) < 0)
           fprintf(2, "export failed\n");
         continue;
       }
