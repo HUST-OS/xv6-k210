@@ -46,7 +46,7 @@ int fat32_init()
     if (strncmp((char const*)(b->data + 82), "FAT32", 5))
         panic("not FAT32 volume");
     // fat.bpb.byts_per_sec = *(uint16 *)(b->data + 11);
-    memmove(&fat.bpb.byts_per_sec, b->data + 11, 2);
+    memmove(&fat.bpb.byts_per_sec, b->data + 11, 2);            // avoid misaligned load on k210
     fat.bpb.sec_per_clus = *(b->data + 13);
     fat.bpb.rsvd_sec_cnt = *(uint16 *)(b->data + 14);
     fat.bpb.fat_cnt = *(b->data + 16);
@@ -328,13 +328,17 @@ int ewrite(struct dirent *entry, int user_src, uint64 src, uint off, uint n)
     return tot;
 }
 
-// should never get root by eget
+// Returns a dirent struct. If name is given, check ecache. It is difficult to cache entries
+// by their whole path. But when parsing a path, we open all the directories through it, 
+// which forms a linked list from the final file to the root. Thus, we use the "parent" pointer 
+// to recognize whether an entry with the "name" as given is really the file we want in the right path.
+// Should never get root by eget, it's easy to understand.
 static struct dirent *eget(struct dirent *parent, char *name)
 {
     struct dirent *ep;
     acquire(&ecache.lock);
     if (name) {
-        for (ep = root.next; ep != &root; ep = ep->next) {
+        for (ep = root.next; ep != &root; ep = ep->next) {          // LRU algo
             if (ep->valid == 1 && ep->parent == parent
                 && strncmp(ep->filename, name, FAT32_MAX_FILENAME) == 0) {
                 ep->ref++;
@@ -344,7 +348,7 @@ static struct dirent *eget(struct dirent *parent, char *name)
             }
         }
     }
-    for (ep = root.prev; ep != &root; ep = ep->prev) {
+    for (ep = root.prev; ep != &root; ep = ep->prev) {              // LRU algo
         if (ep->ref == 0) {
             ep->ref = 1;
             ep->dev = parent->dev;
@@ -358,11 +362,92 @@ static struct dirent *eget(struct dirent *parent, char *name)
     return 0;
 }
 
-static void make_entry(struct dirent *dp, uint off, char *name, uint8 attr, uint32 data)
+// trim ' ' in the head and tail, '.' in head, and test legality
+static char *formatname(char *name)
+{
+    static char illegal[] = { '\"', '*', '/', ':', '<', '>', '?', '\\', '|' };
+    char *p;
+    while (*name == ' ' || *name == '.') { name++; }
+    for (p = name; *p; p++) {
+        char c = *p;
+        if (c < ' ') { return 0; }
+        for (int i = 0; i < sizeof(illegal); i++) {
+            if (c == illegal[i]) { return 0; }
+        }
+    }
+    while (p-- > name) {
+        if (*p != ' ') {
+            p[1] = '\0';
+            break;
+        }
+    }
+    return name;
+}
+
+static void generate_shortname(char *shortname, char *name)
+{
+    static char illegal[] = { '+', ',', ';', '=', '[', ']' };   // these are legal in l-n-e but not s-n-e
+    int i = 0;
+    char c, *p = name;
+    for (int j = strlen(name) - 1; j >= 0; j--) {
+        if (name[j] == '.') {
+            p = name + j;
+            break;
+        }
+    }
+    while (i < CHAR_SHORT_NAME && (c = *name++)) {
+        if (i == 8 && p) {
+            if (p + 1 < name) { break; }            // no '.'
+            else {
+                name = p + 1, p = 0;
+                continue;
+            }
+        }
+        if (c == ' ') { continue; }
+        if (c == '.') {
+            if (name > p) {                    // last '.'
+                memset(shortname + i, ' ', 8 - i);
+                i = 8, p = 0;
+            }
+            continue;
+        }
+        if (c >= 'a' && c <= 'z') {
+            c += 'A' - 'a';
+        } else {
+            for (int j = 0; j < sizeof(illegal); j++) {
+                if (c == illegal[j]) {
+                    c = '_';
+                    break;
+                }
+            }
+        }
+        shortname[i++] = c;
+    }
+    while (i < CHAR_SHORT_NAME) {
+        shortname[i++] = ' ';
+    }
+}
+
+uint8 cal_checksum(uchar* shortname)
+{
+    uint8 sum = 0;
+    for (int i = CHAR_SHORT_NAME; i != 0; i--) {
+        sum = ((sum & 1) ? 0x80 : 0) + (sum >> 1) + *shortname++;
+    }
+    return sum;
+}
+
+/**
+ * Generate an entry in the raw type and write to the disk.
+ * @param   data        for s-n-e it's the first cluster, for l-n-e it's the ordinal.
+ * @param   checksum    only for l-n-e, the checksum.
+ */
+static void make_entry(struct dirent *dp, uint off, char *name, uint8 attr, uint32 data, uint8 checksum)
 {
     uint8 ebuf[32] = {0};
     if ((ebuf[11] = attr) == ATTR_LONG_NAME) {
         ebuf[0] = data;
+        ebuf[13] = checksum;
         name += ((data & ~LAST_LONG_ENTRY) - 1) * CHAR_LONG_NAME;
         uint8 *w = ebuf + 1;
         int end = 0;
@@ -383,23 +468,28 @@ static void make_entry(struct dirent *dp, uint off, char *name, uint8 attr, uint
         }
     } else {
         strncpy((char *)ebuf, name, 11);
-        *(uint16 *)(ebuf + 20) = (uint16)(data >> 16);
-        *(uint16 *)(ebuf + 26) = (uint16)(data & 0xff);
-        *(uint32 *)(ebuf + 28) = 0;
+        *(uint16 *)(ebuf + 20) = (uint16)(data >> 16);      // first clus high 16 bits
+        *(uint16 *)(ebuf + 26) = (uint16)(data & 0xff);     // low 16 bits
+        *(uint32 *)(ebuf + 28) = 0;                         // filesize is updated in eupdate()
     }
     off = reloc_clus(dp, off, 1);
     rw_clus(dp->cur_clus, 1, 0, (uint64)ebuf, off, sizeof(ebuf));
 }
 
+/**
+ * Allocate an entry on disk. Caller must hold dp->lock.
+ */
 struct dirent *ealloc(struct dirent *dp, char *name, int dir)
 {
     if (!(dp->attribute & ATTR_DIRECTORY)) {
         panic("ealloc not dir");
     }
+    if (!(name = formatname(name))) {        // detect illegal character
+        return 0;
+    }
     struct dirent *ep;
     uint off = 0;
-    ep = dirlookup(dp, name, &off);
-    if (ep != 0) {      // entry exists
+    if ((ep = dirlookup(dp, name, &off)) != 0) {      // entry exists
         eput(ep);
         return 0;
     }
@@ -419,23 +509,26 @@ struct dirent *ealloc(struct dirent *dp, char *name, int dir)
     strncpy(ep->filename, name, FAT32_MAX_FILENAME);    
 
     int entcnt = (strlen(name) + CHAR_LONG_NAME - 1) / CHAR_LONG_NAME;   // count of l-n-entries, rounds up
-    if(dir){    // generate "." and ".." for ep
+    if (dir) {    // generate "." and ".." for ep
         ep->attribute |= ATTR_DIRECTORY;
         ep->cur_clus = ep->first_clus = alloc_clus(dp->dev);
-        make_entry(ep, 0, ".", ATTR_DIRECTORY, ep->first_clus);
-        make_entry(ep, 32, "..", ATTR_DIRECTORY, dp->first_clus);
+        make_entry(ep, 0, ".", ATTR_DIRECTORY, ep->first_clus, 0);
+        make_entry(ep, 32, "..", ATTR_DIRECTORY, dp->first_clus, 0);
     } else {
         ep->attribute |= ATTR_ARCHIVE;
     }
-    for (int i = entcnt; i > 0; i--) {                          // ignore checksum
+    char shortname[CHAR_SHORT_NAME + 1] = {0};
+    generate_shortname(shortname, name);
+    uint8 checksum = cal_checksum((uchar *)shortname);
+    for (int i = entcnt; i > 0; i--) {
         int longnum = i;
         if (i == entcnt) {
             longnum |= LAST_LONG_ENTRY;
         }
-        make_entry(dp, off, ep->filename, ATTR_LONG_NAME, longnum);
+        make_entry(dp, off, ep->filename, ATTR_LONG_NAME, longnum, checksum);
         off += 32;
     }
-    make_entry(dp, off, ep->filename, ep->attribute, ep->first_clus);
+    make_entry(dp, off, shortname, ep->attribute, ep->first_clus, 0);
     ep->valid = 1;
     eunlock(ep);
     return ep;
@@ -468,6 +561,7 @@ void eupdate(struct dirent *entry)
     entry->dirty = 0;
 }
 
+// delete a file
 void etrunc(struct dirent *entry)
 {
     uint entcnt;
@@ -558,7 +652,7 @@ static void read_entry_name(char *buffer, uint8 *raw_entry, int islong)
         snstr(buffer + 11, (wchar *) (raw_entry + 28), 2);
     } else {
         // assert: only "." and ".." will enter this branch
-        memset(buffer, 0, 12 << 1);
+        memset(buffer, 0, 12);
         int i = 7;
         if (raw_entry[i] == ' ') {
             do {
@@ -596,8 +690,15 @@ static void read_entry_info(struct dirent *entry, uint8 *raw_entry)
 }
 
 /**
- * Read a directory from off, return the next entry in the directory
- * 
+ * Read a directory from off, parse the next entry(ies) associated with one file, or find empty entry slots.
+ * Caller must hold dp->lock.
+ * @param   dp      the directory
+ * @param   ep      the struct to be written with info
+ * @param   off     offset off the directory
+ * @param   count   to write the count of entries
+ * @return  -1      meet the end of dir
+ *          0       find empty slots
+ *          1       find a file with all its entries
  */
 int enext(struct dirent *dp, struct dirent *ep, uint off, int *count)
 {
@@ -643,47 +744,49 @@ int enext(struct dirent *dp, struct dirent *ep, uint off, int *count)
 }
 
 /**
- * Seacher for the entry in a directory and return a structure.
- * @param   entry       entry of a directory file
+ * Seacher for the entry in a directory and return a structure. Besides, record the offset of
+ * some continuous empty slots that can fit the length of filename.
+ * Caller must hold entry->lock.
+ * @param   dp          entry of a directory file
  * @param   filename    target filename
- * @param   poff        offset of proper empty entries slot from the dir
+ * @param   poff        offset of proper empty entry slots from the beginning of the dir
  */
-struct dirent *dirlookup(struct dirent *entry, char *filename, uint *poff)
+struct dirent *dirlookup(struct dirent *dp, char *filename, uint *poff)
 {
-    if (!(entry->attribute & ATTR_DIRECTORY))
+    if (!(dp->attribute & ATTR_DIRECTORY))
         panic("dirlookup not DIR");
     if (strncmp(filename, ".", FAT32_MAX_FILENAME) == 0) {
-        return edup(entry);
+        return edup(dp);
     } else if (strncmp(filename, "..", FAT32_MAX_FILENAME) == 0) {
-        return edup(entry->parent);
+        return edup(dp->parent);
     }
-    struct dirent *de = eget(entry, filename);
-    if (de->valid) { return de; }                               // ecache hits
+    struct dirent *ep = eget(dp, filename);
+    if (ep->valid) { return ep; }                               // ecache hits
 
     int len = strlen(filename);
-    int entcnt = (len + CHAR_LONG_NAME - 1) / CHAR_LONG_NAME + 1;   // count of l-n-entries, rounds up
+    int entcnt = (len + CHAR_LONG_NAME - 1) / CHAR_LONG_NAME + 1;   // count of l-n-entries, rounds up. plus s-n-e
     int count = 0;
     int type;
     uint off = 0;
-    reloc_clus(entry, 0, 0);
-    while ((type = enext(entry, de, off, &count) != -1)) {
+    reloc_clus(dp, 0, 0);
+    while ((type = enext(dp, ep, off, &count) != -1)) {
         if (type == 0) {
             if (poff && count >= entcnt) {
                 *poff = off;
                 poff = 0;
             }
-        } else if (strncmp(filename, de->filename, FAT32_MAX_FILENAME) == 0) {
-            de->parent = edup(entry);
-            de->off = off;
-            de->valid = 1;
-            return de;
+        } else if (strncmp(filename, ep->filename, FAT32_MAX_FILENAME) == 0) {
+            ep->parent = edup(dp);
+            ep->off = off;
+            ep->valid = 1;
+            return ep;
         }
         off += count << 5;
     }
     if (poff) {
         *poff = off;
     }
-    eput(de);
+    eput(ep);
     return 0;
 }
 

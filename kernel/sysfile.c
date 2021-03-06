@@ -122,7 +122,7 @@ static struct dirent*
 create(char *path, short type)
 {
   struct dirent *ep, *dp;
-  char name[FAT32_MAX_FILENAME];
+  char name[FAT32_MAX_FILENAME + 1];
 
   if((dp = enameparent(path, name)) == 0)
     return 0;
@@ -147,12 +147,12 @@ create(char *path, short type)
 uint64
 sys_open(void)
 {
-  char path[FAT32_MAX_PATH];
+  char path[FAT32_MAX_PATH + 1];
   int fd, omode;
   struct file *f;
   struct dirent *ep;
 
-  if(argstr(0, path, MAXPATH) < 0 || argint(1, &omode) < 0)
+  if(argstr(0, path, FAT32_MAX_PATH + 1) < 0 || argint(1, &omode) < 0)
     return -1;
 
   if(omode & O_CREATE){

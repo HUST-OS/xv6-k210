@@ -16,6 +16,7 @@
 #define EMPTY_ENTRY         0xe5
 #define END_OF_ENTRY        0x00
 #define CHAR_LONG_NAME      13
+#define CHAR_SHORT_NAME     11
 
 #define FAT32_MAX_FILENAME  255
 #define FAT32_MAX_PATH      260
