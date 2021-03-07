@@ -40,7 +40,12 @@ make build
 ## Run on k210 board
 Instead of the original file system, xv6-k210 runs with FAT32. You might need an SD card with FAT32 format.  
 To start `shell`, you need to rename the "_init" and "_sh" in the "/xv6-user" to "init" and "sh" after building, 
-then copy them to the root of your SD card.  
+then copy them to the root of your SD card. Or you can directly run the command as below with your SD card connected.
+
+Warning: this will format your SD card and clean your original data!
+```bash
+make sdcard sd="your SD card device's path"
+```
 
 To run on k210:
 ```bash
@@ -56,16 +61,12 @@ may help you: [maixpy-doc](https://maixpy.sipeed.com/zh/get_started/env_install_
 
 ## Run on qemu-system-riscv64
 First, make sure `qemu-system-riscv64` is installed on your system.  
-Second, build the project to compile some user programs like `shell`.
+Second, make a disk image file with FAT32 file system.
 ```bash
-make build platform=qemu
+make fs
 ```
-Then use the shell script `fs.sh`:
-```bash
-./fs.sh
-```
-It will generate a disk image file `fs.img`, and copy some programs into the file.  
-As long as the `fs.img` exists, you don't need to run this script every time.
+It will generate a disk image file `fs.img`, and compile some user programs like `shell` then copy them into the `fs.img`.  
+As long as the `fs.img` exists, you don't need to do this every time before running, unless you want to update it.
 
 Finally, start running.
 ```bash

@@ -24,7 +24,9 @@ void
 fileinit(void)
 {
   initlock(&ftable.lock, "ftable");
+  #ifdef DEBUG
   printf("fileinit\n");
+  #endif
 }
 
 // Allocate a file structure.

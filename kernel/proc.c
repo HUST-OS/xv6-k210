@@ -62,7 +62,9 @@ procinit(void)
       p->kstack = va;
   }
   kvminithart();
+  #ifdef DEBUG
   printf("procinit\n");
+  #endif
 }
 
 // Must be called with interrupts disabled,
@@ -286,7 +288,9 @@ userinit(void)
   p->state = RUNNABLE;
 
   release(&p->lock);
+  #ifdef DEBUG
   printf("userinit\n");
+  #endif
 }
 
 // Grow or shrink user memory by n bytes.

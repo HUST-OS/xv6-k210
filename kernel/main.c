@@ -25,7 +25,9 @@ main(unsigned long hartid, unsigned long dtb_pa)
     consoleinit();
     printfinit();   // init a lock for printf 
     print_logo();
+    #ifdef DEBUG
     printf("hart %d enter main()...\n", hartid);
+    #endif
     kinit();         // physical page allocator
     kvminit();       // create kernel page table
     kvminithart();   // turn on paging
@@ -33,7 +35,6 @@ main(unsigned long hartid, unsigned long dtb_pa)
     trapinithart();  // install kernel trap vector
     timerinit();     // set up timer interrupt handler
     procinit();
-
     #ifndef QEMU
     fpioa_pin_init();
     device_init(dtb_pa, hartid);
@@ -41,28 +42,28 @@ main(unsigned long hartid, unsigned long dtb_pa)
     plicinit();
     plicinithart();
     #endif 
-
     disk_init();
-
     binit();         // buffer cache
     fileinit();      // file table
-
     userinit();      // first user process
-
     printf("hart 0 init done\n");
+    
     for(int i = 1; i < NCPU; i++) {
       unsigned long mask = 1 << i;
       sbi_send_ipi(&mask);
     }
     __sync_synchronize();
     started = 1;
-  } else
+  }
+  else
   {
     // hart 1
     while (started == 0)
       ;
     __sync_synchronize();
+    #ifdef DEBUG
     printf("hart %d enter main()...\n", hartid);
+    #endif
     kvminithart();
     trapinithart();
     timerinit();     // set up timer interrupt handler

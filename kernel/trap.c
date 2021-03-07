@@ -23,7 +23,9 @@ void
 trapinit(void)
 {
   initlock(&tickslock, "time");
+  #ifdef DEBUG
   printf("trapinit\n");
+  #endif
 }
 
 // set up to take exceptions and traps while in the kernel.
@@ -33,7 +35,9 @@ trapinithart(void)
   w_stvec((uint64)kernelvec);
   w_sstatus(r_sstatus() | SSTATUS_SIE);
   w_sie(r_sie() | SIE_SEIE | SIE_SSIE);
+  #ifdef DEBUG
   printf("trapinithart\n");
+  #endif
 }
 
 //
@@ -240,6 +244,7 @@ supervisor_external_handler() {
   int irq = *(uint32*)(PLIC + 0x04);
   if(irq == UARTHS_IRQ) {
     // UARTHS
+    printf("[supervisor_external_handler]\n");
   }
   else
   {
@@ -276,5 +281,7 @@ void device_init(unsigned long pa, uint64 hartid) {
   *((uint32*)0x0c000028) = 0x7;
   *((uint32*)0x0c201000) = 0x0;
   #endif
+  #ifdef DEBUG
   printf("device init\n");
+  #endif
 }

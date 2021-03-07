@@ -98,7 +98,7 @@ endif
 
 # Compile Kernel
 $T/kernel: $(OBJS) $(linker) $U/initcode
-	if [ ! -d "./target" ]; then mkdir target; fi
+	@if [ ! -d "./target" ]; then mkdir target; fi
 	@$(LD) $(LDFLAGS) -T $(linker) -o $T/kernel $(OBJS)
 	@$(OBJDUMP) -S $T/kernel > $T/kernel.asm
 	@$(OBJDUMP) -t $T/kernel | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$$/d' > $T/kernel.sym
@@ -130,7 +130,7 @@ QEMUOPTS = -machine virt -bios $(RUSTSBI) -kernel $T/kernel -m 128M -smp $(CPUS)
 QEMUOPTS += -drive file=fs.img,if=none,format=raw,id=x0 
 QEMUOPTS += -device virtio-blk-device,drive=x0,bus=virtio-mmio-bus.0
 
-run: build fs.img
+run: build
 ifeq ($(platform), k210)
 	@$(OBJCOPY) $T/kernel --strip-all -O binary $(image)
 	@$(OBJCOPY) $(RUSTSBI) --strip-all -O binary $(k210)
@@ -141,9 +141,6 @@ ifeq ($(platform), k210)
 else
 	@$(QEMU) $(QEMUOPTS)
 endif
-
-fs.img:	$(UPROGS)
-	@./fs.sh
 
 $U/initcode: $U/initcode.S
 	$(CC) $(CFLAGS) -march=rv64g -nostdinc -I. -Ikernel -c $U/initcode.S -o $U/initcode.o
@@ -172,9 +169,6 @@ $U/_forktest: $U/forktest.o $(ULIB)
 	# in order to be able to max out the proc table.
 	$(LD) $(LDFLAGS) -N -e main -Ttext 0 -o $U/_forktest $U/forktest.o $U/ulib.o $U/usys.o
 	$(OBJDUMP) -S $U/_forktest > $U/forktest.asm
-
-mkfs/mkfs: mkfs/mkfs.c $K/include/fs.h $K/include/param.h
-	@gcc -Werror -Wall -I. -o mkfs/mkfs mkfs/mkfs.c
 
 # Prevent deletion of intermediate files, e.g. cat.o, after first build, so
 # that disk image changes after first build are persistent until clean.  More
@@ -205,23 +199,31 @@ UPROGS=\
 	# $U/_wc\
 	# $U/_zombie\
 
-UEXTRA = $U/xargstest.sh
+userprogs: $(UPROGS)
 
-userprogs: $(UEXTRA) $(UPROGS)
+dst=/mnt
 
 # Make fs image
-fs: mkfs/mkfs README $(UEXTRA) $(UPROGS)
-	@mkfs/mkfs fs.img README $(UEXTRA) $(UPROGS)
-
--include kernel/*.d user/*.d
-
-SDCARD		?= /dev/sdb
+fs: $(UPROGS)
+	@if [ ! -f "fs.img" ]; then \
+		echo "making fs image..."; \
+		dd if=/dev/zero of=fs.img bs=512k count=1024; \
+		mkfs.vfat -F 32 fs.img; fi
+	@sudo mount fs.img $(dst)
+	@if [ ! -d "$(dst)/bin" ]; then sudo mkdir $(dst)/bin; fi
+	@sudo cp $U/_init $(dst)/init
+	@sudo cp $U/_sh $(dst)/sh
+	@for file in $$( ls $U/_* ); do \
+		sudo cp $$file $(dst)/bin/$${file#$U/_}; done
+	@sudo umount $(dst)
 
 # Write sdcard
 sdcard: fs
-	@echo "flashing into sd card..."
-	@sudo dd if=/dev/zero of=$(SDCARD) bs=1M count=50
-	@sudo dd if=fs.img of=$(SDCARD)
+	@if [ "$(sd)" != "" ]; then \
+		echo "flashing into sd card..."; \
+		sudo dd if=fs.img of=$(sd); \
+	else \
+		echo "sd card not detected!"; fi
 
 clean: 
 	rm -f *.tex *.dvi *.idx *.aux *.log *.ind *.ilg \
@@ -229,6 +231,6 @@ clean:
 	$T/* \
 	$U/initcode $U/initcode.out \
 	$K/kernel \
-	mkfs/mkfs .gdbinit \
-        $U/usys.S \
+	.gdbinit \
+	$U/usys.S \
 	$(UPROGS)

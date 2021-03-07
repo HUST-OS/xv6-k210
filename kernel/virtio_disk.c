@@ -111,7 +111,9 @@ virtio_disk_init(void)
     disk.free[i] = 1;
 
   // plic.c and trap.c arrange for interrupts from VIRTIO0_IRQ.
+  #ifdef DEBUG
   printf("virtio_disk_init\n");
+  #endif
 }
 
 // find a free descriptor, mark it non-free, return its index.

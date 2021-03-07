@@ -15,7 +15,9 @@ void timerinit() {
     // enable supervisor-mode timer interrupts.
     w_sie(r_sie() | SIE_STIE);
     set_next_timeout();
+    #ifdef DEBUG
     printf("timerinit\n");
+    #endif
 }
 
 void

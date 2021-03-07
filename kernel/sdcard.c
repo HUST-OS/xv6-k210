@@ -311,12 +311,12 @@ void sdcard_init(void) {
 	int result = sd_init();
 	initlock(&sdcard_lock, "sdcard");
 
-	if (0 == result) {
-		printf("sdcard_init\n");
-	}
-	else {
+	if (0 != result) {
 		panic("sdcard_init failed");
 	}
+	#ifdef DEBUG
+	printf("sdcard_init\n");
+	#endif
 }
 
 void sdcard_read_sector(uint8 *buf, int sectorno) {

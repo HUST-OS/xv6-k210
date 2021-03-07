@@ -39,7 +39,13 @@ make build
 
 ## 在 k210 开发板上运行
 Xv6-k210 采用 FAT32 文件系统，而不是其原本的文件系统。您需要一张 FAT32 格式的 SD 卡才能运行。
-在编译项目后，您需要将 “/xv6-user” 目录下的 “_init” 和 “_sh” 重命名为 “init” 和 “sh”，并拷贝至SD卡的根目录下。
+在编译项目后，您需要将 “/xv6-user” 目录下的 “_init” 和 “_sh” 重命名为 “init” 和 “sh”，并拷贝至 SD 卡的根目录下。
+或者，您可以直接运行以下命令。
+
+警告：这会格式化您的 SD 卡并清除卡上的原有数据！
+```bash
+make sdcard sd="your SD card device's path"
+```
 
 运行以下命令以在 `k210` 上运行：  
 ```bash
@@ -53,16 +59,12 @@ make run k210-serialport=`USB 端口`(默认是 ttyUSB0)
 Ps: 在 `Linux` 上这个端口大部分情况是 `ttyUSB0`, 如果您使用 `Windows` 或者 `MacOS`，这个文档可以帮助到您：[maixpy-doc](https://maixpy.sipeed.com/zh/get_started/env_install_driver.html#)  
 
 ## 在 qemu-system-riscv64 模拟器上运行
-首先，确保 `qemu-system-riscv64` 已经下载到您的机器上并且加到了环境变量中。  
-其次，编译项目生成用户程序，如 `shell` 等。
+首先，确保 `qemu-system-riscv64` 已经下载到您的机器上并且加到了环境变量中；  
+其次，需要一个 FAT32 磁盘镜像文件；
 ```bash
-make build platform=qemu
+make fs
 ```
-然后运行 `fs.sh` 脚本：
-```bash
-./fs.sh
-```
-该脚本会生成一个镜像文件 `fs.img` 并将编译好的用户程序拷贝至其中。只要 `fs.img` 存在并且不需要修改，您不必每次都使用这个脚本。
+这会生成一个镜像文件 `fs.img` ，编译一些用户程序（如 `shell`）并拷贝至镜像中。只要 `fs.img` 存在并且不需要修改，您不必每次运行前都执行这个命令。
 
 最后，开始运行：
 ```bash

@@ -75,7 +75,9 @@ kvminit()
   kvmmap(TRAMPOLINE, (uint64)trampoline, PGSIZE, PTE_R | PTE_X);
   // kvmmap(TRAMPOLINE, (uint64)trampoline, PGSIZE, PTE_R | PTE_X);
 
+  #ifdef DEBUG
   printf("kvminit\n");
+  #endif
 }
 
 // Switch h/w page table register to the kernel's page table,
@@ -86,7 +88,9 @@ kvminithart()
   w_satp(MAKE_SATP(kernel_pagetable));
   // reg_info();
   sfence_vma();
+  #ifdef DEBUG
   printf("kvminithart\n");
+  #endif
 }
 
 // Return the address of the PTE in page table pagetable
