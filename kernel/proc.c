@@ -5,6 +5,7 @@
 #include "include/riscv.h"
 #include "include/spinlock.h"
 #include "include/proc.h"
+#include "include/intr.h"
 #include "include/defs.h"
 
 

@@ -27,7 +27,4 @@ void release(struct spinlock*);
 // Interrupts must be off 
 int holding(struct spinlock*);
 
-void push_off(void);
-void pop_off(void);
-
 #endif
