@@ -1,3 +1,7 @@
 tags
 fs.img
 xv6-user/_*
+kernel/*.back.c
+kernel/*.example.c
+kernel/include/*.back.h
+kernel/include/*.example.h
