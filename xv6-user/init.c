@@ -2,14 +2,11 @@
 
 #include "kernel/include/types.h"
 #include "kernel/include/stat.h"
-#include "kernel/include/spinlock.h"
-#include "kernel/include/sleeplock.h"
-#include "kernel/include/fs.h"
 #include "kernel/include/file.h"
-#include "xv6-user/user.h"
 #include "kernel/include/fcntl.h"
+#include "xv6-user/user.h"
 
-char *argv[] = { "_sh", 0 };
+char *argv[] = { "sh", 0 };
 
 int
 main(void)

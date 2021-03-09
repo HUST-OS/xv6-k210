@@ -229,7 +229,7 @@ devintr()
     
     // acknowledge the software interrupt by clearing
     // the SSIP bit in sip.
-    w_sip(r_sip() & ~2);
+    // w_sip(r_sip() & ~2);
 
     return 2;
   }

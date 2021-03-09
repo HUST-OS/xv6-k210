@@ -40,7 +40,8 @@ make build
 ## Run on k210 board
 Instead of the original file system, xv6-k210 runs with FAT32. You might need an SD card with FAT32 format.  
 To start `shell`, you need to rename the "_init" and "_sh" in the "/xv6-user" to "init" and "sh" after building, 
-then copy them to the root of your SD card. Or you can directly run the command as below with your SD card connected.
+then copy them to the root of your SD card.   
+Or you can directly run the command as below with your SD card connected to your PC (SD card reader required).
 
 Warning: this will format your SD card and clean your original data!
 ```bash
