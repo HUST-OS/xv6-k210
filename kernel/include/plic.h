@@ -57,7 +57,7 @@
 #ifndef _DRIVER_PLIC_H
 #define _DRIVER_PLIC_H
 
-#include <stdint.h>
+#include "types.h"
 #include "encoding.h"
 #include "platform.h"
 
@@ -237,7 +237,7 @@ typedef enum _plic_irq
 typedef struct _plic_source_priorities
 {
     /* 0x0C000000: Reserved, 0x0C000004-0x0C000FFC: 1-1023 priorities */
-    uint32_t priority[1024];
+    uint32 priority[1024];
 } __attribute__((packed, aligned(4))) plic_source_priorities_t;
 
 /**
@@ -257,9 +257,9 @@ typedef struct _plic_source_priorities
 typedef struct _plic_pending_bits
 {
     /* 0x0C001000-0x0C00107C: Bit 0 is zero, Bits 1-1023 is pending bits */
-    uint32_t u32[32];
+    uint32 u32[32];
     /* 0x0C001080-0x0C001FFF: Reserved */
-    uint8_t resv[0xF80];
+    uint8 resv[0xF80];
 } __attribute__((packed, aligned(4))) plic_pending_bits_t;
 
 /**
@@ -285,11 +285,11 @@ typedef struct _plic_target_enables
     /* 0x0C002000-0x0C1F1F80: target 0-15871 enables */
     struct
     {
-        uint32_t enable[32 * 2]; /* Offset 0x00-0x7C: Bit 0 is zero, Bits 1-1023 is bits*/
+        uint32 enable[32 * 2]; /* Offset 0x00-0x7C: Bit 0 is zero, Bits 1-1023 is bits*/
     } target[15872 / 2];
 
     /* 0x0C1F2000-0x0C1FFFFC: Reserved, size 0xE000 */
-    uint8_t resv[0xE000];
+    uint8 resv[0xE000];
 } __attribute__((packed, aligned(4))) plic_target_enables_t;
 
 /**
@@ -326,9 +326,9 @@ typedef struct _plic_target
     /* 0x0C200000-0x0FFFF004: target 0-15871 */
     struct
     {
-        uint32_t priority_threshold; /* Offset 0x000 */
-        uint32_t claim_complete;     /* Offset 0x004 */
-        uint8_t resv[0x1FF8];        /* Offset 0x008, Size 0xFF8 */
+        uint32 priority_threshold; /* Offset 0x000 */
+        uint32 claim_complete;     /* Offset 0x004 */
+        uint8 resv[0x1FF8];        /* Offset 0x008, Size 0xFF8 */
     } target[15872 / 2];
 } __attribute__((packed, aligned(4))) plic_target_t;
 
@@ -372,7 +372,7 @@ typedef struct _plic_callback_t
 {
     plic_irq_callback_t callback;
     void *ctx;
-    uint32_t priority;
+    uint32 priority;
 } plic_interrupt_t;
 
 /**
@@ -419,7 +419,7 @@ int plic_irq_disable(plic_irq_t irq_number);
  *     - 0      Success
  *     - Other  Fail
  */
-int plic_set_priority(plic_irq_t irq_number, uint32_t priority);
+int plic_set_priority(plic_irq_t irq_number, uint32 priority);
 
 /**
  * @brief       Get IRQ priority
@@ -428,14 +428,14 @@ int plic_set_priority(plic_irq_t irq_number, uint32_t priority);
  *
  * @return      The priority of external interrupt number
  */
-uint32_t plic_get_priority(plic_irq_t irq_number);
+uint32 plic_get_priority(plic_irq_t irq_number);
 
 /**
  * @brief       Claim an IRQ
  *
  * @return      The current IRQ number
  */
-uint32_t plic_irq_claim(void);
+uint32 plic_irq_claim(void);
 
 /**
  * @brief       Complete an IRQ
@@ -446,7 +446,7 @@ uint32_t plic_irq_claim(void);
  *     - 0      Success
  *     - Other  Fail
  */
-int plic_irq_complete(uint32_t source);
+int plic_irq_complete(uint32 source);
 
 /**
  * @brief       Register user callback function by IRQ number

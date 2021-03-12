@@ -430,33 +430,49 @@ extern "C" fn start_trap_rust(trap_frame: &mut TrapFrame) {
             // soft delegate to S Mode soft interrupt
             unsafe { mip::set_ssoft(); }
              */
-            unsafe {
-                let mut mstatus: usize;
-                llvm_asm!("csrr $0, mstatus" : "=r"(mstatus) ::: "volatile");
-                // set mstatus.mprv
-                mstatus |= 1 << 17;
-                // it may trap from U/S Mode
-                // save mpp and set mstatus.mpp to S Mode
-                let mpp = (mstatus >> 11) & 3;
-                mstatus = mstatus & !(3 << 11);
-                mstatus |= 1 << 11;
-                // drop mstatus.mprv protection
-                llvm_asm!("csrw mstatus, $0" :: "r"(mstatus) :: "volatile");
-                fn devintr() {
-                    unsafe {
-                        // call devintr defined in application
-                        // we have to ask compiler save ra explicitly
-                        llvm_asm!("jalr 0($0)" :: "r"(DEVINTRENTRY) : "ra" : "volatile");
-                    }
+            /* In xv6-k210 case:
+                I don't think we need to set mstatus.MPRV. If do so, when accessing memory by sp,
+                the load/store instruction will be executed by page mapping. Since the sp is now
+                the M-mode stack top which is below the 0x80020000, a mapping error will happen.
+                Thus, it seems there is no choice but to run S-mode codes on M-mode stack directly.
+            */
+            fn devintr() {
+                unsafe {
+                    // call devintr defined in application
+                    // we have to ask compiler save ra explicitly
+                    llvm_asm!("jalr 0($0)" :: "r"(DEVINTRENTRY) : "ra" : "volatile");
                 }
-                // compiler helps us save/restore caller-saved registers
-                devintr();
-                // restore mstatus
-                mstatus = mstatus &!(3 << 11);
-                mstatus |= mpp << 11;
-                mstatus -= 1 << 17;
-                llvm_asm!("csrw mstatus, $0" :: "r"(mstatus) :: "volatile");
             }
+            // compiler helps us save/restore caller-saved registers
+            devintr();
+            // println!("\trespond an external intr!");
+            // unsafe {
+            //     let mut mstatus: usize;
+            //     llvm_asm!("csrr $0, mstatus" : "=r"(mstatus) ::: "volatile");
+            //     // set mstatus.mprv
+            //     mstatus |= 1 << 17;
+            //     // it may trap from U/S Mode
+            //     // save mpp and set mstatus.mpp to S Mode
+            //     let mpp = (mstatus >> 11) & 3;
+            //     mstatus = mstatus & !(3 << 11);
+            //     mstatus |= 1 << 11;
+            //     // drop mstatus.mprv protection
+            //     llvm_asm!("csrw mstatus, $0" :: "r"(mstatus) :: "volatile");
+            //     fn devintr() {
+            //         unsafe {
+            //             // call devintr defined in application
+            //             // we have to ask compiler save ra explicitly
+            //             llvm_asm!("jalr 0($0)" :: "r"(DEVINTRENTRY) : "ra" : "volatile");
+            //         }
+            //     }
+            //     // compiler helps us save/restore caller-saved registers
+            //     devintr();
+            //     // restore mstatus
+            //     mstatus = mstatus &!(3 << 11);
+            //     mstatus |= mpp << 11;
+            //     mstatus -= 1 << 17;
+            //     llvm_asm!("csrw mstatus, $0" :: "r"(mstatus) :: "volatile");
+            // }
         }
         Trap::Exception(Exception::IllegalInstruction) => {
             let vaddr = mepc::read();

@@ -7,6 +7,8 @@
 #include "include/proc.h"
 #include "include/sbi.h"
 #include "include/defs.h"
+#include "include/plic.h"
+#include "include/dmac.h"
 
 
 struct spinlock tickslock;
@@ -62,6 +64,9 @@ usertrap(void)
   // save user program counter.
   p->trapframe->epc = r_sepc();
   
+  #ifdef DEBUG
+  printf("[usertrap]\thart=%d, epc=%p, ra=%p, p=%s, pid=%d\n", r_tp(), r_sepc(), p->trapframe->ra, p->name, p->pid);
+  #endif
   if(r_scause() == 8){
     // system call
 
@@ -137,6 +142,9 @@ usertrapret(void)
   // jump to trampoline.S at the top of memory, which 
   // switches to the user page table, restores user registers,
   // and switches to user mode with sret.
+  #ifdef DEBUG
+  printf("[usertrapret]\thart=%d, epc=%p, ra=%p, p=%s, pid=%d\n", r_tp(), r_sepc(), p->trapframe->ra, p->name, p->pid);
+  #endif
   uint64 fn = TRAMPOLINE + (userret - trampoline);
   ((void (*)(uint64,uint64))fn)(TRAPFRAME, satp);
 }
@@ -159,7 +167,7 @@ kerneltrap()
 
   if((which_dev = devintr()) == 0){
     printf("scause %p\n", scause);
-    printf("sepc=%p stval=%p\n", r_sepc(), r_stval());
+    printf("sepc=%p stval=%p hart=%d\n", r_sepc(), r_stval(), r_tp());
     panic("kerneltrap");
   }
   // printf("which_dev: %d\n", which_dev);
@@ -241,15 +249,17 @@ devintr()
 #ifndef QEMU
 void
 supervisor_external_handler() {
-  int irq = *(uint32*)(PLIC + 0x04);
-  if(irq == UARTHS_IRQ) {
-    // UARTHS
-    printf("[supervisor_external_handler]\n");
-  }
-  else
+  int irq = plic_claim();
+  switch (irq)
   {
-    while (1);
+    case IRQN_DMA0_INTERRUPT:
+      dmac_intr(DMAC_CHANNEL0);
+      break;
+    case IRQN_UARTHS_INTERRUPT:
+      uartintr();
+      break;
   }
+  plic_complete(irq);
 }
 #endif
 

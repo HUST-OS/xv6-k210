@@ -54,11 +54,7 @@
 #define CLINT_MTIMECMP(hartid) (CLINT + 0x4000 + 8*(hartid))
 #define CLINT_MTIME (CLINT + 0xBFF8) // cycles since boot.
 
-#ifndef QEMU
-#define PLIC 0x0c200000L
-#else
 #define PLIC 0x0c000000L
-#endif
 #define PLIC_PRIORITY (PLIC + 0x0)
 #define PLIC_PENDING (PLIC + 0x1000)
 #define PLIC_MENABLE(hart) (PLIC + 0x2000 + (hart)*0x100)
@@ -71,6 +67,8 @@
 #ifndef QEMU
 #define GPIOHS 0x38001000
 
+#define DMAC 0x50000000
+
 #define GPIO 0x50200000
 
 #define SPI_SLAVE 0x50240000
@@ -82,6 +80,8 @@
 #define SPI1 0x53000000
 
 #define SPI2 0x54000000
+
+#define SYSCTL 0x50440000
 #endif
 
 // the physical address of rustsbi

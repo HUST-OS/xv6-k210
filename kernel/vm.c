@@ -45,6 +45,9 @@ kvminit()
   // GPIOHS
   kvmmap(GPIOHS, GPIOHS, 0x1000, PTE_R | PTE_W);
 
+  // DMAC
+  kvmmap(DMAC, DMAC, 0x200000, PTE_R | PTE_W);
+
   // GPIO
   kvmmap(GPIO, GPIO, 0x1000, PTE_R | PTE_W);
 
@@ -62,6 +65,10 @@ kvminit()
 
   // SPI2
   kvmmap(SPI2, SPI2, 0x1000, PTE_R | PTE_W);
+
+  // SYSCTL
+  kvmmap(SYSCTL, SYSCTL, 0x10000, PTE_R | PTE_W);
+  
   #endif
   
   // map rustsbi

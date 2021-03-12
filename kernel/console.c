@@ -15,7 +15,6 @@
 #include "include/param.h"
 #include "include/spinlock.h"
 #include "include/sleeplock.h"
-// #include "include/fs.h"
 #include "include/file.h"
 #include "include/memlayout.h"
 #include "include/riscv.h"
@@ -27,16 +26,12 @@
 #define C(x)  ((x)-'@')  // Control-x
 
 void consputc(int c) {
-  #ifndef QEMU
-    sbi_console_putchar(c);
-  #else
-    if(c == BACKSPACE){
-      // if the user typed backspace, overwrite with a space.
-      uartputc_sync('\b'); uartputc_sync(' '); uartputc_sync('\b');
-    } else {
-      uartputc_sync(c);
-    }
-  #endif
+  if(c == BACKSPACE){
+    // if the user typed backspace, overwrite with a space.
+    uartputc_sync('\b'); uartputc_sync(' '); uartputc_sync('\b');
+  } else {
+    uartputc_sync(c);
+  }
 }
 struct {
   struct spinlock lock;
@@ -62,11 +57,7 @@ consolewrite(int user_src, uint64 src, int n)
     char c;
     if(either_copyin(&c, user_src, src+i, 1) == -1)
       break;
-    #ifdef QEMU
-    uartputc(c);
-    #else
-    sbi_console_putchar(c);
-    #endif
+    uartputc_sync(c);
   }
   release(&cons.lock);
 
@@ -188,9 +179,9 @@ void
 consoleinit(void)
 {
   initlock(&cons.lock, "cons");
-#ifdef QEMU
+
   uartinit();
-#endif
+  
   // connect read and write system calls
   // to consoleread and consolewrite.
   devsw[CONSOLE].read = consoleread;
