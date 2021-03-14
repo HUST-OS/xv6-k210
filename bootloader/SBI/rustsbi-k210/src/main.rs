@@ -374,6 +374,13 @@ extern "C" fn start_trap_rust(trap_frame: &mut TrapFrame) {
                 // return values
                 trap_frame.a0 = 0; // SbiRet::error = SBI_SUCCESS
                 trap_frame.a1 = 0; // SbiRet::value = 0
+            } else if trap_frame.a7 == 0x0A000005 {
+                unsafe {
+                    mie::set_mext();
+                    mie::set_mtimer();
+                }
+                trap_frame.a0 = 0; // SbiRet::error = SBI_SUCCESS
+                trap_frame.a1 = 0; // SbiRet::value = 0
             } else {
                 // Due to legacy 1.9.1 version of privileged spec, if we are in S-level
                 // timer handler (delegated from M mode), and we call SBI's `set_timer`,
@@ -385,9 +392,9 @@ extern "C" fn start_trap_rust(trap_frame: &mut TrapFrame) {
                     unsafe {
                         let mtip = mip::read().mtimer();
                         if mtip {
-                            if DEVINTRENTRY != 0 {
+                            // if DEVINTRENTRY != 0 {
                                 mie::set_mext();
-                            }
+                            // }
                         }
                     }
                 }
@@ -415,6 +422,12 @@ extern "C" fn start_trap_rust(trap_frame: &mut TrapFrame) {
             }
         }
         Trap::Interrupt(Interrupt::MachineExternal) => {
+            unsafe {
+                llvm_asm!("csrw stval, $0" :: "r"(9) :: "volatile");
+                mip::set_ssoft(); // set S-soft interrupt flag
+                mie::clear_mext();
+                mie::clear_mtimer();
+            }
             /* legacy software delegation
             // to make UARTHS interrupt soft delegation work; ref: pull request #1
             // PLIC target0(Always Hart0-M-Interrupt) acquire
@@ -430,21 +443,6 @@ extern "C" fn start_trap_rust(trap_frame: &mut TrapFrame) {
             // soft delegate to S Mode soft interrupt
             unsafe { mip::set_ssoft(); }
              */
-            /* In xv6-k210 case:
-                I don't think we need to set mstatus.MPRV. If do so, when accessing memory by sp,
-                the load/store instruction will be executed by page mapping. Since the sp is now
-                the M-mode stack top which is below the 0x80020000, a mapping error will happen.
-                Thus, it seems there is no choice but to run S-mode codes on M-mode stack directly.
-            */
-            fn devintr() {
-                unsafe {
-                    // call devintr defined in application
-                    // we have to ask compiler save ra explicitly
-                    llvm_asm!("jalr 0($0)" :: "r"(DEVINTRENTRY) : "ra" : "volatile");
-                }
-            }
-            // compiler helps us save/restore caller-saved registers
-            devintr();
             // println!("\trespond an external intr!");
             // unsafe {
             //     let mut mstatus: usize;

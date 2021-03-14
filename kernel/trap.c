@@ -20,6 +20,7 @@ extern char trampoline[], uservec[], userret[];
 void kernelvec();
 
 extern int devintr();
+void trapframedump(struct trapframe *tf);
 
 void
 trapinit(void)
@@ -42,6 +43,8 @@ trapinithart(void)
   #endif
 }
 
+// static struct trapframe tf;
+
 //
 // handle an interrupt, exception, or system call from user space.
 // called from trampoline.S
@@ -63,30 +66,26 @@ usertrap(void)
   
   // save user program counter.
   p->trapframe->epc = r_sepc();
+  // tf = *(p->trapframe);
   
-  #ifdef DEBUG
-  printf("[usertrap]\thart=%d, epc=%p, ra=%p, p=%s, pid=%d\n", r_tp(), r_sepc(), p->trapframe->ra, p->name, p->pid);
-  #endif
   if(r_scause() == 8){
     // system call
-
     if(p->killed)
       exit(-1);
-
     // sepc points to the ecall instruction,
     // but we want to return to the next instruction.
     p->trapframe->epc += 4;
-
+    // tf.epc += 4;
     // an interrupt will change sstatus &c registers,
     // so don't enable until done with those registers.
     intr_on();
-
     syscall();
   } else if((which_dev = devintr()) != 0){
     // ok
   } else {
     printf("usertrap(): unexpected scause %p pid=%d\n", r_scause(), p->pid);
     printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
+    trapframedump(p->trapframe);
     p->killed = 1;
   }
 
@@ -142,9 +141,6 @@ usertrapret(void)
   // jump to trampoline.S at the top of memory, which 
   // switches to the user page table, restores user registers,
   // and switches to user mode with sret.
-  #ifdef DEBUG
-  printf("[usertrapret]\thart=%d, epc=%p, ra=%p, p=%s, pid=%d\n", r_tp(), r_sepc(), p->trapframe->ra, p->name, p->pid);
-  #endif
   uint64 fn = TRAMPOLINE + (userret - trampoline);
   ((void (*)(uint64,uint64))fn)(TRAPFRAME, satp);
 }
@@ -173,11 +169,8 @@ kerneltrap()
   // printf("which_dev: %d\n", which_dev);
   
   // give up the CPU if this is a timer interrupt.
-  if(which_dev == 2) {
-    timer_tick();
-    if(myproc() != 0 && myproc()->state == RUNNING) {
-      yield();
-    }
+  if(which_dev == 2 && myproc() != 0 && myproc()->state == RUNNING) {
+    yield();
   }
   // the yield() may have caused some traps to occur,
   // so restore trap registers for use by kernelvec.S's sepc instruction.
@@ -230,17 +223,32 @@ devintr()
   else if(scause == 0x8000000000000005L)
   {
     // software interrupt from a supervisor-mode timer interrupt,
-
-    if(cpuid() == 0){
+    // if(cpuid() == 0){
       // clockintr();
-    }
-    
-    // acknowledge the software interrupt by clearing
-    // the SSIP bit in sip.
-    // w_sip(r_sip() & ~2);
-
+    // }
+    timer_tick();
     return 2;
   }
+  #ifndef QEMU
+  else if (scause == 0x8000000000000001L && r_stval() == 9) {
+    int irq = plic_claim();
+    switch (irq)
+    {
+      case IRQN_DMA0_INTERRUPT:
+        dmac_intr(DMAC_CHANNEL0);
+        break;
+      case IRQN_UARTHS_INTERRUPT:
+        uartintr();
+        break;
+    }
+    if (irq) {
+      plic_complete(irq);
+    }
+    w_sip(r_sip() & ~2);
+    sbi_set_mie();
+    return 3;
+  }
+  #endif
   else {
     return 0;
   }
@@ -294,4 +302,40 @@ void device_init(unsigned long pa, uint64 hartid) {
   #ifdef DEBUG
   printf("device init\n");
   #endif
+}
+
+void trapframedump(struct trapframe *tf)
+{
+  printf("a0: %p\t", tf->a0);
+  printf("a1: %p\n", tf->a1);
+  printf("a2: %p\t", tf->a2);
+  printf("a3: %p\n", tf->a3);
+  printf("a4: %p\t", tf->a4);
+  printf("a5: %p\n", tf->a5);
+  printf("a6: %p\t", tf->a6);
+  printf("a7: %p\n", tf->a7);
+  printf("t0: %p\t", tf->t0);
+  printf("t1: %p\n", tf->t1);
+  printf("t2: %p\t", tf->t2);
+  printf("t3: %p\n", tf->t3);
+  printf("t4: %p\t", tf->t4);
+  printf("t5: %p\n", tf->t5);
+  printf("t6: %p\t", tf->t6);
+  printf("s0: %p\n", tf->s0);
+  printf("s1: %p\t", tf->s1);
+  printf("s2: %p\n", tf->s2);
+  printf("s3: %p\t", tf->s3);
+  printf("s4: %p\n", tf->s4);
+  printf("s5: %p\t", tf->s5);
+  printf("s6: %p\n", tf->s6);
+  printf("s7: %p\t", tf->s7);
+  printf("s8: %p\n", tf->s8);
+  printf("s9: %p\t", tf->s9);
+  printf("s10: %p\n", tf->s10);
+  printf("s11: %p\t", tf->s11);
+  printf("ra: %p\n", tf->ra);
+  printf("sp: %p\t", tf->sp);
+  printf("gp: %p\n", tf->gp);
+  printf("tp: %p\t", tf->tp);
+  printf("epc: %p\n", tf->epc);
 }

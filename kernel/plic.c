@@ -41,8 +41,6 @@ plicinithart(void)
   *(hart_m_enable) = readl(hart_m_enable) | (1 << IRQN_DMA0_INTERRUPT);
   uint32 *hart0_m_int_enable_hi = hart_m_enable + 1;
   *(hart0_m_int_enable_hi) = readl(hart0_m_int_enable_hi) | (1 << (IRQN_UARTHS_INTERRUPT % 32));
-  extern void supervisor_external_handler();
-  sbi_set_extern_interrupt((uint64)supervisor_external_handler);
   #endif
   #ifdef DEBUG
   printf("plicinithart\n");
@@ -54,10 +52,11 @@ int
 plic_claim(void)
 {
   int hart = cpuid();
+  int irq;
   #ifndef QEMU
-  int irq = *(uint32*)PLIC_MCLAIM(hart);
+  irq = *(uint32*)PLIC_MCLAIM(hart);
   #else
-  int irq = *(uint32*)PLIC_SCLAIM(hart);
+  irq = *(uint32*)PLIC_SCLAIM(hart);
   #endif
   return irq;
 }

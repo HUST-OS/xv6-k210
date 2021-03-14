@@ -26,15 +26,6 @@
 
 volatile dmac_t *const dmac = (dmac_t *)DMAC_BASE_ADDR;
 
-typedef struct _dmac_context
-{
-    dmac_channel_number_t dmac_channel;
-    plic_irq_callback_t callback;
-    void *ctx;
-} dmac_context_t;
-
-dmac_context_t dmac_context[6];
-
 static int is_memory(uintptr_t address)
 {
     enum
@@ -78,16 +69,6 @@ void dmac_disable(void)
     dmac_cfg.cfg.dmac_en = 0;
     dmac_cfg.cfg.int_en = 0;
     writeq(dmac_cfg.data, &dmac->cfg);
-}
-
-void src_transaction_complete_int_enable(dmac_channel_number_t channel_num)
-{
-    dmac_ch_intstatus_enable_u_t ch_intstat;
-
-    ch_intstat.data = readq(&dmac->channel[channel_num].intstatus_en);
-    ch_intstat.ch_intstatus_enable.enable_src_transcomp_intstat = 1;
-
-    writeq(ch_intstat.data, &dmac->channel[channel_num].intstatus_en);
 }
 
 void dmac_channel_enable(dmac_channel_number_t channel_num)
@@ -166,70 +147,6 @@ void dmac_channel_disable(dmac_channel_number_t channel_num)
     }
 
     writeq(chen.data, &dmac->chen);
-}
-
-uint32 dmac_check_channel_busy(dmac_channel_number_t channel_num)
-{
-    uint32 ret = 0;
-    dmac_chen_u_t chen_u;
-
-    chen_u.data = readq(&dmac->chen);
-    switch(channel_num)
-    {
-        case DMAC_CHANNEL0:
-            if(chen_u.dmac_chen.ch1_en == 1)
-                ret = 1;
-            break;
-        case DMAC_CHANNEL1:
-            if(chen_u.dmac_chen.ch2_en == 1)
-                ret = 1;
-            break;
-        case DMAC_CHANNEL2:
-            if(chen_u.dmac_chen.ch3_en == 1)
-                ret = 1;
-            break;
-        case DMAC_CHANNEL3:
-            if(chen_u.dmac_chen.ch4_en == 1)
-                ret = 1;
-            break;
-        case DMAC_CHANNEL4:
-            if(chen_u.dmac_chen.ch5_en == 1)
-                ret = 1;
-            break;
-        case DMAC_CHANNEL5:
-            if(chen_u.dmac_chen.ch6_en == 1)
-                ret = 1;
-            break;
-        default:
-            break;
-    }
-
-    writeq(chen_u.data, &dmac->chen);
-
-    return ret;
-}
-
-uint32 dmac_set_list_master_select(dmac_channel_number_t channel_num,
-                                    dmac_src_dst_select_t sd_sel, dmac_master_number_t mst_num)
-{
-    uint32 ret = 0;
-    uint64 tmp = 0;
-    dmac_ch_ctl_u_t ctl;
-
-    ctl.data = readq(&dmac->channel[channel_num].ctl);
-    ret = dmac_check_channel_busy(channel_num);
-    if(ret == 0)
-    {
-        if(sd_sel == DMAC_SRC || sd_sel == DMAC_SRC_DST)
-            ctl.ch_ctl.sms = mst_num;
-
-        if(sd_sel == DMAC_DST || sd_sel == DMAC_SRC_DST)
-            ctl.ch_ctl.dms = mst_num;
-        tmp |= *(uint64 *)&dmac->channel[channel_num].ctl;
-        writeq(ctl.data, &dmac->channel[channel_num].ctl);
-    }
-
-    return ret;
 }
 
 void dmac_enable_common_interrupt_status(void)
@@ -337,15 +254,6 @@ int dmac_set_channel_param(dmac_channel_number_t channel_num,
     return 0;
 }
 
-void dmac_set_block_ts(dmac_channel_number_t channel_num,
-                       uint32 block_size)
-{
-    uint32 block_ts;
-
-    block_ts = block_size & 0x3fffff;
-    writeq(block_ts, &dmac->channel[channel_num].block_ts);
-}
-
 void dmac_init(void)
 {
     uint64 tmp;
@@ -438,17 +346,6 @@ void dmac_wait_idle(dmac_channel_number_t channel_num)
         release(&myproc()->lock);
     }
     // dmac_chanel_interrupt_clear(channel_num); /* clear interrupt */
-}
-
-void dmac_set_src_dest_length(dmac_channel_number_t channel_num, const void *src, void *dest, uint64 len)
-{
-    if(src != NULL)
-        dmac->channel[channel_num].sar = (uint64)src;
-    if(dest != NULL)
-        dmac->channel[channel_num].dar = (uint64)dest;
-    if(len > 0)
-        dmac_set_block_ts(channel_num, len - 1);
-    dmac_channel_enable(channel_num);
 }
 
 void dmac_intr(dmac_channel_number_t channel_num)

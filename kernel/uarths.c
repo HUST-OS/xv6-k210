@@ -15,15 +15,6 @@
 #include "include/uarths.h"
 #include "include/sysctl.h"
 
-// the transmit output buffer.
-struct spinlock uart_tx_lock;
-#define UART_TX_BUF_SIZE 32
-char uart_tx_buf[UART_TX_BUF_SIZE];
-int uart_tx_w; // write next to uart_tx_buf[uart_tx_w++]
-int uart_tx_r; // read next from uart_tx_buf[uar_tx_r++]
-
-struct spinlock uarths_tx_lock;
-
 extern volatile int panicked; // from printf.c
 
 volatile uarths_t *const uarths = (volatile uarths_t *)UARTHS;
@@ -44,8 +35,6 @@ uartinit(void)
     uarths->ip.rxwm = 1;
     uarths->ie.txwm = 0;
     uarths->ie.rxwm = 1;
-    initlock(&uarths_tx_lock, "uarths");
-
 }
 
 void
@@ -64,32 +53,6 @@ uartputc_sync(int c)
     uarths->txdata.data = (uint8)c;
 
     pop_off();
-}
-
-void
-uartstart()
-{
-    while(1){
-        if(uart_tx_w == uart_tx_r){
-            // transmit buffer is empty.
-            return;
-        }
-        
-        if(uarths->txdata.full){
-            // the UART transmit holding register is full,
-            // so we cannot give it another byte.
-            // it will interrupt when it's ready for a new byte.
-            return;
-        }
-        
-        int c = uart_tx_buf[uart_tx_r];
-        uart_tx_r = (uart_tx_r + 1) % UART_TX_BUF_SIZE;
-        
-        // maybe uartputc() is waiting for space in the buffer.
-        wakeup(&uart_tx_r);
-        
-        uarths->txdata.data = (uint8)c;
-    }
 }
 
 // read one input character from the UART.
@@ -118,9 +81,4 @@ uartintr(void)
       break;
     consoleintr(c);
   }
-
-  // send buffered characters.
-  acquire(&uart_tx_lock);
-  uartstart();
-  release(&uart_tx_lock);
 }
