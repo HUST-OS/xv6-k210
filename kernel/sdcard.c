@@ -356,7 +356,7 @@ void sdcard_read_sector(uint8 *buf, int sectorno) {
 		panic("sdcard: fail to read");
 	}
 
-	int timeout = 0xfff;
+	int timeout = 0xffffff;
 	while (--timeout) {
 		sd_read_data(&result, 1);
 		if (0xfe == result) break;

@@ -76,6 +76,8 @@ uartinit(void)
   // enable transmit and receive interrupts.
   WriteReg(IER, IER_TX_ENABLE | IER_RX_ENABLE);
 
+    uart_tx_w = uart_tx_r = 0;
+
   initlock(&uart_tx_lock, "uart");
 }
 

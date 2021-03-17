@@ -181,6 +181,7 @@ consoleinit(void)
   initlock(&cons.lock, "cons");
 
   uartinit();
+  cons.e = cons.w = cons.r = 0;
   
   // connect read and write system calls
   // to consoleread and consolewrite.
