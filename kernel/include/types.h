@@ -18,7 +18,7 @@ typedef uint64 pde_t;
 
 #define readb(addr) (*(volatile uint8 *)(addr))
 #define readw(addr) (*(volatile uint16 *)(addr))
-#define readl(addr) (*(volatile uint32 *)(addr))
+#define readd(addr) (*(volatile uint32 *)(addr))
 #define readq(addr) (*(volatile uint64 *)(addr))
 
 #define writeb(v, addr)                      \
@@ -29,7 +29,7 @@ typedef uint64 pde_t;
     {                                         \
         (*(volatile uint16 *)(addr)) = (v); \
     }
-#define writel(v, addr)                       \
+#define writed(v, addr)                       \
     {                                         \
         (*(volatile uint32 *)(addr)) = (v); \
     }

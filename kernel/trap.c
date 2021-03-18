@@ -1,4 +1,3 @@
-
 #include "include/types.h"
 #include "include/param.h"
 #include "include/memlayout.h"
@@ -9,7 +8,6 @@
 #include "include/defs.h"
 #include "include/plic.h"
 #include "include/dmac.h"
-
 
 struct spinlock tickslock;
 uint ticks;
@@ -80,9 +78,11 @@ usertrap(void)
     // so don't enable until done with those registers.
     intr_on();
     syscall();
-  } else if((which_dev = devintr()) != 0){
+  } 
+  else if((which_dev = devintr()) != 0){
     // ok
-  } else {
+  } 
+  else {
     printf("usertrap(): unexpected scause %p pid=%d\n", r_scause(), p->pid);
     printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
     trapframedump(p->trapframe);
@@ -148,9 +148,7 @@ usertrapret(void)
 // interrupts and exceptions from kernel code go here via kernelvec,
 // on whatever the current kernel stack is.
 void 
-kerneltrap()
-{
-  // printf("run in kerneltrap...\n");
+kerneltrap() {
   int which_dev = 0;
   uint64 sepc = r_sepc();
   uint64 sstatus = r_sstatus();
@@ -192,116 +190,122 @@ clockintr()
 // returns 2 if timer interrupt,
 // 1 if other device,
 // 0 if not recognized.
-int
-devintr()
-{
-  uint64 scause = r_scause();
+/*int*/
+/*devintr()*/
+/*{*/
+  /*uint64 scause = r_scause();*/
 
-  if((scause & 0x8000000000000000L) &&
-     (scause & 0xff) == 9){
-    // this is a supervisor external interrupt, via PLIC.
+  /*if((scause & 0x8000000000000000L) &&*/
+	 /*(scause & 0xff) == 9){*/
+	/*// this is a supervisor external interrupt, via PLIC.*/
 
-    // irq indicates which device interrupted.
-    #ifdef QEMU
-    int irq = plic_claim();
-    if(irq == UART0_IRQ){
-      uartintr();
-    } else if(irq == VIRTIO0_IRQ){
-      disk_intr();
-    } else if(irq){
-      printf("unexpected interrupt irq=%d\n", irq);
-    }
-    // the PLIC allows each device to raise at most one
-    // interrupt at a time; tell the PLIC the device is
-    // now allowed to interrupt again.
-    if(irq)
-      plic_complete(irq);
-    #endif
+	/*// irq indicates which device interrupted.*/
+	/*#ifdef QEMU*/
+	/*int irq = plic_claim();*/
+	/*if(irq == UART_IRQ){*/
+	  /*//uartintr();*/
+	  /*int c = sbi_console_getchar();*/
+	  /*if (-1 != c) {*/
+		/*consoleintr(c);*/
+	  /*}*/
+	/*} else if(irq == DISK_IRQ){*/
+	  /*disk_intr();*/
+	/*} else if(irq){*/
+	  /*printf("unexpected interrupt irq=%d\n", irq);*/
+	/*}*/
+	/*// the PLIC allows each device to raise at most one*/
+	/*// interrupt at a time; tell the PLIC the device is*/
+	/*// now allowed to interrupt again.*/
+	/*if(irq)*/
+	  /*plic_complete(irq);*/
+	/*#endif*/
 
-    return 1;
-  } 
-  else if(scause == 0x8000000000000005L)
-  {
-    // software interrupt from a supervisor-mode timer interrupt,
-    // if(cpuid() == 0){
-      // clockintr();
-    // }
-    timer_tick();
-    return 2;
-  }
-  #ifndef QEMU
-  else if (scause == 0x8000000000000001L && r_stval() == 9) {
-    int irq = plic_claim();
-    switch (irq)
-    {
-      case IRQN_DMA0_INTERRUPT:
-        dmac_intr(DMAC_CHANNEL0);
-        break;
-      case IRQN_UARTHS_INTERRUPT:
-        uartintr();
-        break;
-    }
-    if (irq) {
-      plic_complete(irq);
-    }
-    w_sip(r_sip() & ~2);
-    sbi_set_mie();
-    return 3;
-  }
-  #endif
-  else {
-    return 0;
-  }
-}
+	/*return 1;*/
+  /*} */
+  /*else if(scause == 0x8000000000000005L)*/
+  /*{*/
+	/*// software interrupt from a supervisor-mode timer interrupt,*/
+	/*// if(cpuid() == 0){*/
+	  /*// clockintr();*/
+	/*// }*/
+	/*timer_tick();*/
+	/*return 2;*/
+  /*}*/
+  /*#ifndef QEMU*/
+  /*else if (scause == 0x8000000000000001L && r_stval() == 9) {*/
+	/*int irq = plic_claim();*/
+	/*int c = -1;*/
+	/*switch (irq)*/
+	/*{*/
+	  /*case IRQN_DMA0_INTERRUPT:*/
+		/*dmac_intr(DMAC_CHANNEL0);*/
+		/*break;*/
+	  /*case IRQN_UARTHS_INTERRUPT:*/
+		/*//uartintr();*/
+		/*c = sbi_console_getchar();*/
+		/*if (-1 != c) consoleintr(c);*/
+		/*break;*/
+	/*}*/
+	/*if (irq) {*/
+	  /*plic_complete(irq);*/
+	/*}*/
+	/*w_sip(r_sip() & ~2);*/
+	/*sbi_set_mie();*/
+	/*return 3;*/
+  /*}*/
+  /*#endif*/
+  /*else {*/
+	/*return 0;*/
+  /*}*/
+/*}*/
 
-#ifndef QEMU
-void
-supervisor_external_handler() {
-  int irq = plic_claim();
-  switch (irq)
-  {
-    case IRQN_DMA0_INTERRUPT:
-      dmac_intr(DMAC_CHANNEL0);
-      break;
-    case IRQN_UARTHS_INTERRUPT:
-      uartintr();
-      break;
-  }
-  plic_complete(irq);
-}
-#endif
+// Check if it's an external/software interrupt, 
+// and handle it. 
+// returns  2 if timer interrupt, 
+//          1 if other device, 
+//          0 if not recognized. 
+int devintr(void) {
+	uint64 scause = r_scause();
 
-void device_init(unsigned long pa, uint64 hartid) {
-  #ifndef QEMU
-  // after RustSBI, txen = rxen = 1, rxie = 1, rxcnt = 0
-  // start UART interrupt configuration
-  // disable external interrupt on hart1 by setting threshold
-  uint32 *hart0_m_threshold = (uint32*)PLIC;
-  uint32 *hart1_m_threshold = (uint32*)PLIC_MENABLE(hartid);
-  *(hart0_m_threshold) = 0;
-  *(hart1_m_threshold) = 1;
-  // *(uint32*)0x0c200000 = 0;
-  // *(uint32*)0x0c202000 = 1;
+	#ifdef QEMU 
+	// handle external interrupt 
+	if ((0x8000000000000000L & scause) && 9 == (scause & 0xff)) 
+	#else 
+	// on k210, supervisor software interrupt is used 
+	// in alternative to supervisor external interrupt, 
+	// which is not available on k210. 
+	if (0x8000000000000001L == scause && 9 == r_stval()) 
+	#endif 
+	{
+		int irq = plic_claim();
+		if (UART_IRQ == irq) {
+			// keyboard input 
+			int c = sbi_console_getchar();
+			if (-1 != c) {
+				consoleintr(c);
+			}
+		}
+		else if (DISK_IRQ == irq) {
+			disk_intr();
+		}
+		else if (irq) {
+			printf("unexpected interrupt irq = %d\n", irq);
+		}
 
-  // now using UARTHS whose IRQID = 33
-  // assure that its priority equals 1
-  // if(*(uint32*)(0x0c000000 + 33 * 4) != 1) panic("uarhs's priority is not 1\n");
-  // printf("uart priority: %p\n", *(uint32*)(0x0c000000 + 33 * 4));
-  // *(uint32*)(0x0c000000 + 33 * 4) = 0x1;
-  uint32 *hart0_m_int_enable_hi = (uint32*)(PLIC_MENABLE(hartid) + 0x04);
-  *(hart0_m_int_enable_hi) = (1 << 0x1);
-  // *(uint32*)0x0c002004 = (1 << 0x1);
-  // sbi_set_extern_interrupt((uint64)supervisor_external_handler);
-  #else
-  *((uint32*)0x0c002080) = (1 << 10);
-  *((uint8*)0x10000004) = 0x0b;
-  *((uint8*)0x10000001) = 0x01;
-  *((uint32*)0x0c000028) = 0x7;
-  *((uint32*)0x0c201000) = 0x0;
-  #endif
-  #ifdef DEBUG
-  printf("device init\n");
-  #endif
+		if (irq) { plic_complete(irq);}
+
+		#ifndef QEMU 
+		w_sip(r_sip() & ~2);    // clear pending bit
+		sbi_set_mie();
+		#endif 
+
+		return 1;
+	}
+	else if (0x8000000000000005L) {
+		timer_tick();
+		return 2;
+	}
+	else { return 0;}
 }
 
 void trapframedump(struct trapframe *tf)

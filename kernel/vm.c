@@ -25,11 +25,12 @@ kvminit()
   memset(kernel_pagetable, 0, PGSIZE);
 
   // uart registers
-  #ifdef QEMU
-  kvmmap(UART0, UART0, PGSIZE, PTE_R | PTE_W);
-  #else
-  kvmmap(UARTHS, UARTHS, PGSIZE, PTE_R | PTE_W);
-  #endif
+  /*#ifdef QEMU*/
+  /*kvmmap(UART0, UART0, PGSIZE, PTE_R | PTE_W);*/
+  /*#else*/
+  /*kvmmap(UARTHS, UARTHS, PGSIZE, PTE_R | PTE_W);*/
+  /*#endif*/
+  kvmmap(UART, UART, PGSIZE, PTE_R | PTE_W);
   
   #ifdef QEMU
   // virtio mmio disk interface

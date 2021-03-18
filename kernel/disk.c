@@ -7,6 +7,10 @@
 #include "include/buf.h"
 #include "include/sdcard.h"
 
+#ifndef QEMU
+#include "include/dmac.h"
+#endif 
+
 void disk_init(void)
 {
     #ifdef QEMU
@@ -38,5 +42,7 @@ void disk_intr(void)
 {
     #ifdef QEMU
     virtio_disk_intr();
+    #else 
+    dmac_intr(DMAC_CHANNEL0);
     #endif
 }

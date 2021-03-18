@@ -11,8 +11,7 @@ use core::alloc::Layout;
 use core::panic::PanicInfo;
 use k210_hal::{clock::Clocks, fpioa, pac, prelude::*};
 use linked_list_allocator::LockedHeap;
-//use rustsbi::{enter_privileged, print, println};
-use rustsbi::{enter_privileged};
+use rustsbi::{enter_privileged, print, println};
 use riscv::register::{
     mcause::{self, Exception, Interrupt, Trap},
     medeleg, mepc, mhartid, mideleg, mie, mip, misa::{self, MXL},
@@ -21,9 +20,6 @@ use riscv::register::{
     mtvec::{self, TrapMode},
     satp,
 };
-
-#[macro_use]
-mod serial;
 
 #[global_allocator]
 static ALLOCATOR: LockedHeap = LockedHeap::empty();
@@ -151,7 +147,9 @@ fn main() -> ! {
         let _uarths_rx = fpioa.io4.into_function(fpioa::UARTHS_RX);
         // Configure UART
         let serial = p.UARTHS.configure(115_200.bps(), &clocks);
-		serial::init(serial);
+        let (tx, rx) = serial.split();
+        use rustsbi::legacy_stdio::init_legacy_stdio_embedded_hal_fuse;
+        init_legacy_stdio_embedded_hal_fuse(tx, rx);
 
         struct Ipi;
         impl rustsbi::Ipi for Ipi {
@@ -376,24 +374,7 @@ extern "C" fn start_trap_rust(trap_frame: &mut TrapFrame) {
                 // return values
                 trap_frame.a0 = 0; // SbiRet::error = SBI_SUCCESS
                 trap_frame.a1 = 0; // SbiRet::value = 0
-            } else if trap_frame.a7 == 0x0A000005 {
-                unsafe {
-                    mie::set_mext();
-                    mie::set_mtimer();
-                }
-                trap_frame.a0 = 0; // SbiRet::error = SBI_SUCCESS
-                trap_frame.a1 = 0; // SbiRet::value = 0
-            } 
-			else if 0x01 == trap_frame.a7 {		// SBI_CONSOLE_PUTCHAR 
-				serial::putchar(trap_frame.a0 as u8);
-			}
-			else if 0x02 == trap_frame.a7 {		// SBI_CONSOLE_GETCHAR 
-				trap_frame.a0 = match serial::getchar() {
-					Some(c) => c as usize, 
-					None => (-1i64 as usize), 
-				};
-			}
-			else {
+            } else {
                 // Due to legacy 1.9.1 version of privileged spec, if we are in S-level
                 // timer handler (delegated from M mode), and we call SBI's `set_timer`,
                 // a M-level external interrupt may be triggered. This may try to obtain
@@ -404,9 +385,9 @@ extern "C" fn start_trap_rust(trap_frame: &mut TrapFrame) {
                     unsafe {
                         let mtip = mip::read().mtimer();
                         if mtip {
-                            // if DEVINTRENTRY != 0 {
+                            if DEVINTRENTRY != 0 {
                                 mie::set_mext();
-                            // }
+                            }
                         }
                     }
                 }
@@ -434,12 +415,6 @@ extern "C" fn start_trap_rust(trap_frame: &mut TrapFrame) {
             }
         }
         Trap::Interrupt(Interrupt::MachineExternal) => {
-            unsafe {
-                llvm_asm!("csrw stval, $0" :: "r"(9) :: "volatile");
-                mip::set_ssoft(); // set S-soft interrupt flag
-                mie::clear_mext();
-                mie::clear_mtimer();
-            }
             /* legacy software delegation
             // to make UARTHS interrupt soft delegation work; ref: pull request #1
             // PLIC target0(Always Hart0-M-Interrupt) acquire
@@ -455,34 +430,33 @@ extern "C" fn start_trap_rust(trap_frame: &mut TrapFrame) {
             // soft delegate to S Mode soft interrupt
             unsafe { mip::set_ssoft(); }
              */
-            // println!("\trespond an external intr!");
-            // unsafe {
-            //     let mut mstatus: usize;
-            //     llvm_asm!("csrr $0, mstatus" : "=r"(mstatus) ::: "volatile");
-            //     // set mstatus.mprv
-            //     mstatus |= 1 << 17;
-            //     // it may trap from U/S Mode
-            //     // save mpp and set mstatus.mpp to S Mode
-            //     let mpp = (mstatus >> 11) & 3;
-            //     mstatus = mstatus & !(3 << 11);
-            //     mstatus |= 1 << 11;
-            //     // drop mstatus.mprv protection
-            //     llvm_asm!("csrw mstatus, $0" :: "r"(mstatus) :: "volatile");
-            //     fn devintr() {
-            //         unsafe {
-            //             // call devintr defined in application
-            //             // we have to ask compiler save ra explicitly
-            //             llvm_asm!("jalr 0($0)" :: "r"(DEVINTRENTRY) : "ra" : "volatile");
-            //         }
-            //     }
-            //     // compiler helps us save/restore caller-saved registers
-            //     devintr();
-            //     // restore mstatus
-            //     mstatus = mstatus &!(3 << 11);
-            //     mstatus |= mpp << 11;
-            //     mstatus -= 1 << 17;
-            //     llvm_asm!("csrw mstatus, $0" :: "r"(mstatus) :: "volatile");
-            // }
+            unsafe {
+                let mut mstatus: usize;
+                llvm_asm!("csrr $0, mstatus" : "=r"(mstatus) ::: "volatile");
+                // set mstatus.mprv
+                mstatus |= 1 << 17;
+                // it may trap from U/S Mode
+                // save mpp and set mstatus.mpp to S Mode
+                let mpp = (mstatus >> 11) & 3;
+                mstatus = mstatus & !(3 << 11);
+                mstatus |= 1 << 11;
+                // drop mstatus.mprv protection
+                llvm_asm!("csrw mstatus, $0" :: "r"(mstatus) :: "volatile");
+                fn devintr() {
+                    unsafe {
+                        // call devintr defined in application
+                        // we have to ask compiler save ra explicitly
+                        llvm_asm!("jalr 0($0)" :: "r"(DEVINTRENTRY) : "ra" : "volatile");
+                    }
+                }
+                // compiler helps us save/restore caller-saved registers
+                devintr();
+                // restore mstatus
+                mstatus = mstatus &!(3 << 11);
+                mstatus |= mpp << 11;
+                mstatus -= 1 << 17;
+                llvm_asm!("csrw mstatus, $0" :: "r"(mstatus) :: "volatile");
+            }
         }
         Trap::Exception(Exception::IllegalInstruction) => {
             let vaddr = mepc::read();

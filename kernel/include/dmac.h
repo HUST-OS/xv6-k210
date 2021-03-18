@@ -1468,7 +1468,7 @@ void dmac_wait_idle(dmac_channel_number_t channel_num);
  * @param[in]   ctx                     The param of callback
  * @param[in]   priority                Interrupt priority
  */
-void dmac_set_irq(dmac_channel_number_t channel_num, plic_irq_callback_t dmac_callback, void *ctx, uint32 priority);
+//void dmac_set_irq(dmac_channel_number_t channel_num, plic_irq_callback_t dmac_callback, void *ctx, uint32 priority);
 
 /**
  * @brief       Set interrupt param
@@ -1478,7 +1478,7 @@ void dmac_set_irq(dmac_channel_number_t channel_num, plic_irq_callback_t dmac_ca
  * @param[in]   ctx                     The param of callback
  * @param[in]   priority                Interrupt priority
  */
-void dmac_irq_register(dmac_channel_number_t channel_num, plic_irq_callback_t dmac_callback, void *ctx, uint32 priority);
+//void dmac_irq_register(dmac_channel_number_t channel_num, plic_irq_callback_t dmac_callback, void *ctx, uint32 priority);
 
 /**
  * @brief       Unregister dmac interrupt

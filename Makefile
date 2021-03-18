@@ -1,7 +1,7 @@
 platform	:= k210
-# platform	:= qemu
-# mode := debug
-mode := release
+#platform	:= qemu
+mode := debug
+#mode := release
 K=kernel
 U=xv6-user
 T=target
@@ -50,12 +50,11 @@ OBJS += \
   $K/sdcard.o \
   $K/dmac.o \
   $K/sysctl.o \
-  $K/uarths.o \
 
 else
 OBJS += \
   $K/virtio_disk.o \
-  $K/uart.o \
+  #$K/uart.o \
 
 endif
 
@@ -115,7 +114,7 @@ ifeq ($(platform), k210)
 	@cd ./bootloader/SBI/rustsbi-k210 && rustup target add riscv64imac-unknown-none-elf && cargo build && cp ./target/riscv64imac-unknown-none-elf/debug/rustsbi-k210 ../sbi-k210
 	@$(OBJDUMP) -S ./bootloader/SBI/sbi-k210 > $T/rustsbi-k210.asm
 else
-	@cd ./bootloader/SBI/rustsbi-qemu && rustup target add riscv64imac-unknown-none-elf && cargo build && cp ./target/riscv64imac-unknown-none-elf/debug/rustsbi-qemu ../sbi-qemu
+	@cd ./bootloader/SBI/rustsbi-qemu && rustup target add riscv64gc-unknown-none-elf && cargo build && cp ./target/riscv64gc-unknown-none-elf/debug/rustsbi-qemu ../sbi-qemu
 	@$(OBJDUMP) -S ./bootloader/SBI/sbi-qemu > $T/rustsbi-qemu.asm
 endif
 
@@ -131,7 +130,12 @@ ifndef CPUS
 CPUS := 2
 endif
 
-QEMUOPTS = -machine virt -bios $(RUSTSBI) -kernel $T/kernel -m 128M -smp $(CPUS) -nographic
+QEMUOPTS = -machine virt -kernel $T/kernel -m 128M -nographic
+
+# use multi-core 
+QEMUOPTS += -smp $(CPUS)
+
+QEMUOPTS += -bios $(RUSTSBI)
 
 # import virtual disk image
 QEMUOPTS += -drive file=fs.img,if=none,format=raw,id=x0 

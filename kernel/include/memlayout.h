@@ -36,17 +36,14 @@
 
 #ifdef QEMU
 // qemu puts UART registers here in physical memory.
-#define UART0 0x10000000L
-#define UART0_IRQ 10
+#define UART 0x10000000L
 #else
-#define UARTHS 0x38000000L
-#define UARTHS_IRQ 33
+#define UART 0x38000000L
 #endif
 
 #ifdef QEMU
 // virtio mmio interface
 #define VIRTIO0 0x10001000
-#define VIRTIO0_IRQ 1
 #endif
 
 // local interrupt controller, which contains the timer.
