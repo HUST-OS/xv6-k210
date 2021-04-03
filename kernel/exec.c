@@ -41,9 +41,6 @@ loadseg(pagetable_t pagetable, uint64 va, struct dirent *ep, uint offset, uint s
 
 int exec(char *path, char **argv)
 {
-  #ifdef DEBUG
-  printf("[exec] in\n");
-  #endif
   char *s, *last;
   int i, off;
   uint64 argc, sz = 0, sp, ustack[MAXARG+1], stackbase;
@@ -53,8 +50,12 @@ int exec(char *path, char **argv)
   pagetable_t pagetable = 0, oldpagetable;
   struct proc *p = myproc();
 
-  if((ep = ename(path)) == 0)
+  if((ep = ename(path)) == 0) {
+    #ifdef DEBUG
+    printf("[exec] %s not found\n", path);
+    #endif
     return -1;
+  }
   elock(ep);
 
   // Check ELF header
@@ -144,12 +145,12 @@ int exec(char *path, char **argv)
   p->trapframe->sp = sp; // initial stack pointer
   proc_freepagetable(oldpagetable, oldsz);
 
-  #ifdef DEBUG
-  printf("[exec] out\n");
-  #endif
   return argc; // this ends up in a0, the first argument to main(argc, argv)
 
  bad:
+  #ifdef DEBUG
+  printf("[exec] reach bad\n");
+  #endif
   if(pagetable)
     proc_freepagetable(pagetable, sz);
   if(ep){

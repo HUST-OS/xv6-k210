@@ -1,7 +1,7 @@
 platform	:= k210
 #platform	:= qemu
-mode := debug
-#mode := release
+# mode := debug
+mode := release
 K=kernel
 U=xv6-user
 T=target
@@ -111,10 +111,10 @@ build: $T/kernel userprogs
 # Compile RustSBI
 RUSTSBI:
 ifeq ($(platform), k210)
-	@cd ./bootloader/SBI/rustsbi-k210 && rustup target add riscv64imac-unknown-none-elf && cargo build && cp ./target/riscv64imac-unknown-none-elf/debug/rustsbi-k210 ../sbi-k210
+	@cd ./bootloader/SBI/rustsbi-k210 && cargo build && cp ./target/riscv64gc-unknown-none-elf/debug/rustsbi-k210 ../sbi-k210
 	@$(OBJDUMP) -S ./bootloader/SBI/sbi-k210 > $T/rustsbi-k210.asm
 else
-	@cd ./bootloader/SBI/rustsbi-qemu && rustup target add riscv64gc-unknown-none-elf && cargo build && cp ./target/riscv64gc-unknown-none-elf/debug/rustsbi-qemu ../sbi-qemu
+	@cd ./bootloader/SBI/rustsbi-qemu && cargo build && cp ./target/riscv64gc-unknown-none-elf/debug/rustsbi-qemu ../sbi-qemu
 	@$(OBJDUMP) -S ./bootloader/SBI/sbi-qemu > $T/rustsbi-qemu.asm
 endif
 
@@ -199,7 +199,9 @@ UPROGS=\
 	$U/_xargs\
 	$U/_sleep\
 	$U/_find\
-	$U/_rm
+	$U/_rm\
+	$U/_wc\
+	$U/_trace
 
 	# $U/_forktest\
 	# $U/_ln\
@@ -207,7 +209,6 @@ UPROGS=\
 	# $U/_stressfs\
 	# $U/_usertests\
 	# $U/_grind\
-	# $U/_wc\
 	# $U/_zombie\
 
 userprogs: $(UPROGS)

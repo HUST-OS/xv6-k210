@@ -9,7 +9,7 @@
 #include "include/memlayout.h"
 #include "include/uarths.h"
 
-// static int tick = 0;
+uint ticks;
 
 void timerinit() {
     // enable supervisor-mode timer interrupts.

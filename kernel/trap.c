@@ -10,14 +10,13 @@
 #include "include/dmac.h"
 
 struct spinlock tickslock;
-uint ticks;
 
 extern char trampoline[], uservec[], userret[];
 
 // in kernelvec.S, calls kerneltrap().
 void kernelvec();
 
-extern int devintr();
+int devintr();
 void trapframedump(struct trapframe *tf);
 
 void
@@ -41,8 +40,6 @@ trapinithart(void)
   #endif
 }
 
-// static struct trapframe tf;
-
 //
 // handle an interrupt, exception, or system call from user space.
 // called from trampoline.S
@@ -64,7 +61,6 @@ usertrap(void)
   
   // save user program counter.
   p->trapframe->epc = r_sepc();
-  // tf = *(p->trapframe);
   
   if(r_scause() == 8){
     // system call
@@ -73,7 +69,6 @@ usertrap(void)
     // sepc points to the ecall instruction,
     // but we want to return to the next instruction.
     p->trapframe->epc += 4;
-    // tf.epc += 4;
     // an interrupt will change sstatus &c registers,
     // so don't enable until done with those registers.
     intr_on();
@@ -176,89 +171,6 @@ kerneltrap() {
   w_sstatus(sstatus);
 }
 
-void
-clockintr()
-{
-  acquire(&tickslock);
-  ticks++;
-  wakeup(&ticks);
-  release(&tickslock);
-}
-
-// check if it's an external interrupt or software interrupt,
-// and handle it.
-// returns 2 if timer interrupt,
-// 1 if other device,
-// 0 if not recognized.
-/*int*/
-/*devintr()*/
-/*{*/
-  /*uint64 scause = r_scause();*/
-
-  /*if((scause & 0x8000000000000000L) &&*/
-	 /*(scause & 0xff) == 9){*/
-	/*// this is a supervisor external interrupt, via PLIC.*/
-
-	/*// irq indicates which device interrupted.*/
-	/*#ifdef QEMU*/
-	/*int irq = plic_claim();*/
-	/*if(irq == UART_IRQ){*/
-	  /*//uartintr();*/
-	  /*int c = sbi_console_getchar();*/
-	  /*if (-1 != c) {*/
-		/*consoleintr(c);*/
-	  /*}*/
-	/*} else if(irq == DISK_IRQ){*/
-	  /*disk_intr();*/
-	/*} else if(irq){*/
-	  /*printf("unexpected interrupt irq=%d\n", irq);*/
-	/*}*/
-	/*// the PLIC allows each device to raise at most one*/
-	/*// interrupt at a time; tell the PLIC the device is*/
-	/*// now allowed to interrupt again.*/
-	/*if(irq)*/
-	  /*plic_complete(irq);*/
-	/*#endif*/
-
-	/*return 1;*/
-  /*} */
-  /*else if(scause == 0x8000000000000005L)*/
-  /*{*/
-	/*// software interrupt from a supervisor-mode timer interrupt,*/
-	/*// if(cpuid() == 0){*/
-	  /*// clockintr();*/
-	/*// }*/
-	/*timer_tick();*/
-	/*return 2;*/
-  /*}*/
-  /*#ifndef QEMU*/
-  /*else if (scause == 0x8000000000000001L && r_stval() == 9) {*/
-	/*int irq = plic_claim();*/
-	/*int c = -1;*/
-	/*switch (irq)*/
-	/*{*/
-	  /*case IRQN_DMA0_INTERRUPT:*/
-		/*dmac_intr(DMAC_CHANNEL0);*/
-		/*break;*/
-	  /*case IRQN_UARTHS_INTERRUPT:*/
-		/*//uartintr();*/
-		/*c = sbi_console_getchar();*/
-		/*if (-1 != c) consoleintr(c);*/
-		/*break;*/
-	/*}*/
-	/*if (irq) {*/
-	  /*plic_complete(irq);*/
-	/*}*/
-	/*w_sip(r_sip() & ~2);*/
-	/*sbi_set_mie();*/
-	/*return 3;*/
-  /*}*/
-  /*#endif*/
-  /*else {*/
-	/*return 0;*/
-  /*}*/
-/*}*/
-
 // Check if it's an external/software interrupt, 
 // and handle it. 
 // returns  2 if timer interrupt, 
@@ -301,7 +213,7 @@ int devintr(void) {
 
 		return 1;
 	}
-	else if (0x8000000000000005L) {
+	else if (0x8000000000000005L == scause) {
 		timer_tick();
 		return 2;
 	}

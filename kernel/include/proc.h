@@ -113,6 +113,7 @@ struct proc {
   struct file *ofile[NOFILE];  // Open files
   struct dirent *cwd;          // Current directory
   char name[16];               // Process name (debugging)
+  int tmask;                    // trace mask
 };
 
 void            reg_info(void);
@@ -138,6 +139,7 @@ void            yield(void);
 int             either_copyout(int user_dst, uint64 dst, void *src, uint64 len);
 int             either_copyin(void *dst, int user_src, uint64 src, uint64 len);
 void            procdump(void);
+uint64          procnum(void);
 void            test_proc_init(int);
 
 #endif
