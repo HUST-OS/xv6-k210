@@ -9,7 +9,7 @@
 #include "include/memlayout.h"
 #include "include/uarths.h"
 
-// static int tick = 0;
+uint ticks;
 
 void timerinit() {
     // enable supervisor-mode timer interrupts.
@@ -32,24 +32,9 @@ set_next_timeout() {
 }
 
 void timer_tick() {
-    set_next_timeout();
     acquire(&tickslock);
     ticks++;
     wakeup(&ticks);
     release(&tickslock);
-    #ifndef QEMU
-    // warning: not steady!
-    uint32 c = *(uint32*)(UARTHS + UARTHS_REG_RXFIFO);
-    if (c <= 255) {
-        consoleintr(c);
-    }
-    // if((ticks % 5) == 0) {
-        // printf("[Timer]tick: %d from hart %d\n", ticks, r_tp());
-        // if(c <= 255) {
-        //     printf("[UARTHS]receive: %p, ", c);
-        //     sbi_console_putchar(c);
-        //     printf("\n");
-        // }
-    // }
-    #endif
+    set_next_timeout();
 }

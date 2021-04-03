@@ -288,6 +288,8 @@ userinit(void)
 
   p->state = RUNNABLE;
 
+  p->tmask = 0;
+
   release(&p->lock);
   #ifdef DEBUG
   printf("userinit\n");
@@ -337,6 +339,9 @@ fork(void)
   np->sz = p->sz;
 
   np->parent = p;
+
+  // copy tracing mask from parent.
+  np->tmask = p->tmask;
 
   // copy saved user registers.
   *(np->trapframe) = *(p->trapframe);
@@ -754,3 +759,19 @@ procdump(void)
     printf("\n");
   }
 }
+
+uint64
+procnum(void)
+{
+  int num = 0;
+  struct proc *p;
+
+  for (p = proc; p < &proc[NPROC]; p++) {
+    if (p->state != UNUSED) {
+      num++;
+    }
+  }
+
+  return num;
+}
+

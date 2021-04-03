@@ -25,11 +25,12 @@ kvminit()
   memset(kernel_pagetable, 0, PGSIZE);
 
   // uart registers
-  #ifdef QEMU
-  kvmmap(UART0, UART0, PGSIZE, PTE_R | PTE_W);
-  #else
-  kvmmap(UARTHS, UARTHS, PGSIZE, PTE_R | PTE_W);
-  #endif
+  /*#ifdef QEMU*/
+  /*kvmmap(UART0, UART0, PGSIZE, PTE_R | PTE_W);*/
+  /*#else*/
+  /*kvmmap(UARTHS, UARTHS, PGSIZE, PTE_R | PTE_W);*/
+  /*#endif*/
+  kvmmap(UART, UART, PGSIZE, PTE_R | PTE_W);
   
   #ifdef QEMU
   // virtio mmio disk interface
@@ -44,6 +45,9 @@ kvminit()
   #ifndef QEMU
   // GPIOHS
   kvmmap(GPIOHS, GPIOHS, 0x1000, PTE_R | PTE_W);
+
+  // DMAC
+  kvmmap(DMAC, DMAC, 0x200000, PTE_R | PTE_W);
 
   // GPIO
   kvmmap(GPIO, GPIO, 0x1000, PTE_R | PTE_W);
@@ -62,6 +66,10 @@ kvminit()
 
   // SPI2
   kvmmap(SPI2, SPI2, 0x1000, PTE_R | PTE_W);
+
+  // SYSCTL
+  kvmmap(SYSCTL, SYSCTL, 0x10000, PTE_R | PTE_W);
+  
   #endif
   
   // map rustsbi

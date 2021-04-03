@@ -42,6 +42,9 @@ static struct dirent root;
  */
 int fat32_init()
 {
+    #ifdef DEBUG
+    printf("[fat32_init] enter!\n");
+    #endif
     struct buf *b = bread(0, 0);
     if (strncmp((char const*)(b->data + 82), "FAT32", 5))
         panic("not FAT32 volume");
@@ -60,12 +63,14 @@ int fat32_init()
     fat.byts_per_clus = fat.bpb.sec_per_clus * fat.bpb.byts_per_sec;
     brelse(b);
 
-    // printf("[FAT32 init]byts_per_sec: %d\n", fat.bpb.byts_per_sec);
-    // printf("[FAT32 init]root_clus: %d\n", fat.bpb.root_clus);
-    // printf("[FAT32 init]sec_per_clus: %d\n", fat.bpb.sec_per_clus);
-    // printf("[FAT32 init]fat_cnt: %d\n", fat.bpb.fat_cnt);
-    // printf("[FAT32 init]fat_sz: %d\n", fat.bpb.fat_sz);
-    // printf("[FAT32 init]first_data_sec: %d\n", fat.first_data_sec);
+    #ifdef DEBUG
+    printf("[FAT32 init]byts_per_sec: %d\n", fat.bpb.byts_per_sec);
+    printf("[FAT32 init]root_clus: %d\n", fat.bpb.root_clus);
+    printf("[FAT32 init]sec_per_clus: %d\n", fat.bpb.sec_per_clus);
+    printf("[FAT32 init]fat_cnt: %d\n", fat.bpb.fat_cnt);
+    printf("[FAT32 init]fat_sz: %d\n", fat.bpb.fat_sz);
+    printf("[FAT32 init]first_data_sec: %d\n", fat.first_data_sec);
+    #endif
 
     // make sure that byts_per_sec has the same value with BSIZE 
     if (BSIZE != fat.bpb.byts_per_sec) 

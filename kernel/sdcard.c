@@ -1,12 +1,13 @@
 #include "include/printf.h"
 #include "include/types.h"
 #include "include/riscv.h"
-#include "include/spi.h"
 #include "include/gpiohs.h"
 #include "include/defs.h"
 #include "include/buf.h"
 #include "include/spinlock.h"
 
+#include "include/dmac.h"
+#include "include/spi.h"
 #include "include/sdcard.h"
 
 void SD_CS_HIGH(void) {
@@ -36,6 +37,15 @@ static void sd_read_data(uint8 *data_buff, uint32 length) {
     spi_receive_data_standard(SPI_DEVICE_0, SPI_CHIP_SELECT_3, NULL, 0, data_buff, length);
 }
 
+static void sd_write_data_dma(uint8 const *data_buff, uint32 length) {
+    spi_init(SPI_DEVICE_0, SPI_WORK_MODE_0, SPI_FF_STANDARD, 8, 0);
+	spi_send_data_standard_dma(DMAC_CHANNEL0, SPI_DEVICE_0, SPI_CHIP_SELECT_3, NULL, 0, data_buff, length);
+}
+
+static void sd_read_data_dma(uint8 *data_buff, uint32 length) {
+    spi_init(SPI_DEVICE_0, SPI_WORK_MODE_0, SPI_FF_STANDARD, 8, 0);
+	spi_receive_data_standard_dma(-1, DMAC_CHANNEL0, SPI_DEVICE_0, SPI_CHIP_SELECT_3, NULL, 0, data_buff, length);
+}
 
 /*
  * @brief  Send 5 bytes command to the SD card.
@@ -305,11 +315,11 @@ static int sd_init(void) {
 	return 0;
 }
 
-static struct spinlock sdcard_lock;
+static struct sleeplock sdcard_lock;
 
 void sdcard_init(void) {
 	int result = sd_init();
-	initlock(&sdcard_lock, "sdcard");
+	initsleeplock(&sdcard_lock, "sdcard");
 
 	if (0 != result) {
 		panic("sdcard_init failed");
@@ -336,17 +346,17 @@ void sdcard_read_sector(uint8 *buf, int sectorno) {
 	}
 
 	// enter critical section!
-	acquire(&sdcard_lock);
+	acquiresleep(&sdcard_lock);
 
 	sd_send_cmd(SD_CMD17, address, 0);
 	result = sd_get_response_R1();
 
 	if (0 != result) {
-		release(&sdcard_lock);
+		releasesleep(&sdcard_lock);
 		panic("sdcard: fail to read");
 	}
 
-	int timeout = 0xfff;
+	int timeout = 0xffffff;
 	while (--timeout) {
 		sd_read_data(&result, 1);
 		if (0xfe == result) break;
@@ -354,12 +364,12 @@ void sdcard_read_sector(uint8 *buf, int sectorno) {
 	if (0 == timeout) {
 		panic("sdcard: timeout waiting for reading");
 	}
-	sd_read_data(buf, BSIZE);
+	sd_read_data_dma(buf, BSIZE);
 	sd_read_data(dummy_crc, 2);
 
 	sd_end_cmd();
 
-	release(&sdcard_lock);
+	releasesleep(&sdcard_lock);
 	// leave critical section!
 }
 
@@ -380,17 +390,17 @@ void sdcard_write_sector(uint8 *buf, int sectorno) {
 	}
 
 	// enter critical section!
-	acquire(&sdcard_lock);
+	acquiresleep(&sdcard_lock);
 
 	sd_send_cmd(SD_CMD24, address, 0);
 	if (0 != sd_get_response_R1()) {
-		release(&sdcard_lock);
+		releasesleep(&sdcard_lock);
 		panic("sdcard: fail to write");
 	}
 
 	// sending data to be written 
 	sd_write_data(&START_BLOCK_TOKEN, 1);
-	sd_write_data(buf, BSIZE);
+	sd_write_data_dma(buf, BSIZE);
 	sd_write_data(dummy_crc, 2);
 
 	// waiting for sdcard to finish programming 
@@ -403,7 +413,7 @@ void sdcard_write_sector(uint8 *buf, int sectorno) {
 		}
 	}
 	if (0 == timeout) {
-		release(&sdcard_lock);
+		releasesleep(&sdcard_lock);
 		panic("sdcard: invalid response token");
 	}
 	
@@ -413,7 +423,7 @@ void sdcard_write_sector(uint8 *buf, int sectorno) {
 		if (0 != result) break;
 	}
 	if (0 == timeout) {
-		release(&sdcard_lock);
+		releasesleep(&sdcard_lock);
 		panic("sdcard: timeout waiting for response");
 	}
 	sd_end_cmd();
@@ -425,13 +435,13 @@ void sdcard_write_sector(uint8 *buf, int sectorno) {
 	sd_read_data(&error_code, 1);
 	sd_end_cmd();
 	if (0 != result || 0 != error_code) {
-		release(&sdcard_lock);
+		releasesleep(&sdcard_lock);
 		printf("result: %x\n", result);
 		printf("error_code: %x\n", error_code);
 		panic("sdcard: an error occurs when writing");
 	}
 
-	release(&sdcard_lock);
+	releasesleep(&sdcard_lock);
 	// leave critical section!
 }
 

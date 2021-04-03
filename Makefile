@@ -1,5 +1,5 @@
-# platform	:= k210
-platform	:= qemu
+platform	:= k210
+#platform	:= qemu
 # mode := debug
 mode := release
 K=kernel
@@ -38,6 +38,7 @@ OBJS += \
   $K/logo.o \
   $K/disk.o \
   $K/fat32.o \
+  $K/plic.o \
   $K/console.o
 
 ifeq ($(platform), k210)
@@ -47,12 +48,13 @@ OBJS += \
   $K/fpioa.o \
   $K/utils.o \
   $K/sdcard.o \
+  $K/dmac.o \
+  $K/sysctl.o \
 
 else
 OBJS += \
   $K/virtio_disk.o \
-  $K/plic.o \
-  $K/uart.o \
+  #$K/uart.o \
 
 endif
 
@@ -108,11 +110,14 @@ build: $T/kernel userprogs
 
 # Compile RustSBI
 RUSTSBI:
+ifeq ($(platform), k210)
 	@cd ./bootloader/SBI/rustsbi-k210 && cargo build && cp ./target/riscv64gc-unknown-none-elf/debug/rustsbi-k210 ../sbi-k210
 	@$(OBJDUMP) -S ./bootloader/SBI/sbi-k210 > $T/rustsbi-k210.asm
+else
 	@cd ./bootloader/SBI/rustsbi-qemu && cargo build && cp ./target/riscv64gc-unknown-none-elf/debug/rustsbi-qemu ../sbi-qemu
 	@$(OBJDUMP) -S ./bootloader/SBI/sbi-qemu > $T/rustsbi-qemu.asm
-	
+endif
+
 rustsbi-clean:
 	@cd ./bootloader/SBI/rustsbi-k210 && cargo clean
 	@cd ./bootloader/SBI/rustsbi-qemu && cargo clean
@@ -125,7 +130,12 @@ ifndef CPUS
 CPUS := 2
 endif
 
-QEMUOPTS = -machine virt -bios $(RUSTSBI) -kernel $T/kernel -m 128M -smp $(CPUS) -nographic
+QEMUOPTS = -machine virt -kernel $T/kernel -m 128M -nographic
+
+# use multi-core 
+QEMUOPTS += -smp $(CPUS)
+
+QEMUOPTS += -bios $(RUSTSBI)
 
 # import virtual disk image
 QEMUOPTS += -drive file=fs.img,if=none,format=raw,id=x0 
@@ -189,7 +199,9 @@ UPROGS=\
 	$U/_xargs\
 	$U/_sleep\
 	$U/_find\
-	$U/_rm
+	$U/_rm\
+	$U/_wc\
+	$U/_trace
 
 	# $U/_forktest\
 	# $U/_ln\
@@ -197,7 +209,6 @@ UPROGS=\
 	# $U/_stressfs\
 	# $U/_usertests\
 	# $U/_grind\
-	# $U/_wc\
 	# $U/_zombie\
 
 userprogs: $(UPROGS)

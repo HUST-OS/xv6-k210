@@ -90,6 +90,7 @@ int             dirnext(struct file *f, uint64 addr);
 void*           kalloc(void);
 void            kfree(void *);
 void            kinit(void);
+uint64          freemem_amount(void);
 
 // log.c
 // void            initlog(int, struct superblock*);

@@ -50,8 +50,12 @@ int exec(char *path, char **argv)
   pagetable_t pagetable = 0, oldpagetable;
   struct proc *p = myproc();
 
-  if((ep = ename(path)) == 0)
+  if((ep = ename(path)) == 0) {
+    #ifdef DEBUG
+    printf("[exec] %s not found\n", path);
+    #endif
     return -1;
+  }
   elock(ep);
 
   // Check ELF header
@@ -144,6 +148,9 @@ int exec(char *path, char **argv)
   return argc; // this ends up in a0, the first argument to main(argc, argv)
 
  bad:
+  #ifdef DEBUG
+  printf("[exec] reach bad\n");
+  #endif
   if(pagetable)
     proc_freepagetable(pagetable, sz);
   if(ep){

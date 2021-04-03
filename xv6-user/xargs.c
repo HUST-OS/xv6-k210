@@ -28,7 +28,7 @@ int readline(int fd, char *buf, int len)
 int main(int argc, char *argv[])
 {
     if (argc < 2) {
-        fprintf(2, "Usage: xargs COMMAND [INITIAL-ARGS]...");
+        fprintf(2, "Usage: xargs COMMAND [INITIAL-ARGS]...\n");
         exit(-1);
     }
     char *argvs[MAXARG];
@@ -42,6 +42,8 @@ int main(int argc, char *argv[])
         argvs[i] = 0;
         if (fork() == 0) {
             exec(argv[1], argvs);
+            printf("xargs: exec %s fail\n", argv[1]);
+            exit(0);
         }
         wait(0);
     } else {
@@ -50,6 +52,8 @@ int main(int argc, char *argv[])
         do {
             if (fork() == 0) {
                 exec(argv[1], argvs);
+                printf("xargs: exec %s fail\n", argv[1]);
+                exit(0);
             }
             wait(0);
         } while (readline(0, buf, 128) != 0);

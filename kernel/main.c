@@ -9,6 +9,7 @@
 #include "include/sbi.h"
 #include "include/sdcard.h"
 #include "include/fpioa.h"
+#include "include/dmac.h"
 
 static inline void inithartid(unsigned long hartid) {
   asm volatile("mv tp, %0" : : "r" (hartid & 0x1));
@@ -35,12 +36,11 @@ main(unsigned long hartid, unsigned long dtb_pa)
     trapinithart();  // install kernel trap vector
     timerinit();     // set up timer interrupt handler
     procinit();
-    #ifndef QEMU
-    fpioa_pin_init();
-    device_init(dtb_pa, hartid);
-    #else
     plicinit();
     plicinithart();
+    #ifndef QEMU
+    fpioa_pin_init();
+    dmac_init();
     #endif 
     disk_init();
     binit();         // buffer cache
@@ -67,11 +67,7 @@ main(unsigned long hartid, unsigned long dtb_pa)
     kvminithart();
     trapinithart();
     timerinit();     // set up timer interrupt handler
-    #ifndef QEMU
-    device_init(dtb_pa, hartid);
-    #else
     plicinithart();  // ask PLIC for device interrupts
-    #endif
     printf("hart 1 init done\n");
   }
   scheduler();

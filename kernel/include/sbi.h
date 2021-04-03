@@ -94,4 +94,9 @@ static inline void sbi_set_extern_interrupt(unsigned long func_pointer) {
 	asm volatile("mv a6, %0" : : "r" (0x210));
 	SBI_CALL_1(0x0A000004, func_pointer);
 }
+
+static inline void sbi_set_mie(void) {
+	SBI_CALL_0(0x0A000005);
+}
+
 #endif

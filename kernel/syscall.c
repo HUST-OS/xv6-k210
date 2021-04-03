@@ -7,6 +7,7 @@
 #include "include/proc.h"
 #include "include/syscall.h"
 #include "include/defs.h"
+#include "include/sysinfo.h"
 
 
 // Fetch the uint64 at addr from the current process.
@@ -108,6 +109,8 @@ extern uint64 sys_dev(void);
 extern uint64 sys_dir(void);
 extern uint64 sys_getcwd(void);
 extern uint64 sys_remove(void);
+extern uint64 sys_trace(void);
+extern uint64 sys_sysinfo(void);
 
 static uint64 (*syscalls[])(void) = {
 [SYS_fork]    sys_fork,
@@ -133,19 +136,52 @@ static uint64 (*syscalls[])(void) = {
 [SYS_dir]     sys_dir,
 [SYS_getcwd]  sys_getcwd,
 [SYS_remove]  sys_remove,
+[SYS_trace]   sys_trace,
+[SYS_sysinfo] sys_sysinfo,
 };
 
 void
 syscall(void)
 {
+  static char *sysnames[] = {
+    [SYS_fork]        "fork",
+    [SYS_exit]        "exit",
+    [SYS_wait]        "wait",
+    [SYS_pipe]        "pipe",
+    [SYS_read]        "read",
+    [SYS_kill]        "kill",
+    [SYS_exec]        "exec",
+    [SYS_fstat]       "fstat",
+    [SYS_chdir]       "chdir",
+    [SYS_dup]         "dup",
+    [SYS_getpid]      "getpid",
+    [SYS_sbrk]        "sbrk",
+    [SYS_sleep]       "sleep",
+    [SYS_uptime]      "uptime",
+    [SYS_open]        "open",
+    [SYS_write]       "write",
+    [SYS_mkdir]       "mkdir",
+    [SYS_close]       "close",
+    [SYS_test_proc]   "test_proc",
+    [SYS_dev]         "dev",
+    [SYS_dir]         "dir",
+    [SYS_getcwd]      "getcwd",
+    [SYS_remove]      "remove",
+    [SYS_trace]       "trace",
+    [SYS_sysinfo]     "sysinfo",
+  };
   int num;
   struct proc *p = myproc();
 
   num = p->trapframe->a7;
   if(num > 0 && num < NELEM(syscalls) && syscalls[num]) {
     p->trapframe->a0 = syscalls[num]();
+        // trace
+    if ((p->tmask & (1 << num)) != 0) {
+      printf("pid %d: syscall %s -> %d\n", p->pid, sysnames[num], p->trapframe->a0);
+    }
   } else {
-    printf("%d %s: unknown sys call %d\n",
+    printf("pid %d %s: unknown sys call %d\n",
             p->pid, p->name, num);
     p->trapframe->a0 = -1;
   }
@@ -157,4 +193,25 @@ sys_test_proc(void) {
     argint(0, &n);
     printf("hello world from proc %d, hart %d, arg %d\n", myproc()->pid, r_tp(), n);
     return 0;
+}
+
+uint64
+sys_sysinfo(void)
+{
+  uint64 addr;
+  struct proc *p = myproc();
+
+  if (argaddr(0, &addr) < 0) {
+    return -1;
+  }
+
+  struct sysinfo info;
+  info.freemem = freemem_amount();
+  info.nproc = procnum();
+
+  if (copyout(p->pagetable, addr, (char *)&info, sizeof(info)) < 0) {
+    return -1;
+  }
+
+  return 0;
 }

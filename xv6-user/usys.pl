@@ -38,3 +38,5 @@ entry("dev");
 entry("dir");
 entry("getcwd");
 entry("remove");
+entry("trace");
+entry("sysinfo");
