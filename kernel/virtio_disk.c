@@ -16,6 +16,8 @@
 #include "include/sleeplock.h"
 #include "include/buf.h"
 #include "include/virtio.h"
+#include "include/proc.h"
+#include "include/vm.h"
 
 
 // the address of virtio mmio register r.
@@ -207,7 +209,7 @@ virtio_disk_rw(struct buf *b, int write)
 
   // buf0 is on a kernel stack, which is not direct mapped,
   // thus the call to kvmpa().
-  disk.desc[idx[0]].addr = (uint64) kvmpa((uint64) &buf0);
+  disk.desc[idx[0]].addr = (uint64) kwalkaddr(myproc()->kpagetable, (uint64) &buf0);
   disk.desc[idx[0]].len = sizeof(buf0);
   disk.desc[idx[0]].flags = VRING_DESC_F_NEXT;
   disk.desc[idx[0]].next = idx[1];

@@ -130,7 +130,7 @@ ifndef CPUS
 CPUS := 2
 endif
 
-QEMUOPTS = -machine virt -kernel $T/kernel -m 128M -nographic
+QEMUOPTS = -machine virt -kernel $T/kernel -m 8M -nographic
 
 # use multi-core 
 QEMUOPTS += -smp $(CPUS)
@@ -201,11 +201,11 @@ UPROGS=\
 	$U/_find\
 	$U/_rm\
 	$U/_wc\
+	$U/_test\
 	$U/_trace
 
 	# $U/_forktest\
 	# $U/_ln\
-	# $U/_test\
 	# $U/_stressfs\
 	# $U/_usertests\
 	# $U/_grind\

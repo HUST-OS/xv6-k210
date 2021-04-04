@@ -5,6 +5,7 @@
 #include "include/elf.h"
 #include "include/riscv.h"
 #include "include/defs.h"
+#include "include/vm.h"
 
 /*
  * the kernel's page table.
@@ -73,7 +74,7 @@ kvminit()
   #endif
   
   // map rustsbi
-  kvmmap(RUSTSBI_BASE, RUSTSBI_BASE, KERNBASE - RUSTSBI_BASE, PTE_R | PTE_X);
+  // kvmmap(RUSTSBI_BASE, RUSTSBI_BASE, KERNBASE - RUSTSBI_BASE, PTE_R | PTE_X);
   // map kernel text executable and read-only.
   kvmmap(KERNBASE, KERNBASE, (uint64)etext - KERNBASE, PTE_R | PTE_X);
   // map kernel data and the physical RAM we'll make use of.
@@ -174,11 +175,17 @@ kvmmap(uint64 va, uint64 pa, uint64 sz, int perm)
 uint64
 kvmpa(uint64 va)
 {
+  return kwalkaddr(kernel_pagetable, va);
+}
+
+uint64
+kwalkaddr(pagetable_t kpt, uint64 va)
+{
   uint64 off = va % PGSIZE;
   pte_t *pte;
   uint64 pa;
   
-  pte = walk(kernel_pagetable, va, 0);
+  pte = walk(kpt, va, 0);
   if(pte == 0)
     panic("kvmpa");
   if((*pte & PTE_V) == 0)
@@ -491,3 +498,118 @@ copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max)
     return -1;
   }
 }
+
+// initialize kernel pagetable for each process.
+pagetable_t
+proc_kpagetable()
+{
+  pagetable_t kpt = (pagetable_t) kalloc();
+  memset(kpt, 0, PGSIZE);
+
+  if (mappages(kpt, UART, PGSIZE, UART, PTE_R | PTE_W) != 0) { goto fail; }
+  #ifdef QEMU
+  if (mappages(kpt, VIRTIO0, PGSIZE, VIRTIO0, PTE_R | PTE_W) != 0) { goto fail; }
+  #endif
+  if (mappages(kpt, CLINT, 0x10000, CLINT, PTE_R | PTE_W) != 0) { goto fail; }
+  if (mappages(kpt, PLIC, 0x400000, PLIC, PTE_R | PTE_W) != 0) { goto fail; }
+  #ifndef QEMU
+    // GPIOHS
+  if (mappages(kpt, GPIOHS, 0x1000, GPIOHS, PTE_R | PTE_W) != 0) { goto fail; }
+
+  // DMAC
+  if (mappages(kpt, DMAC, 0x200000, DMAC, PTE_R | PTE_W) != 0) { goto fail; }
+
+  // GPIO
+  if (mappages(kpt, GPIO, 0x1000, GPIO, PTE_R | PTE_W) != 0) { goto fail; }
+
+  // SPI_SLAVE
+  if (mappages(kpt, SPI_SLAVE, 0x1000, SPI_SLAVE, PTE_R | PTE_W) != 0) { goto fail; }
+
+  // FPIOA
+  if (mappages(kpt, FPIOA, 0x1000, FPIOA, PTE_R | PTE_W) != 0) { goto fail; }
+
+  // SPI0
+  if (mappages(kpt, SPI0, 0x1000, SPI0, PTE_R | PTE_W) != 0) { goto fail; }
+
+  // SPI1
+  if (mappages(kpt, SPI1, 0x1000, SPI1, PTE_R | PTE_W) != 0) { goto fail; }
+
+  // SPI2
+  if (mappages(kpt, SPI2, 0x1000, SPI2, PTE_R | PTE_W) != 0) { goto fail; }
+
+  // SYSCTL
+  if (mappages(kpt, SYSCTL, 0x10000, SYSCTL, PTE_R | PTE_W) != 0) { goto fail; }
+  #endif
+
+  if (mappages(kpt, KERNBASE, (uint64)etext - KERNBASE, KERNBASE, PTE_R | PTE_X) != 0) { goto fail; }
+  if (mappages(kpt, (uint64)etext, PHYSTOP - (uint64)etext, (uint64)etext, PTE_R | PTE_W) != 0) { goto fail; }
+  if (mappages(kpt, TRAMPOLINE, PGSIZE, (uint64)trampoline, PTE_R | PTE_X) != 0) { goto fail; }
+
+  char *pstack = kalloc();
+  if(pstack == 0)
+    panic("kalloc");
+  uint64 vstack = KSTACK(0);
+  if (mappages(kpt, vstack, PGSIZE, (uint64)pstack, PTE_R | PTE_W) != 0) { goto fail; }
+      
+  // map the process's kernel stack
+  // pte_t *pte = walk(kernel_pagetable, vstack, 0);
+  // if (pte == 0 || mappages(kpt, vstack, PGSIZE, PTE2PA(*pte), PTE_R | PTE_W) != 0) {
+  //   goto fail;
+  // }
+
+  return kpt;
+
+fail:
+  kvmfree(kpt);
+  return 0;
+}
+
+// Remove npages of mappings starting from va. va must be
+// page-aligned. The mappings must exist.
+// Optionally free the physical memory.
+void
+kvmunmap(pagetable_t kpt, uint64 va, uint64 npages, int do_free)
+{
+  uint64 a;
+  pte_t *pte;
+
+  if((va % PGSIZE) != 0)
+    panic("kvmunmap: not aligned");
+
+  for(a = va; a < va + npages*PGSIZE; a += PGSIZE){
+    if((pte = walk(kpt, a, 0)) == 0)
+      panic("kvmunmap: walk");
+    if((*pte & PTE_V) == 0)
+      panic("kvmunmap: not mapped");
+    if(PTE_FLAGS(*pte) == PTE_V)
+      panic("kvmunmap: not a leaf");
+    if(do_free){
+      uint64 pa = PTE2PA(*pte);
+      kfree((void*)pa);
+    }
+    *pte = 0;
+  }
+}
+
+void
+kfreewalk(pagetable_t kpt)
+{
+  for (int i = 0; i < 512; i++) {
+    pte_t pte = kpt[i];
+    if ((pte & PTE_V) && (pte & (PTE_R|PTE_W|PTE_X)) == 0) {
+      kfreewalk((pagetable_t) PTE2PA(pte));
+      kpt[i] = 0;
+    } else if (pte & PTE_V) {
+      break;
+    }
+  }
+  kfree((void *) kpt);
+}
+
+void
+kvmfree(pagetable_t kpagetable)
+{
+  kvmunmap(kpagetable, KSTACK(0), 1, 1);
+  kfreewalk(kpagetable);
+}
+
