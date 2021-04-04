@@ -27,7 +27,10 @@ void
 kinit()
 {
   initlock(&kmem.lock, "kmem");
-  // printf("kernel_end: %p, phystop: %p\n", kernel_end, (void*)PHYSTOP);
+  kmem.freelist = 0;
+  #ifdef DEBUG
+  printf("kernel_end: %p, phystop: %p\n", kernel_end, (void*)PHYSTOP);
+  #endif
   freerange(kernel_end, (void*)PHYSTOP);
   #ifdef DEBUG
   printf("kinit\n");

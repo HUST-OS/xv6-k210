@@ -16,7 +16,7 @@
 #include "include/types.h"
 #include "include/encoding.h"
 #include "include/sysctl.h"
-#include "include/printf.h"
+#include "include/memlayout.h"
 
 #define SYSCTRL_CLOCK_FREQ_IN0 (26000000UL)
 
@@ -46,7 +46,7 @@ const uint8 get_source_aclk[] =
         [1] = SYSCTL_SOURCE_PLL0,
 };
 
-volatile sysctl_t *const sysctl = (volatile sysctl_t *)SYSCTL_BASE_ADDR;
+volatile sysctl_t *const sysctl = (volatile sysctl_t *)SYSCTL_V;
 
 uint32 sysctl_get_git_id(void)
 {

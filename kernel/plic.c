@@ -11,25 +11,9 @@
 // the riscv Platform Level Interrupt Controller (PLIC).
 //
 
-/*void*/
-/*plicinit(void)*/
-/*{*/
-  /*// set desired IRQ priorities non-zero (otherwise disabled).*/
-  /*#ifndef QEMU*/
-  /*writel(1, PLIC + IRQN_UARTHS_INTERRUPT * sizeof(uint32));*/
-  /*writel(1, PLIC + IRQN_DMA0_INTERRUPT * sizeof(uint32));*/
-  /*#else*/
-  /**(uint32*)(PLIC + UART_IRQ*4) = 1;*/
-  /**(uint32*)(PLIC + DISK_IRQ*4) = 1;*/
-  /*#endif*/
-  /*#ifdef DEBUG*/
-  /*printf("plicinit\n");*/
-  /*#endif*/
-/*}*/
-
 void plicinit(void) {
-	writed(1, PLIC + DISK_IRQ * sizeof(uint32));
-	writed(1, PLIC + UART_IRQ * sizeof(uint32));
+	writed(1, PLIC_V + DISK_IRQ * sizeof(uint32));
+	writed(1, PLIC_V + UART_IRQ * sizeof(uint32));
 
 	#ifdef DEBUG 
 	printf("plicinit\n");

@@ -5,6 +5,8 @@
 #include "include/riscv.h"
 #include "include/defs.h"
 #include "include/sysctl.h"
+#include "include/memlayout.h"
+
 /* Copyright 2018 Canaan Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,7 +21,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-volatile fpioa_t *const fpioa = (volatile fpioa_t *)FPIOA_BASE_ADDR;
+volatile fpioa_t *const fpioa = (volatile fpioa_t *)FPIOA_V;
 
 /**
  * @brief      Internal used FPIOA function initialize cell

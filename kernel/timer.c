@@ -7,7 +7,6 @@
 #include "include/defs.h"
 #include "include/sbi.h"
 #include "include/memlayout.h"
-#include "include/uarths.h"
 
 uint ticks;
 

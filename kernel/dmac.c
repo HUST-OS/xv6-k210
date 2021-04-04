@@ -24,7 +24,7 @@
 #include "include/sleeplock.h"
 #include "include/proc.h"
 
-volatile dmac_t *const dmac = (dmac_t *)DMAC_BASE_ADDR;
+volatile dmac_t *const dmac = (dmac_t *)DMAC_V;
 
 static int is_memory(uintptr_t address)
 {
@@ -336,7 +336,7 @@ int dmac_is_idle(dmac_channel_number_t channel_num)
         return 1;
 }
 
-static void *dmac_chan = (void *) DMAC_BASE_ADDR;
+static void *dmac_chan = (void *) DMAC_V;
 
 void dmac_wait_idle(dmac_channel_number_t channel_num)
 {

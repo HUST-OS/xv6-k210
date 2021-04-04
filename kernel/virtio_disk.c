@@ -21,7 +21,7 @@
 
 
 // the address of virtio mmio register r.
-#define R(r) ((volatile uint32 *)(VIRTIO0 + (r)))
+#define R(r) ((volatile uint32 *)(VIRTIO0_V + (r)))
 
 static struct disk {
  // memory for virtio descriptors &c for queue 0.

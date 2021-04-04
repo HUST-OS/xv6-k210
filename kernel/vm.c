@@ -26,50 +26,46 @@ kvminit()
   memset(kernel_pagetable, 0, PGSIZE);
 
   // uart registers
-  /*#ifdef QEMU*/
-  /*kvmmap(UART0, UART0, PGSIZE, PTE_R | PTE_W);*/
-  /*#else*/
-  /*kvmmap(UARTHS, UARTHS, PGSIZE, PTE_R | PTE_W);*/
-  /*#endif*/
-  kvmmap(UART, UART, PGSIZE, PTE_R | PTE_W);
+  kvmmap(UART_V, UART, PGSIZE, PTE_R | PTE_W);
   
   #ifdef QEMU
   // virtio mmio disk interface
-  kvmmap(VIRTIO0, VIRTIO0, PGSIZE, PTE_R | PTE_W);
+  kvmmap(VIRTIO0_V, VIRTIO0, PGSIZE, PTE_R | PTE_W);
   #endif
   // CLINT
-  kvmmap(CLINT, CLINT, 0x10000, PTE_R | PTE_W);
+  kvmmap(CLINT_V, CLINT, 0x10000, PTE_R | PTE_W);
 
   // PLIC
-  kvmmap(PLIC, PLIC, 0x400000, PTE_R | PTE_W);
+  kvmmap(PLIC_V, PLIC, 0x4000, PTE_R | PTE_W);
+  kvmmap(PLIC_V + 0x200000, PLIC + 0x200000, 0x4000, PTE_R | PTE_W);
 
   #ifndef QEMU
   // GPIOHS
-  kvmmap(GPIOHS, GPIOHS, 0x1000, PTE_R | PTE_W);
+  kvmmap(GPIOHS_V, GPIOHS, 0x1000, PTE_R | PTE_W);
 
   // DMAC
-  kvmmap(DMAC, DMAC, 0x200000, PTE_R | PTE_W);
+  kvmmap(DMAC_V, DMAC, 0x1000, PTE_R | PTE_W);
 
   // GPIO
-  kvmmap(GPIO, GPIO, 0x1000, PTE_R | PTE_W);
+  // kvmmap(GPIO_V, GPIO, 0x1000, PTE_R | PTE_W);
 
   // SPI_SLAVE
-  kvmmap(SPI_SLAVE, SPI_SLAVE, 0x1000, PTE_R | PTE_W);
+  kvmmap(SPI_SLAVE_V, SPI_SLAVE, 0x1000, PTE_R | PTE_W);
 
   // FPIOA
-  kvmmap(FPIOA, FPIOA, 0x1000, PTE_R | PTE_W);
+  kvmmap(FPIOA_V, FPIOA, 0x1000, PTE_R | PTE_W);
 
   // SPI0
-  kvmmap(SPI0, SPI0, 0x1000, PTE_R | PTE_W);
+  kvmmap(SPI0_V, SPI0, 0x1000, PTE_R | PTE_W);
 
   // SPI1
-  kvmmap(SPI1, SPI1, 0x1000, PTE_R | PTE_W);
+  kvmmap(SPI1_V, SPI1, 0x1000, PTE_R | PTE_W);
 
   // SPI2
-  kvmmap(SPI2, SPI2, 0x1000, PTE_R | PTE_W);
+  kvmmap(SPI2_V, SPI2, 0x1000, PTE_R | PTE_W);
 
   // SYSCTL
-  kvmmap(SYSCTL, SYSCTL, 0x10000, PTE_R | PTE_W);
+  kvmmap(SYSCTL_V, SYSCTL, 0x1000, PTE_R | PTE_W);
   
   #endif
   
@@ -82,7 +78,6 @@ kvminit()
   // map the trampoline for trap entry/exit to
   // the highest virtual address in the kernel.
   kvmmap(TRAMPOLINE, (uint64)trampoline, PGSIZE, PTE_R | PTE_X);
-  // kvmmap(TRAMPOLINE, (uint64)trampoline, PGSIZE, PTE_R | PTE_X);
 
   #ifdef DEBUG
   printf("kvminit\n");
@@ -504,59 +499,17 @@ pagetable_t
 proc_kpagetable()
 {
   pagetable_t kpt = (pagetable_t) kalloc();
-  memset(kpt, 0, PGSIZE);
+  if (kpt == 0)
+    return 0;
+  memmove(kpt, kernel_pagetable, PGSIZE);
 
-  if (mappages(kpt, UART, PGSIZE, UART, PTE_R | PTE_W) != 0) { goto fail; }
-  #ifdef QEMU
-  if (mappages(kpt, VIRTIO0, PGSIZE, VIRTIO0, PTE_R | PTE_W) != 0) { goto fail; }
-  #endif
-  if (mappages(kpt, CLINT, 0x10000, CLINT, PTE_R | PTE_W) != 0) { goto fail; }
-  if (mappages(kpt, PLIC, 0x400000, PLIC, PTE_R | PTE_W) != 0) { goto fail; }
-  #ifndef QEMU
-    // GPIOHS
-  if (mappages(kpt, GPIOHS, 0x1000, GPIOHS, PTE_R | PTE_W) != 0) { goto fail; }
-
-  // DMAC
-  if (mappages(kpt, DMAC, 0x200000, DMAC, PTE_R | PTE_W) != 0) { goto fail; }
-
-  // GPIO
-  if (mappages(kpt, GPIO, 0x1000, GPIO, PTE_R | PTE_W) != 0) { goto fail; }
-
-  // SPI_SLAVE
-  if (mappages(kpt, SPI_SLAVE, 0x1000, SPI_SLAVE, PTE_R | PTE_W) != 0) { goto fail; }
-
-  // FPIOA
-  if (mappages(kpt, FPIOA, 0x1000, FPIOA, PTE_R | PTE_W) != 0) { goto fail; }
-
-  // SPI0
-  if (mappages(kpt, SPI0, 0x1000, SPI0, PTE_R | PTE_W) != 0) { goto fail; }
-
-  // SPI1
-  if (mappages(kpt, SPI1, 0x1000, SPI1, PTE_R | PTE_W) != 0) { goto fail; }
-
-  // SPI2
-  if (mappages(kpt, SPI2, 0x1000, SPI2, PTE_R | PTE_W) != 0) { goto fail; }
-
-  // SYSCTL
-  if (mappages(kpt, SYSCTL, 0x10000, SYSCTL, PTE_R | PTE_W) != 0) { goto fail; }
-  #endif
-
-  if (mappages(kpt, KERNBASE, (uint64)etext - KERNBASE, KERNBASE, PTE_R | PTE_X) != 0) { goto fail; }
-  if (mappages(kpt, (uint64)etext, PHYSTOP - (uint64)etext, (uint64)etext, PTE_R | PTE_W) != 0) { goto fail; }
-  if (mappages(kpt, TRAMPOLINE, PGSIZE, (uint64)trampoline, PTE_R | PTE_X) != 0) { goto fail; }
-
+  // remap stack and trampoline, because they share the same page table of level 1 and 0
   char *pstack = kalloc();
   if(pstack == 0)
-    panic("kalloc");
-  uint64 vstack = KSTACK(0);
-  if (mappages(kpt, vstack, PGSIZE, (uint64)pstack, PTE_R | PTE_W) != 0) { goto fail; }
-      
-  // map the process's kernel stack
-  // pte_t *pte = walk(kernel_pagetable, vstack, 0);
-  // if (pte == 0 || mappages(kpt, vstack, PGSIZE, PTE2PA(*pte), PTE_R | PTE_W) != 0) {
-  //   goto fail;
-  // }
-
+    goto fail;
+  if (mappages(kpt, VKSTACK, PGSIZE, (uint64)pstack, PTE_R | PTE_W) != 0)
+    goto fail;
+  
   return kpt;
 
 fail:
@@ -591,6 +544,7 @@ kvmunmap(pagetable_t kpt, uint64 va, uint64 npages, int do_free)
   }
 }
 
+// only free page table, not physical pages
 void
 kfreewalk(pagetable_t kpt)
 {
@@ -607,9 +561,18 @@ kfreewalk(pagetable_t kpt)
 }
 
 void
-kvmfree(pagetable_t kpagetable)
+kvmfree(pagetable_t kpt)
 {
-  kvmunmap(kpagetable, KSTACK(0), 1, 1);
-  kfreewalk(kpagetable);
+  kvmunmap(kpt, VKSTACK, 1, 1);
+  pte_t pte = kpt[PX(2, VKSTACK)];
+  if ((pte & PTE_V) && (pte & (PTE_R|PTE_W|PTE_X)) == 0) {
+    kfreewalk((pagetable_t) PTE2PA(pte));
+  }
+  for (int i = 0; i < PX(2, MAXUVA); i++) {
+    pte = kpt[i];
+    if ((pte & PTE_V) && (pte & (PTE_R|PTE_W|PTE_X)) == 0) {
+      kfreewalk((pagetable_t) PTE2PA(pte));
+    }
+  }
+  kfree(kpt);
 }
-

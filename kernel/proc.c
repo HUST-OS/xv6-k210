@@ -148,7 +148,7 @@ found:
     return 0;
   }
 
-  p->kstack = KSTACK(0);
+  p->kstack = VKSTACK;
 
   // Set up new context to start executing at forkret,
   // which returns to user space.
@@ -283,7 +283,6 @@ userinit(void)
   
   // allocate one user page and copy init's instructions
   // and data into it.
-  // uvminit(p->pagetable, initcode, sizeof(initcode));
   uvminit(p->pagetable, initcode, sizeof(initcode));
   p->sz = PGSIZE;
 
@@ -292,7 +291,6 @@ userinit(void)
   p->trapframe->sp = PGSIZE;  // user stack pointer
 
   safestrcpy(p->name, "initcode", sizeof(p->name));
-  p->cwd = ename("/");
 
   p->state = RUNNABLE;
 
@@ -623,6 +621,7 @@ forkret(void)
     // printf("[forkret]first scheduling\n");
     first = 0;
     fat32_init();
+    myproc()->cwd = ename("/");
   }
   // printf("[forket]call usertrapret\n");
   usertrapret();
