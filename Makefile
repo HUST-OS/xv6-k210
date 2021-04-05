@@ -35,7 +35,6 @@ OBJS += \
   $K/sysfile.o \
   $K/kernelvec.o \
   $K/timer.o \
-  $K/logo.o \
   $K/disk.o \
   $K/fat32.o \
   $K/plic.o \

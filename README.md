@@ -100,8 +100,8 @@ In addition, `shell` supports some shortcut keys as below:
 - [x] Process management
 - [x] File system
 - [x] User program
-- [ ] Steady keyboard input(k210)
+- [X] Steady keyboard input(k210)
 
 ## TODO
-Keyboard input on k210 platform.  
+Fix the bugs of U-mode exception caught by RUSTSBI.
 

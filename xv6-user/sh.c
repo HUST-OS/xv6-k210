@@ -303,11 +303,13 @@ main(void)
           fprintf(2, "Usage: export [-p] [NAME=VALUE]\n");
         else if(export(ecmd->argv) < 0)
           fprintf(2, "export failed\n");
+        free(cmd);
         continue;
       }
       else if(fork1() == 0) 
         runcmd(cmd);
       wait(0);
+      free(cmd);
     }
   }
   exit(0);

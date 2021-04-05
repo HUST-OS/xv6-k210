@@ -5,28 +5,29 @@
 #include "include/spinlock.h"
 #include "include/proc.h"
 #include "include/sbi.h"
-#include "include/defs.h"
 #include "include/plic.h"
-#include "include/dmac.h"
-
-struct spinlock tickslock;
+#include "include/trap.h"
+#include "include/syscall.h"
+#include "include/printf.h"
+#include "include/console.h"
+#include "include/timer.h"
+#include "include/disk.h"
 
 extern char trampoline[], uservec[], userret[];
 
 // in kernelvec.S, calls kerneltrap().
-void kernelvec();
+extern void kernelvec();
 
 int devintr();
-void trapframedump(struct trapframe *tf);
 
-void
-trapinit(void)
-{
-  initlock(&tickslock, "time");
-  #ifdef DEBUG
-  printf("trapinit\n");
-  #endif
-}
+// void
+// trapinit(void)
+// {
+//   initlock(&tickslock, "time");
+//   #ifdef DEBUG
+//   printf("trapinit\n");
+//   #endif
+// }
 
 // set up to take exceptions and traps while in the kernel.
 void
@@ -34,7 +35,9 @@ trapinithart(void)
 {
   w_stvec((uint64)kernelvec);
   w_sstatus(r_sstatus() | SSTATUS_SIE);
-  w_sie(r_sie() | SIE_SEIE | SIE_SSIE);
+  // enable supervisor-mode timer interrupts.
+  w_sie(r_sie() | SIE_SEIE | SIE_SSIE | SIE_STIE);
+  set_next_timeout();
   #ifdef DEBUG
   printf("trapinithart\n");
   #endif
@@ -157,6 +160,10 @@ kerneltrap() {
   if((which_dev = devintr()) == 0){
     printf("scause %p\n", scause);
     printf("sepc=%p stval=%p hart=%d\n", r_sepc(), r_stval(), r_tp());
+    struct proc *p = myproc();
+    if (p != 0) {
+      printf("pid: %d, name: %s\n", p->pid, p->name);
+    }
     panic("kerneltrap");
   }
   // printf("which_dev: %d\n", which_dev);

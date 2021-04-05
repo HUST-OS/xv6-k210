@@ -3,7 +3,6 @@
 #include "include/types.h"
 #include "include/fpioa.h"
 #include "include/riscv.h"
-#include "include/defs.h"
 #include "include/sysctl.h"
 #include "include/memlayout.h"
 

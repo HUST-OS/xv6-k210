@@ -1,13 +1,14 @@
 #include "include/param.h"
 #include "include/types.h"
 #include "include/riscv.h"
-#include "include/defs.h"
 #include "include/spinlock.h"
 #include "include/sleeplock.h"
 #include "include/buf.h"
 #include "include/proc.h"
 #include "include/stat.h"
 #include "include/fat32.h"
+#include "include/string.h"
+#include "include/printf.h"
 
 static struct {
     uint32  first_data_sec;
@@ -490,13 +491,13 @@ struct dirent *ealloc(struct dirent *dp, char *name, int dir)
         panic("ealloc not dir");
     }
     if (!(name = formatname(name))) {        // detect illegal character
-        return 0;
+        return NULL;
     }
     struct dirent *ep;
     uint off = 0;
     if ((ep = dirlookup(dp, name, &off)) != 0) {      // entry exists
         eput(ep);
-        return 0;
+        return NULL;
     }
     ep = eget(dp, name);
     if (ep->valid) {    // shouldn't be valid
@@ -792,7 +793,7 @@ struct dirent *dirlookup(struct dirent *dp, char *filename, uint *poff)
         *poff = off;
     }
     eput(ep);
-    return 0;
+    return NULL;
 }
 
 static char *skipelem(char *path, char *name)
@@ -800,7 +801,7 @@ static char *skipelem(char *path, char *name)
     while (*path == '/') {
         path++;
     }
-    if (*path == 0) { return 0; }
+    if (*path == 0) { return NULL; }
     char *s = path;
     while (*path != '/' && *path != 0) {
         path++;
@@ -832,7 +833,7 @@ static struct dirent *lookup_path(char *path, int parent, char *name)
         if (!(entry->attribute & ATTR_DIRECTORY)) {
             eunlock(entry);
             eput(entry);
-            return 0;
+            return NULL;
         }
         if (parent && *path == '\0') {
             eunlock(entry);
@@ -841,7 +842,7 @@ static struct dirent *lookup_path(char *path, int parent, char *name)
         if ((next = dirlookup(entry, name, 0)) == 0) {
             eunlock(entry);
             eput(entry);
-            return 0;
+            return NULL;
         }
         eunlock(entry);
         eput(entry);
@@ -849,7 +850,7 @@ static struct dirent *lookup_path(char *path, int parent, char *name)
     }
     if (parent) {
         eput(entry);
-        return 0;
+        return NULL;
     }
     return entry;
 }

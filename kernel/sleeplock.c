@@ -3,7 +3,6 @@
 
 #include "include/types.h"
 #include "include/riscv.h"
-#include "include/defs.h"
 #include "include/param.h"
 #include "include/memlayout.h"
 #include "include/spinlock.h"

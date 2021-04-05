@@ -7,12 +7,9 @@
 #include "include/types.h"
 #include "include/param.h"
 #include "include/riscv.h"
-#include "include/defs.h"
-#include "include/proc.h"
 #include "include/spinlock.h"
-#include "include/sleeplock.h"
-#include "include/file.h"
-#include "include/memlayout.h"
+#include "include/console.h"
+#include "include/printf.h"
 
 volatile int panicked = 0;
 
@@ -127,9 +124,22 @@ panic(char *s)
   printf("panic: ");
   printf(s);
   printf("\n");
+  backtrace();
   panicked = 1; // freeze uart output from other CPUs
   for(;;)
     ;
+}
+
+void backtrace()
+{
+  uint64 *fp = (uint64 *)r_fp();
+  uint64 *bottom = (uint64 *)PGROUNDUP((uint64)fp);
+  printf("backtrace:\n");
+  while (fp < bottom) {
+    uint64 ra = *(fp - 1);
+    printf("%p\n", ra - 4);
+    fp = (uint64 *)*(fp - 2);
+  }
 }
 
 void
@@ -138,3 +148,29 @@ printfinit(void)
   initlock(&pr.lock, "pr");
   pr.locking = 1;   // changed, used to be 1
 }
+
+#ifdef QEMU
+void print_logo() {
+    printf("  (`-.            (`-.                            .-')       ('-.    _   .-')\n");
+    printf(" ( OO ).        _(OO  )_                        .(  OO)    _(  OO)  ( '.( OO )_ \n");
+    printf("(_/.  \\_)-. ,--(_/   ,. \\  ,--.                (_)---\\_)  (,------.  ,--.   ,--.) ,--. ,--.  \n");
+    printf(" \\  `.'  /  \\   \\   /(__/ /  .'       .-')     '  .-.  '   |  .---'  |   `.'   |  |  | |  |   \n");
+    printf("  \\     /\\   \\   \\ /   / .  / -.    _(  OO)   ,|  | |  |   |  |      |         |  |  | | .-')\n");
+    printf("   \\   \\ |    \\   '   /, | .-.  '  (,------. (_|  | |  |  (|  '--.   |  |'.'|  |  |  |_|( OO )\n");
+    printf("  .'    \\_)    \\     /__)' \\  |  |  '------'   |  | |  |   |  .--'   |  |   |  |  |  | | `-' /\n");
+    printf(" /  .'.  \\      \\   /    \\  `'  /              '  '-'  '-. |  `---.  |  |   |  | ('  '-'(_.-'\n");
+    printf("'--'   '--'      `-'      `----'                `-----'--' `------'  `--'   `--'   `-----'\n");
+}
+#else
+void print_logo() {
+    printf(" (`-')           (`-')                   <-.(`-')\n");
+    printf(" (OO )_.->      _(OO )                    __( OO)\n");
+    printf(" (_| \\_)--.,--.(_/,-.\\  ,--.    (`-')    '-'. ,--.  .----.   .--.   .----.\n");
+    printf(" \\  `.'  / \\   \\ / (_/ /  .'    ( OO).-> |  .'   / \\_,-.  | /_  |  /  ..  \\\n");
+    printf("  \\    .')  \\   /   / .  / -.  (,------. |      /)    .' .'  |  | |  /  \\  .\n");
+    printf("  .'    \\  _ \\     /_)'  .-. \\  `------' |  .   '   .'  /_   |  | '  \\  /  '\n");
+    printf(" /  .'.  \\ \\-'\\   /   \\  `-' /           |  |\\   \\ |      |  |  |  \\  `'  /\n");
+    printf("`--'   '--'    `-'     `----'            `--' '--' `------'  `--'   `---''\n");
+}
+#endif
+  

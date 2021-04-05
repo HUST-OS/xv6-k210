@@ -4,16 +4,17 @@
 #include "include/types.h"
 #include "include/param.h"
 #include "include/riscv.h"
-#include "include/defs.h"
 #include "include/sbi.h"
-#include "include/memlayout.h"
+#include "include/spinlock.h"
+#include "include/timer.h"
+#include "include/printf.h"
+#include "include/proc.h"
 
+struct spinlock tickslock;
 uint ticks;
 
 void timerinit() {
-    // enable supervisor-mode timer interrupts.
-    w_sie(r_sie() | SIE_STIE);
-    set_next_timeout();
+    initlock(&tickslock, "time");
     #ifdef DEBUG
     printf("timerinit\n");
     #endif

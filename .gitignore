@@ -1,7 +1,13 @@
 tags
 fs.img
 xv6-user/_*
+xv6-user/*.d
+xv6-user/*.o
+xv6-user/*.asm
+xv6-user/*.sym
 kernel/*.back.c
 kernel/*.example.c
+kernel/*.d
+kernel/*.o
 kernel/include/*.back.h
 kernel/include/*.example.h

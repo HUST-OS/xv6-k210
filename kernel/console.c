@@ -18,7 +18,6 @@
 #include "include/file.h"
 #include "include/memlayout.h"
 #include "include/riscv.h"
-#include "include/defs.h"
 #include "include/proc.h"
 #include "include/sbi.h"
 

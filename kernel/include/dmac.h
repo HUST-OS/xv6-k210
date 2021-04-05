@@ -15,7 +15,7 @@
 #ifndef _DRIVER_DMAC_H
 #define _DRIVER_DMAC_H
 
-#include "platform.h"
+// #include "platform.h"
 #include "plic.h"
 
 #ifdef __cplusplus

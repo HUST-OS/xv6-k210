@@ -18,7 +18,7 @@
 // #include <stddef.h>
 // #include <stdint.h>
 #include "gpio_common.h"
-#include "platform.h"
+// #include "platform.h"
 #include "plic.h"
 #ifdef __cplusplus
 extern "C" {

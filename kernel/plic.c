@@ -3,9 +3,10 @@
 #include "include/param.h"
 #include "include/memlayout.h"
 #include "include/riscv.h"
-#include "include/defs.h"
 #include "include/sbi.h"
 #include "include/plic.h"
+#include "include/proc.h"
+#include "include/printf.h"
 
 //
 // the riscv Platform Level Interrupt Controller (PLIC).

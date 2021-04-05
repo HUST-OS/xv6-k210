@@ -2,13 +2,14 @@
 #include "include/param.h"
 #include "include/memlayout.h"
 #include "include/riscv.h"
-#include "include/defs.h"
 
 #include "include/buf.h"
-#include "include/sdcard.h"
 
 #ifndef QEMU
+#include "include/sdcard.h"
 #include "include/dmac.h"
+#else
+#include "include/virtio.h"
 #endif 
 
 void disk_init(void)

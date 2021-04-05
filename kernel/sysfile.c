@@ -7,16 +7,19 @@
 
 #include "include/types.h"
 #include "include/riscv.h"
-#include "include/defs.h"
 #include "include/param.h"
 #include "include/stat.h"
 #include "include/spinlock.h"
 #include "include/proc.h"
-// #include "include/fs.h"
 #include "include/sleeplock.h"
 #include "include/file.h"
+#include "include/pipe.h"
 #include "include/fcntl.h"
 #include "include/fat32.h"
+#include "include/syscall.h"
+#include "include/string.h"
+#include "include/printf.h"
+#include "include/vm.h"
 
 
 // Fetch the nth word-sized system call argument as a file descriptor
@@ -29,7 +32,7 @@ argfd(int n, int *pfd, struct file **pf)
 
   if(argint(n, &fd) < 0)
     return -1;
-  if(fd < 0 || fd >= NOFILE || (f=myproc()->ofile[fd]) == 0)
+  if(fd < 0 || fd >= NOFILE || (f=myproc()->ofile[fd]) == NULL)
     return -1;
   if(pfd)
     *pfd = fd;
@@ -124,14 +127,14 @@ create(char *path, short type)
   struct dirent *ep, *dp;
   char name[FAT32_MAX_FILENAME + 1];
 
-  if((dp = enameparent(path, name)) == 0)
-    return 0;
+  if((dp = enameparent(path, name)) == NULL)
+    return NULL;
 
   elock(dp);
-  if((ep = ealloc(dp, name, type == T_DIR)) == 0){
+  if((ep = ealloc(dp, name, type == T_DIR)) == NULL){
     eunlock(dp);
     eput(dp);
-    return 0;
+    return NULL;
   }
 
   elock(ep);
@@ -234,7 +237,7 @@ sys_chdir(void)
   struct dirent *ep;
   struct proc *p = myproc();
   
-  if(argstr(0, path, MAXPATH) < 0 || (ep = ename(path)) == 0){
+  if(argstr(0, path, MAXPATH) < 0 || (ep = ename(path)) == NULL){
     return -1;
   }
   elock(ep);
@@ -247,48 +250,6 @@ sys_chdir(void)
   eput(p->cwd);
   p->cwd = ep;
   return 0;
-}
-
-uint64
-sys_exec(void)
-{
-  char path[MAXPATH], *argv[MAXARG];
-  int i;
-  uint64 uargv, uarg;
-
-  if(argstr(0, path, MAXPATH) < 0 || argaddr(1, &uargv) < 0){
-    return -1;
-  }
-  memset(argv, 0, sizeof(argv));
-  for(i=0;; i++){
-    if(i >= NELEM(argv)){
-      goto bad;
-    }
-    if(fetchaddr(uargv+sizeof(uint64)*i, (uint64*)&uarg) < 0){
-      goto bad;
-    }
-    if(uarg == 0){
-      argv[i] = 0;
-      break;
-    }
-    argv[i] = kalloc();
-    if(argv[i] == 0)
-      goto bad;
-    if(fetchstr(uarg, argv[i], PGSIZE) < 0)
-      goto bad;
-  }
-
-  int ret = exec(path, argv);
-
-  for(i = 0; i < NELEM(argv) && argv[i] != 0; i++)
-    kfree(argv[i]);
-
-  return ret;
-
- bad:
-  for(i = 0; i < NELEM(argv) && argv[i] != 0; i++)
-    kfree(argv[i]);
-  return -1;
 }
 
 uint64
@@ -311,8 +272,10 @@ sys_pipe(void)
     fileclose(wf);
     return -1;
   }
-  if(copyout(p->pagetable, fdarray, (char*)&fd0, sizeof(fd0)) < 0 ||
-     copyout(p->pagetable, fdarray+sizeof(fd0), (char *)&fd1, sizeof(fd1)) < 0){
+  // if(copyout(p->pagetable, fdarray, (char*)&fd0, sizeof(fd0)) < 0 ||
+  //    copyout(p->pagetable, fdarray+sizeof(fd0), (char *)&fd1, sizeof(fd1)) < 0){
+  if(copyout2(fdarray, (char*)&fd0, sizeof(fd0)) < 0 ||
+     copyout2(fdarray+sizeof(fd0), (char *)&fd1, sizeof(fd1)) < 0){
     p->ofile[fd0] = 0;
     p->ofile[fd1] = 0;
     fileclose(rf);
@@ -341,7 +304,7 @@ sys_dev(void)
   if(major < 0 || major >= NDEV)
     return -1;
 
-  if((f = filealloc()) == 0 || (fd = fdalloc(f)) < 0){
+  if((f = filealloc()) == NULL || (fd = fdalloc(f)) < 0){
     if(f)
       fileclose(f);
     return -1;
@@ -382,7 +345,7 @@ sys_getcwd(void)
   char *s;
   int len;
 
-  if (de->parent == 0) {
+  if (de->parent == NULL) {
     s = "/";
   } else {
     s = path + MAXPATH - 1;
@@ -398,7 +361,8 @@ sys_getcwd(void)
     }
   }
 
-  if (copyout(myproc()->pagetable, addr, s, strlen(s) + 1) < 0)
+  // if (copyout(myproc()->pagetable, addr, s, strlen(s) + 1) < 0)
+  if (copyout2(addr, s, strlen(s) + 1) < 0)
     return -1;
   
   return 0;
@@ -425,7 +389,7 @@ sys_remove(void)
 
   if(argstr(0, path, MAXPATH) < 0)
     return -1;
-  if((ep = ename(path)) == 0){
+  if((ep = ename(path)) == NULL){
     return -1;
   }
   elock(ep);

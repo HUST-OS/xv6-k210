@@ -5,11 +5,22 @@
 #include "include/param.h"
 #include "include/memlayout.h"
 #include "include/riscv.h"
-#include "include/defs.h"
 #include "include/sbi.h"
+#include "include/console.h"
+#include "include/printf.h"
+#include "include/kalloc.h"
+#include "include/timer.h"
+#include "include/trap.h"
+#include "include/proc.h"
+#include "include/plic.h"
+#include "include/vm.h"
+#include "include/disk.h"
+#include "include/buf.h"
+#ifndef QEMU
 #include "include/sdcard.h"
 #include "include/fpioa.h"
 #include "include/dmac.h"
+#endif
 
 static inline void inithartid(unsigned long hartid) {
   asm volatile("mv tp, %0" : : "r" (hartid & 0x1));
@@ -32,9 +43,8 @@ main(unsigned long hartid, unsigned long dtb_pa)
     kinit();         // physical page allocator
     kvminit();       // create kernel page table
     kvminithart();   // turn on paging
-    trapinit();      // trap vectors
-    trapinithart();  // install kernel trap vector
-    timerinit();     // set up timer interrupt handler
+    timerinit();     // init a lock for timer
+    trapinithart();  // install kernel trap vector, including interrupt handler
     procinit();
     plicinit();
     plicinithart();
@@ -66,7 +76,6 @@ main(unsigned long hartid, unsigned long dtb_pa)
     #endif
     kvminithart();
     trapinithart();
-    timerinit();     // set up timer interrupt handler
     plicinithart();  // ask PLIC for device interrupts
     printf("hart 1 init done\n");
   }

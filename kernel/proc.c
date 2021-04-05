@@ -6,7 +6,12 @@
 #include "include/spinlock.h"
 #include "include/proc.h"
 #include "include/intr.h"
-#include "include/defs.h"
+#include "include/kalloc.h"
+#include "include/printf.h"
+#include "include/string.h"
+#include "include/fat32.h"
+#include "include/file.h"
+#include "include/trap.h"
 #include "include/vm.h"
 
 
@@ -20,6 +25,7 @@ int nextpid = 1;
 struct spinlock pid_lock;
 
 extern void forkret(void);
+extern void swtch(struct context*, struct context*);
 static void wakeup1(struct proc *chan);
 static void freeproc(struct proc *p);
 
@@ -128,24 +134,24 @@ allocproc(void)
       release(&p->lock);
     }
   }
-  return 0;
+  return NULL;
 
 found:
   p->pid = allocpid();
 
   // Allocate a trapframe page.
-  if((p->trapframe = (struct trapframe *)kalloc()) == 0){
+  if((p->trapframe = (struct trapframe *)kalloc()) == NULL){
     release(&p->lock);
-    return 0;
+    return NULL;
   }
 
   // An empty user page table.
   // And an identical kernel page table for this proc.
-  if ((p->pagetable = proc_pagetable(p)) == 0 ||
-      (p->kpagetable = proc_kpagetable()) == 0) {
+  if ((p->pagetable = proc_pagetable(p)) == NULL ||
+      (p->kpagetable = proc_kpagetable()) == NULL) {
     freeproc(p);
     release(&p->lock);
-    return 0;
+    return NULL;
   }
 
   p->kstack = VKSTACK;
@@ -169,7 +175,7 @@ freeproc(struct proc *p)
     kfree((void*)p->trapframe);
   p->trapframe = 0;
   if (p->kpagetable) {
-    kvmfree(p->kpagetable);
+    kvmfree(p->kpagetable, 1);
   }
   p->kpagetable = 0;
   if(p->pagetable)
@@ -195,7 +201,7 @@ proc_pagetable(struct proc *p)
   // An empty page table.
   pagetable = uvmcreate();
   if(pagetable == 0)
-    return 0;
+    return NULL;
 
   // map the trampoline code (for system call return)
   // at the highest user virtual address.
@@ -204,15 +210,15 @@ proc_pagetable(struct proc *p)
   if(mappages(pagetable, TRAMPOLINE, PGSIZE,
               (uint64)trampoline, PTE_R | PTE_X) < 0){
     uvmfree(pagetable, 0);
-    return 0;
+    return NULL;
   }
 
   // map the trapframe just below TRAMPOLINE, for trampoline.S.
   if(mappages(pagetable, TRAPFRAME, PGSIZE,
               (uint64)(p->trapframe), PTE_R | PTE_W) < 0){
-    uvmunmap(pagetable, TRAMPOLINE, 1, 0);
+    vmunmap(pagetable, TRAMPOLINE, 1, 0);
     uvmfree(pagetable, 0);
-    return 0;
+    return NULL;
   }
 
   return pagetable;
@@ -223,8 +229,8 @@ proc_pagetable(struct proc *p)
 void
 proc_freepagetable(pagetable_t pagetable, uint64 sz)
 {
-  uvmunmap(pagetable, TRAMPOLINE, 1, 0);
-  uvmunmap(pagetable, TRAPFRAME, 1, 0);
+  vmunmap(pagetable, TRAMPOLINE, 1, 0);
+  vmunmap(pagetable, TRAPFRAME, 1, 0);
   uvmfree(pagetable, sz);
 }
 
@@ -240,37 +246,37 @@ uchar initcode[] = {
   0x00, 0x00, 0x00, 0x00
 };
 
-uchar printhello[] = {
-    0x13, 0x00, 0x00, 0x00,     // nop
-    0x13, 0x00, 0x00, 0x00,     // nop 
-    0x13, 0x00, 0x00, 0x00,     // nop 
-    // <start>
-    0x17, 0x05, 0x00, 0x00,     // auipc a0, 0x0 
-    0x13, 0x05, 0x05, 0x00,     // mv a0, a0 
-    0x93, 0x08, 0x60, 0x01,     // li a7, 22 
-    0x73, 0x00, 0x00, 0x00,     // ecall 
-    0xef, 0xf0, 0x1f, 0xff,     // jal ra, <start>
-    // <loop>
-    0xef, 0x00, 0x00, 0x00,     // jal ra, <loop>
-};
+// uchar printhello[] = {
+//     0x13, 0x00, 0x00, 0x00,     // nop
+//     0x13, 0x00, 0x00, 0x00,     // nop 
+//     0x13, 0x00, 0x00, 0x00,     // nop 
+//     // <start>
+//     0x17, 0x05, 0x00, 0x00,     // auipc a0, 0x0 
+//     0x13, 0x05, 0x05, 0x00,     // mv a0, a0 
+//     0x93, 0x08, 0x60, 0x01,     // li a7, 22 
+//     0x73, 0x00, 0x00, 0x00,     // ecall 
+//     0xef, 0xf0, 0x1f, 0xff,     // jal ra, <start>
+//     // <loop>
+//     0xef, 0x00, 0x00, 0x00,     // jal ra, <loop>
+// };
 
 
-void test_proc_init(int proc_num) {
-  if(proc_num > NPROC) panic("test_proc_init\n");
-  struct proc *p;
-  for(int i = 0; i < proc_num; i++) {
-    p = allocproc();
-    uvminit(p->pagetable, (uchar*)printhello, sizeof(printhello));
-    p->sz = PGSIZE;
-    p->trapframe->epc = 0x0;
-    p->trapframe->sp = PGSIZE;
-    safestrcpy(p->name, "test_code", sizeof(p->name));
-    p->state = RUNNABLE;
-    release(&p->lock);
-  }
-  initproc = proc;
-  printf("[test_proc]test_proc init done\n");
-}
+// void test_proc_init(int proc_num) {
+//   if(proc_num > NPROC) panic("test_proc_init\n");
+//   struct proc *p;
+//   for(int i = 0; i < proc_num; i++) {
+//     p = allocproc();
+//     uvminit(p->pagetable, (uchar*)printhello, sizeof(printhello));
+//     p->sz = PGSIZE;
+//     p->trapframe->epc = 0x0;
+//     p->trapframe->sp = PGSIZE;
+//     safestrcpy(p->name, "test_code", sizeof(p->name));
+//     p->state = RUNNABLE;
+//     release(&p->lock);
+//   }
+//   initproc = proc;
+//   printf("[test_proc]test_proc init done\n");
+// }
 
 // Set up first user process.
 void
@@ -283,7 +289,7 @@ userinit(void)
   
   // allocate one user page and copy init's instructions
   // and data into it.
-  uvminit(p->pagetable, initcode, sizeof(initcode));
+  uvminit(p->pagetable , p->kpagetable, initcode, sizeof(initcode));
   p->sz = PGSIZE;
 
   // prepare for the very first "return" from kernel to user.
@@ -312,11 +318,11 @@ growproc(int n)
 
   sz = p->sz;
   if(n > 0){
-    if((sz = uvmalloc(p->pagetable, sz, sz + n)) == 0) {
+    if((sz = uvmalloc(p->pagetable, p->kpagetable, sz, sz + n)) == 0) {
       return -1;
     }
   } else if(n < 0){
-    sz = uvmdealloc(p->pagetable, sz, sz + n);
+    sz = uvmdealloc(p->pagetable, p->kpagetable, sz, sz + n);
   }
   p->sz = sz;
   return 0;
@@ -332,12 +338,12 @@ fork(void)
   struct proc *p = myproc();
 
   // Allocate process.
-  if((np = allocproc()) == 0){
+  if((np = allocproc()) == NULL){
     return -1;
   }
 
   // Copy user memory from parent to child.
-  if(uvmcopy(p->pagetable, np->pagetable, p->sz) < 0){
+  if(uvmcopy(p->pagetable, np->pagetable, np->kpagetable, p->sz) < 0){
     freeproc(np);
     release(&np->lock);
     return -1;
@@ -490,8 +496,7 @@ wait(uint64 addr)
         if(np->state == ZOMBIE){
           // Found one.
           pid = np->pid;
-          if(addr != 0 && copyout(p->pagetable, addr, (char *)&np->xstate,
-                                  sizeof(np->xstate)) < 0) {
+          if(addr != 0 && copyout2(addr, (char *)&np->xstate, sizeof(np->xstate)) < 0) {
             release(&np->lock);
             release(&p->lock);
             return -1;
@@ -623,7 +628,7 @@ forkret(void)
     fat32_init();
     myproc()->cwd = ename("/");
   }
-  // printf("[forket]call usertrapret\n");
+
   usertrapret();
 }
 
@@ -719,9 +724,10 @@ kill(int pid)
 int
 either_copyout(int user_dst, uint64 dst, void *src, uint64 len)
 {
-  struct proc *p = myproc();
+  // struct proc *p = myproc();
   if(user_dst){
-    return copyout(p->pagetable, dst, src, len);
+    // return copyout(p->pagetable, dst, src, len);
+    return copyout2(dst, src, len);
   } else {
     memmove((char *)dst, src, len);
     return 0;
@@ -734,9 +740,10 @@ either_copyout(int user_dst, uint64 dst, void *src, uint64 len)
 int
 either_copyin(void *dst, int user_src, uint64 src, uint64 len)
 {
-  struct proc *p = myproc();
+  // struct proc *p = myproc();
   if(user_src){
-    return copyin(p->pagetable, dst, src, len);
+    // return copyin(p->pagetable, dst, src, len);
+    return copyin2(dst, src, len);
   } else {
     memmove(dst, (char*)src, len);
     return 0;
@@ -759,7 +766,7 @@ procdump(void)
   struct proc *p;
   char *state;
 
-  printf("\n");
+  printf("\nPID\tSTATE\tNAME\tMEM\n");
   for(p = proc; p < &proc[NPROC]; p++){
     if(p->state == UNUSED)
       continue;
@@ -767,7 +774,7 @@ procdump(void)
       state = states[p->state];
     else
       state = "???";
-    printf("%d %s %s", p->pid, state, p->name);
+    printf("%d\t%s\t%s\t%d", p->pid, state, p->name, p->sz);
     printf("\n");
   }
 }
