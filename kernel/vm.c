@@ -5,6 +5,7 @@
 #include "include/riscv.h"
 #include "include/vm.h"
 #include "include/kalloc.h"
+#include "include/proc.h"
 #include "include/printf.h"
 #include "include/string.h"
 
@@ -297,10 +298,15 @@ uvmalloc(pagetable_t pagetable, pagetable_t kpagetable, uint64 oldsz, uint64 new
       return 0;
     }
     memset(mem, 0, PGSIZE);
-    if(mappages(pagetable, a, PGSIZE, (uint64)mem, PTE_W|PTE_X|PTE_R|PTE_U) != 0 ||
-       mappages(kpagetable, a, PGSIZE, (uint64)mem, PTE_W|PTE_X|PTE_R) != 0){
+    if (mappages(pagetable, a, PGSIZE, (uint64)mem, PTE_W|PTE_X|PTE_R|PTE_U) != 0) {
       kfree(mem);
       uvmdealloc(pagetable, kpagetable, a, oldsz);
+      return 0;
+    }
+    if (mappages(kpagetable, a, PGSIZE, (uint64)mem, PTE_W|PTE_X|PTE_R) != 0){
+      int npages = (a - oldsz) / PGSIZE;
+      vmunmap(pagetable, oldsz, npages + 1, 1);   // plus the page allocated above.
+      vmunmap(kpagetable, oldsz, npages, 0);
       return 0;
     }
   }
@@ -435,7 +441,8 @@ copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len)
 int
 copyout2(uint64 dstva, char *src, uint64 len)
 {
-  if (dstva + len > MAXUVA || dstva >= MAXUVA) {
+  uint64 sz = myproc()->sz;
+  if (dstva + len > sz || dstva >= sz) {
     return -1;
   }
   memmove((void *)dstva, src, len);
@@ -470,7 +477,8 @@ copyin(pagetable_t pagetable, char *dst, uint64 srcva, uint64 len)
 int
 copyin2(char *dst, uint64 srcva, uint64 len)
 {
-  if (srcva + len > MAXUVA || srcva >= MAXUVA) {
+  uint64 sz = myproc()->sz;
+  if (srcva + len > sz || srcva >= sz) {
     return -1;
   }
   memmove(dst, (void *)srcva, len);
@@ -524,7 +532,8 @@ int
 copyinstr2(char *dst, uint64 srcva, uint64 max)
 {
   int got_null = 0;
-  while(srcva < MAXUVA && max > 0){
+  uint64 sz = myproc()->sz;
+  while(srcva < sz && max > 0){
     char *p = (char *)srcva;
     if(*p == '\0'){
       *dst = '\0';

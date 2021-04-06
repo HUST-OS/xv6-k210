@@ -41,7 +41,7 @@ struct dirent {
     /* for OS */
     uint8   dev;
     uint8   dirty;
-    uint8   valid;
+    short   valid;
     int     ref;
     uint32  off;            // offset in the parent dir entry, for writing convenience
     struct dirent *parent;  // because FAT32 doesn't have such thing like inum, use this for cache trick

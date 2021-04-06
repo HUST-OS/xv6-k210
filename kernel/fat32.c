@@ -500,7 +500,7 @@ struct dirent *ealloc(struct dirent *dp, char *name, int dir)
         return NULL;
     }
     ep = eget(dp, name);
-    if (ep->valid) {    // shouldn't be valid
+    if (ep->valid == 1) {    // shouldn't be valid
         panic("ealloc");
     }
     elock(ep);
@@ -608,7 +608,7 @@ void eunlock(struct dirent *entry)
 void eput(struct dirent *entry)
 {
     acquire(&ecache.lock);
-    if (entry->valid && entry->ref == 1) {
+    if (entry->valid != 0 && entry->ref == 1) {
         // ref == 1 means no other process can have entry locked,
         // so this acquiresleep() won't block (or deadlock).
         acquiresleep(&entry->lock);
@@ -620,7 +620,7 @@ void eput(struct dirent *entry)
             entry->prev = &root;
             root.next->prev = entry;
             root.next = entry;
-            if (entry->valid == 2) {
+            if (entry->valid == -1) {
                 etrunc(entry);
             } else {
                 eupdate(entry);
@@ -764,10 +764,13 @@ struct dirent *dirlookup(struct dirent *dp, char *filename, uint *poff)
     if (strncmp(filename, ".", FAT32_MAX_FILENAME) == 0) {
         return edup(dp);
     } else if (strncmp(filename, "..", FAT32_MAX_FILENAME) == 0) {
+        if (dp == &root) {
+            return edup(&root);
+        }
         return edup(dp->parent);
     }
     struct dirent *ep = eget(dp, filename);
-    if (ep->valid) { return ep; }                               // ecache hits
+    if (ep->valid == 1) { return ep; }                               // ecache hits
 
     int len = strlen(filename);
     int entcnt = (len + CHAR_LONG_NAME - 1) / CHAR_LONG_NAME + 1;   // count of l-n-entries, rounds up. plus s-n-e
@@ -825,8 +828,10 @@ static struct dirent *lookup_path(char *path, int parent, char *name)
     struct dirent *entry, *next;
     if (*path == '/') {
         entry = edup(&root);
-    } else {
+    } else if (*path != '\0') {
         entry = edup(myproc()->cwd);
+    } else {
+        return NULL;
     }
     while ((path = skipelem(path, name)) != 0) {
         elock(entry);

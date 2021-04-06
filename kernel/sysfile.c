@@ -150,12 +150,12 @@ create(char *path, short type)
 uint64
 sys_open(void)
 {
-  char path[FAT32_MAX_PATH + 1];
+  char path[FAT32_MAX_PATH];
   int fd, omode;
   struct file *f;
   struct dirent *ep;
 
-  if(argstr(0, path, FAT32_MAX_PATH + 1) < 0 || argint(1, &omode) < 0)
+  if(argstr(0, path, FAT32_MAX_PATH) < 0 || argint(1, &omode) < 0)
     return -1;
 
   if(omode & O_CREATE){
@@ -349,7 +349,7 @@ sys_getcwd(void)
     s = "/";
   } else {
     s = path + MAXPATH - 1;
-    *s-- = '\0';
+    *s = '\0';
     while (de->parent) {
       len = strlen(de->filename);
       s -= len;
@@ -387,20 +387,19 @@ sys_remove(void)
   char path[FAT32_MAX_PATH];
   struct dirent *ep;
 
-  if(argstr(0, path, MAXPATH) < 0)
+  if(argstr(0, path, FAT32_MAX_PATH) < 0)
     return -1;
   if((ep = ename(path)) == NULL){
     return -1;
   }
   elock(ep);
-
   if(ep->ref != 1 ||
     ((ep->attribute & ATTR_DIRECTORY) && !isdirempty(ep))){
       eunlock(ep);
       eput(ep);
       return -1;
   }
-  ep->valid = 2;    // remove mark, eput will calls eupdate(), then etrunc()
+  ep->valid = -1;    // remove mark, eput will calls eupdate(), then etrunc()
 
   eunlock(ep);
   eput(ep);
