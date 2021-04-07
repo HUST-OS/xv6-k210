@@ -131,11 +131,15 @@ create(char *path, short type)
     return NULL;
 
   elock(dp);
-  if((ep = ealloc(dp, name, type == T_DIR)) == NULL){
+  ep = ealloc(dp, name, type == T_DIR);
+  if ((type == T_DIR && !(ep->attribute & ATTR_DIRECTORY)) ||
+      (type == T_FILE && (ep->attribute & ATTR_DIRECTORY))) {
+    eput(ep);
     eunlock(dp);
     eput(dp);
     return NULL;
   }
+
 
   elock(ep);
 
@@ -160,11 +164,11 @@ sys_open(void)
 
   if(omode & O_CREATE){
     ep = create(path, T_FILE);
-    if(ep == 0){
+    if(ep == NULL){
       return -1;
     }
   } else {
-    if((ep = ename(path)) == 0){
+    if((ep = ename(path)) == NULL){
       return -1;
     }
     elock(ep);
@@ -175,22 +179,23 @@ sys_open(void)
     }
   }
 
-  if((f = filealloc()) == 0){
+  if((f = filealloc()) == NULL || (fd = fdalloc(f)) < 0){
+    if (f) {
+      fileclose(f);
+    }
     eunlock(ep);
     eput(ep);
     return -1;
   }
 
   f->type = FD_ENTRY;
-  f->off = 0;
+  f->off = (omode & O_APPEND) ? ep->file_size : 0;
   f->ep = ep;
   f->readable = !(omode & O_WRONLY);
   f->writable = (omode & O_WRONLY) || (omode & O_RDWR);
-  
-  if ((fd = fdalloc(f)) < 0){
-    eunlock(ep);
-    fileclose(f);
-    return -1;
+
+  if((omode & O_TRUNC)){
+    etrunc(ep);
   }
 
   eunlock(ep);
@@ -212,32 +217,14 @@ sys_mkdir(void)
   return 0;
 }
 
-// uint64
-// sys_mknod(void)
-// {
-//   struct dirent *ep;
-//   char path[FAT32_MAX_PATH];
-//   int major, minor;
-
-//   if((argstr(0, path, FAT32_MAX_PATH)) < 0 ||
-//      argint(1, &major) < 0 ||
-//      argint(2, &minor) < 0 ||
-//      (ep = create(path, T_DEVICE, major, minor)) == 0){
-//     return -1;
-//   }
-//   eunlock(ep);
-//   eput(ep);
-//   return 0;
-// }
-
 uint64
 sys_chdir(void)
 {
-  char path[MAXPATH];
+  char path[FAT32_MAX_PATH];
   struct dirent *ep;
   struct proc *p = myproc();
   
-  if(argstr(0, path, MAXPATH) < 0 || (ep = ename(path)) == NULL){
+  if(argstr(0, path, FAT32_MAX_PATH) < 0 || (ep = ename(path)) == NULL){
     return -1;
   }
   elock(ep);
@@ -322,7 +309,7 @@ sys_dev(void)
 
 // To support ls command
 uint64
-sys_dir(void)
+sys_readdir(void)
 {
   struct file *f;
   uint64 p;
@@ -341,14 +328,14 @@ sys_getcwd(void)
     return -1;
 
   struct dirent *de = myproc()->cwd;
-  char path[MAXPATH];
+  char path[FAT32_MAX_PATH];
   char *s;
   int len;
 
   if (de->parent == NULL) {
     s = "/";
   } else {
-    s = path + MAXPATH - 1;
+    s = path + FAT32_MAX_PATH - 1;
     *s = '\0';
     while (de->parent) {
       len = strlen(de->filename);
@@ -393,13 +380,13 @@ sys_remove(void)
     return -1;
   }
   elock(ep);
-  if(ep->ref != 1 ||
+  if(//ep->ref != 1 ||
     ((ep->attribute & ATTR_DIRECTORY) && !isdirempty(ep))){
       eunlock(ep);
       eput(ep);
       return -1;
   }
-  ep->valid = -1;    // remove mark, eput will calls eupdate(), then etrunc()
+  ep->valid = -1;    // remove mark, eput will calls eupdate(), then eremove()
 
   eunlock(ep);
   eput(ep);

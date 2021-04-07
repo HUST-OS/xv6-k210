@@ -32,7 +32,7 @@ void find(char *filename)
         *++p = '/';
     }
     p++;
-    while (dir(fd, &st)) {
+    while (readdir(fd, &st)) {
         strcpy(p, st.name);
         if (strcmp(p, ".") == 0 || strcmp(p, "..") == 0) {
             continue;

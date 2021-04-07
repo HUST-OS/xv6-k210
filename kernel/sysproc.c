@@ -16,11 +16,11 @@ extern int exec(char *path, char **argv);
 uint64
 sys_exec(void)
 {
-  char path[MAXPATH], *argv[MAXARG];
+  char path[FAT32_MAX_PATH], *argv[MAXARG];
   int i;
   uint64 uargv, uarg;
 
-  if(argstr(0, path, MAXPATH) < 0 || argaddr(1, &uargv) < 0){
+  if(argstr(0, path, FAT32_MAX_PATH) < 0 || argaddr(1, &uargv) < 0){
     return -1;
   }
   memset(argv, 0, sizeof(argv));

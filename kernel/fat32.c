@@ -10,6 +10,39 @@
 #include "include/string.h"
 #include "include/printf.h"
 
+/* fields that start with "_" are something we don't use */
+
+typedef struct short_name_entry {
+    char        name[CHAR_SHORT_NAME];
+    uint8       attr;
+    uint8       _nt_res;
+    uint8       _crt_time_tenth;
+    uint16      _crt_time;
+    uint16      _crt_date;
+    uint16      _lst_acce_date;
+    uint16      fst_clus_hi;
+    uint16      _lst_wrt_time;
+    uint16      _lst_wrt_date;
+    uint16      fst_clus_lo;
+    uint32      file_size;
+} __attribute__((packed, aligned(4))) short_name_entry_t;
+
+typedef struct long_name_entry {
+    uint8       order;
+    wchar       name1[5];
+    uint8       attr;
+    uint8       _type;
+    uint8       checksum;
+    wchar       name2[6];
+    uint16      _fst_clus_lo;
+    wchar       name3[2];
+} __attribute__((packed, aligned(4))) long_name_entry_t;
+
+union dentry {
+    short_name_entry_t  sne;
+    long_name_entry_t   lne;
+};
+
 static struct {
     uint32  first_data_sec;
     uint32  data_sec_cnt;
@@ -245,7 +278,7 @@ static uint rw_clus(uint32 cluster, int write, int user, uint64 data, uint off, 
  * @param   alloc       whether alloc new cluster when meeting end of FAT chains
  * @return              the offset from the new cur_clus
  */
-static uint reloc_clus(struct dirent *entry, uint off, int alloc)
+static int reloc_clus(struct dirent *entry, uint off, int alloc)
 {
     int clus_num = off / fat.byts_per_clus;
     while (clus_num > entry->clus_cnt) {
@@ -255,9 +288,9 @@ static uint reloc_clus(struct dirent *entry, uint off, int alloc)
                 clus = alloc_clus(entry->dev);
                 write_fat(entry->cur_clus, clus);
             } else {
-                entry->cur_clus = clus;
-                entry->clus_cnt = ((uint) ~0) >> 1;
-                break;
+                entry->cur_clus = entry->first_clus;
+                entry->clus_cnt = 0;
+                return -1;
             }
         }
         entry->cur_clus = clus;
@@ -376,9 +409,8 @@ static char *formatname(char *name)
     while (*name == ' ' || *name == '.') { name++; }
     for (p = name; *p; p++) {
         char c = *p;
-        if (c < ' ') { return 0; }
-        for (int i = 0; i < sizeof(illegal); i++) {
-            if (c == illegal[i]) { return 0; }
+        if (c < 0x20 || strchr(illegal, c)) {
+            return 0;
         }
     }
     while (p-- > name) {
@@ -420,11 +452,8 @@ static void generate_shortname(char *shortname, char *name)
         if (c >= 'a' && c <= 'z') {
             c += 'A' - 'a';
         } else {
-            for (int j = 0; j < sizeof(illegal); j++) {
-                if (c == illegal[j]) {
-                    c = '_';
-                    break;
-                }
+            if (strchr(illegal, c) != NULL) {
+                c = '_';
             }
         }
         shortname[i++] = c;
@@ -496,8 +525,7 @@ struct dirent *ealloc(struct dirent *dp, char *name, int dir)
     struct dirent *ep;
     uint off = 0;
     if ((ep = dirlookup(dp, name, &off)) != 0) {      // entry exists
-        eput(ep);
-        return NULL;
+        return ep;
     }
     ep = eget(dp, name);
     if (ep->valid == 1) {    // shouldn't be valid
@@ -512,9 +540,9 @@ struct dirent *ealloc(struct dirent *dp, char *name, int dir)
     ep->clus_cnt = 0;
     ep->cur_clus = 0;
     ep->dirty = 0;
-    strncpy(ep->filename, name, FAT32_MAX_FILENAME);    
+    strncpy(ep->filename, name, FAT32_MAX_FILENAME);
+    ep->filename[FAT32_MAX_FILENAME] = '\0';
 
-    int entcnt = (strlen(name) + CHAR_LONG_NAME - 1) / CHAR_LONG_NAME;   // count of l-n-entries, rounds up
     if (dir) {    // generate "." and ".." for ep
         ep->attribute |= ATTR_DIRECTORY;
         ep->cur_clus = ep->first_clus = alloc_clus(dp->dev);
@@ -523,6 +551,7 @@ struct dirent *ealloc(struct dirent *dp, char *name, int dir)
     } else {
         ep->attribute |= ATTR_ARCHIVE;
     }
+    int entcnt = (strlen(name) + CHAR_LONG_NAME - 1) / CHAR_LONG_NAME;   // count of l-n-entries, rounds up
     char shortname[CHAR_SHORT_NAME + 1] = {0};
     generate_shortname(shortname, name);
     uint8 checksum = cal_checksum((uchar *)shortname);
@@ -567,9 +596,10 @@ void eupdate(struct dirent *entry)
     entry->dirty = 0;
 }
 
-// delete a file
-void etrunc(struct dirent *entry)
+// caller must hold entry->lock
+void eremove(struct dirent *entry)
 {
+    etrunc(entry);
     uint entcnt;
     elock(entry->parent);
     uint32 off = entry->off;
@@ -584,11 +614,19 @@ void etrunc(struct dirent *entry)
     }
     eunlock(entry->parent);
     entry->valid = 0;
+}
+
+// truncate a file
+// caller must hold entry->lock
+void etrunc(struct dirent *entry)
+{
     for (uint32 clus = entry->first_clus; clus >= 2 && clus < FAT32_EOC; ) {
         uint32 next = read_fat(clus);
         free_clus(clus);
         clus = next;
     }
+    entry->file_size = 0;
+    entry->first_clus = 0;
 }
 
 void elock(struct dirent *entry)
@@ -621,7 +659,7 @@ void eput(struct dirent *entry)
             root.next->prev = entry;
             root.next = entry;
             if (entry->valid == -1) {
-                etrunc(entry);
+                eremove(entry);
             } else {
                 eupdate(entry);
             }
@@ -634,12 +672,12 @@ void eput(struct dirent *entry)
     release(&ecache.lock);
 }
 
-void estat(struct dirent *entry, struct stat *st)
+void estat(struct dirent *de, struct stat *st)
 {
-    strncpy(st->name, entry->filename, STAT_MAX_NAME);
-    st->type = (entry->attribute & ATTR_DIRECTORY) ? T_DIR : T_FILE;
-    st->dev = entry->dev;
-    st->size = entry->file_size;
+    strncpy(st->name, de->filename, STAT_MAX_NAME);
+    st->type = (de->attribute & ATTR_DIRECTORY) ? T_DIR : T_FILE;
+    st->dev = de->dev;
+    st->size = de->file_size;
 }
 
 /**
@@ -648,28 +686,29 @@ void estat(struct dirent *entry, struct stat *st)
  * @param   raw_entry   pointer to the entry in a sector buffer
  * @param   islong      if non-zero, read as l-n-e, otherwise s-n-e.
  */
-static void read_entry_name(char *buffer, uint8 *raw_entry, int islong)
+static void read_entry_name(char *buffer, union dentry *d, int islong)
 {
     if (islong) {                       // long entry branch
-        wchar temp[10];
-        memmove(temp, raw_entry + 1, 10);
-        snstr(buffer, temp, 5);
-        snstr(buffer + 5, (wchar *) (raw_entry + 14), 6);
-        snstr(buffer + 11, (wchar *) (raw_entry + 28), 2);
+        wchar temp[NELEM(d->lne.name1)];
+        memmove(temp, d->lne.name1, sizeof(temp));
+        snstr(buffer, temp, NELEM(d->lne.name1));
+        buffer += NELEM(d->lne.name1);
+        snstr(buffer, d->lne.name2, NELEM(d->lne.name2));
+        buffer += NELEM(d->lne.name2);
+        snstr(buffer, d->lne.name3, NELEM(d->lne.name3));
     } else {
         // assert: only "." and ".." will enter this branch
-        memset(buffer, 0, 12);
-        int i = 7;
-        if (raw_entry[i] == ' ') {
-            do {
-                i--;
-            } while (i >= 0 && raw_entry[i] == ' ');
+        memset(buffer, 0, CHAR_SHORT_NAME + 2); // plus '.' and '\0'
+        int i;
+        for (i = 0; d->sne.name[i] != ' ' && i < 8; i++) {
+            buffer[i] = d->sne.name[i];
         }
-        i++;
-        memmove(buffer, raw_entry, i);
-        if (raw_entry[8] != ' ') {
-            memmove(buffer + i + 1, raw_entry + 8, 3);
-            buffer[i] = '.';
+        if (d->sne.name[8] != ' ') {
+            buffer[i++] = '.';
+        }
+        for (int j = 8; j < CHAR_SHORT_NAME; j++, i++) {
+            if (d->sne.name[j] == ' ') { break; }
+            buffer[i] = d->sne.name[j];
         }
     }
 }
@@ -679,18 +718,11 @@ static void read_entry_name(char *buffer, uint8 *raw_entry, int islong)
  * @param   entry       pointer to the structure that stores the entry info
  * @param   raw_entry   pointer to the entry in a sector buffer
  */
-static void read_entry_info(struct dirent *entry, uint8 *raw_entry)
+static void read_entry_info(struct dirent *entry, union dentry *d)
 {
-    entry->attribute = raw_entry[11];
-    // entry->create_time_tenth = raw_entry[13];
-    // entry->create_time = *(uint16 *)(raw_entry + 14);
-    // entry->create_date = *(uint16 *)(raw_entry + 16);
-    // entry->last_access_date = *(uint16 *)(raw_entry + 18);
-    // entry->last_write_time = *(uint16 *)(raw_entry + 22);
-    // entry->last_write_date = *(uint16 *)(raw_entry + 24);
-    entry->first_clus = ((uint32) *(uint16 *)(raw_entry + 20)) << 16;
-    entry->first_clus += *(uint16 *)(raw_entry + 26);
-    entry->file_size = *(uint32 *)(raw_entry + 28);
+    entry->attribute = d->sne.attr;
+    entry->first_clus = (d->sne.fst_clus_hi << 16) | d->sne.fst_clus_lo;
+    entry->file_size = d->sne.file_size;
     entry->cur_clus = entry->first_clus;
     entry->clus_cnt = 0;
 }
@@ -715,37 +747,38 @@ int enext(struct dirent *dp, struct dirent *ep, uint off, int *count)
     if (off % 32)
         panic("enext not align");
 
-    uint8 ebuf[32];
+    union dentry de;
     int cnt = 0;
     memset(ep->filename, 0, FAT32_MAX_FILENAME + 1);
-    uint off2 = reloc_clus(dp, off, 0);
-    for (; dp->cur_clus < FAT32_EOC; off += 32, off2 = reloc_clus(dp, off, 0)) {
-        if (rw_clus(dp->cur_clus, 0, 0, (uint64)ebuf, off2, 32) != 32 || ebuf[0] == END_OF_ENTRY) {
+    for (int off2; (off2 = reloc_clus(dp, off, 0)) != -1; off += 32) {
+        if (rw_clus(dp->cur_clus, 0, 0, (uint64)&de, off2, 32) != 32 || de.lne.order == END_OF_ENTRY) {
             return -1;
         }
-        if (ebuf[0] == EMPTY_ENTRY) {
+        if (de.lne.order == EMPTY_ENTRY) {
             cnt++;
             continue;
         } else if (cnt) {
             *count = cnt;
             return 0;
         }
-        if (ebuf[11] == ATTR_LONG_NAME) {
-            int lcnt = ebuf[0] & ~LAST_LONG_ENTRY;
-            if (ebuf[0] & LAST_LONG_ENTRY) {
+        if (de.lne.attr == ATTR_LONG_NAME) {
+            int lcnt = de.lne.order & ~LAST_LONG_ENTRY;
+            if (de.lne.order & LAST_LONG_ENTRY) {
                 *count = lcnt + 1;                              // plus the s-n-e;
                 count = 0;
             }
-            read_entry_name(ep->filename + (lcnt - 1) * CHAR_LONG_NAME, ebuf, 1);
+            read_entry_name(ep->filename + (lcnt - 1) * CHAR_LONG_NAME, &de, 1);
         } else {
             if (count) {
                 *count = 1;
-                read_entry_name(ep->filename, ebuf, 0);
+                read_entry_name(ep->filename, &de, 0);
             }
-            read_entry_info(ep, ebuf);
+            read_entry_info(ep, &de);
             return 1;
         }
     }
+    dp->clus_cnt = 0;
+    dp->cur_clus = dp->first_clus;
     return -1;
 }
 

@@ -132,3 +132,12 @@ int wcsncmp(wchar const *s1, wchar const *s2, int len) {
 
   return ret;
 }
+
+char*
+strchr(const char *s, char c)
+{
+  for(; *s; s++)
+    if(*s == c)
+      return (char*)s;
+  return 0;
+}

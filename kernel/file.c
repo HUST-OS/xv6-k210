@@ -14,6 +14,7 @@
 #include "include/stat.h"
 #include "include/proc.h"
 #include "include/printf.h"
+#include "include/string.h"
 #include "include/vm.h"
 
 struct devsw devsw[NDEV];
@@ -26,6 +27,10 @@ void
 fileinit(void)
 {
   initlock(&ftable.lock, "ftable");
+  struct file *f;
+  for(f = ftable.file; f < ftable.file + NFILE; f++){
+    memset(f, 0, sizeof(struct file));
+  }
   #ifdef DEBUG
   printf("fileinit\n");
   #endif

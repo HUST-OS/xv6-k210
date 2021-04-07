@@ -110,7 +110,7 @@ extern uint64 sys_write(void);
 extern uint64 sys_uptime(void);
 extern uint64 sys_test_proc(void);
 extern uint64 sys_dev(void);
-extern uint64 sys_dir(void);
+extern uint64 sys_readdir(void);
 extern uint64 sys_getcwd(void);
 extern uint64 sys_remove(void);
 extern uint64 sys_trace(void);
@@ -137,7 +137,7 @@ static uint64 (*syscalls[])(void) = {
   [SYS_close]       sys_close,
   [SYS_test_proc]   sys_test_proc,
   [SYS_dev]         sys_dev,
-  [SYS_dir]         sys_dir,
+  [SYS_readdir]     sys_readdir,
   [SYS_getcwd]      sys_getcwd,
   [SYS_remove]      sys_remove,
   [SYS_trace]       sys_trace,
@@ -165,7 +165,7 @@ static char *sysnames[] = {
   [SYS_close]       "close",
   [SYS_test_proc]   "test_proc",
   [SYS_dev]         "dev",
-  [SYS_dir]         "dir",
+  [SYS_readdir]     "readdir",
   [SYS_getcwd]      "getcwd",
   [SYS_remove]      "remove",
   [SYS_trace]       "trace",

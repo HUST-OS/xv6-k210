@@ -25,7 +25,7 @@
 #define SYS_close       21
 #define SYS_test_proc   22
 #define SYS_dev         23
-#define SYS_dir         24
+#define SYS_readdir     24
 #define SYS_getcwd      25
 
 #endif

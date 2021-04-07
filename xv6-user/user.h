@@ -23,7 +23,7 @@ int sleep(int);
 int uptime(void);
 int test_proc(int);
 int dev(int, short, short);
-int dir(int fd, struct stat*);
+int readdir(int fd, struct stat*);
 int getcwd(char *);
 int remove(char *);
 int trace(int);

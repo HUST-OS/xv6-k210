@@ -201,12 +201,12 @@ UPROGS=\
 	$U/_rm\
 	$U/_wc\
 	$U/_test\
+	$U/_usertests\
 	$U/_trace
 
 	# $U/_forktest\
 	# $U/_ln\
 	# $U/_stressfs\
-	# $U/_usertests\
 	# $U/_grind\
 	# $U/_zombie\
 
@@ -214,6 +214,8 @@ userprogs: $(UPROGS)
 
 dst=/mnt
 
+# @sudo cp $U/_init $(dst)/init
+# @sudo cp $U/_sh $(dst)/sh
 # Make fs image
 fs: $(UPROGS)
 	@if [ ! -f "fs.img" ]; then \
@@ -222,9 +224,9 @@ fs: $(UPROGS)
 		mkfs.vfat -F 32 fs.img; fi
 	@sudo mount fs.img $(dst)
 	@if [ ! -d "$(dst)/bin" ]; then sudo mkdir $(dst)/bin; fi
-	@sudo cp $U/_init $(dst)/init
-	@sudo cp $U/_sh $(dst)/sh
+	@sudo cp README $(dst)/README
 	@for file in $$( ls $U/_* ); do \
+		sudo cp $$file $(dst)/$${file#$U/_};\
 		sudo cp $$file $(dst)/bin/$${file#$U/_}; done
 	@sudo umount $(dst)
 
