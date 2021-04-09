@@ -131,7 +131,12 @@ create(char *path, short type)
     return NULL;
 
   elock(dp);
-  ep = ealloc(dp, name, type == T_DIR);
+  if ((ep = ealloc(dp, name, type == T_DIR)) == NULL) {
+    eunlock(dp);
+    eput(dp);
+    return NULL;
+  }
+  
   if ((type == T_DIR && !(ep->attribute & ATTR_DIRECTORY)) ||
       (type == T_FILE && (ep->attribute & ATTR_DIRECTORY))) {
     eput(ep);
@@ -373,15 +378,24 @@ sys_remove(void)
 {
   char path[FAT32_MAX_PATH];
   struct dirent *ep;
-
-  if(argstr(0, path, FAT32_MAX_PATH) < 0)
+  int len;
+  if((len = argstr(0, path, FAT32_MAX_PATH)) <= 0)
     return -1;
+
+  char *s = path + len - 1;
+  while (s >= path && *s == '/') {
+    s--;
+  }
+  if (s >= path && *s == '.' && (s == path || *--s == '/')) {
+    return -1;
+  }
+  
   if((ep = ename(path)) == NULL){
     return -1;
   }
   elock(ep);
   if(//ep->ref != 1 ||
-    ((ep->attribute & ATTR_DIRECTORY) && !isdirempty(ep))){
+     ((ep->attribute & ATTR_DIRECTORY) && !isdirempty(ep))){
       eunlock(ep);
       eput(ep);
       return -1;

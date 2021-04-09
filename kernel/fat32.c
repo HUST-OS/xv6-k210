@@ -777,8 +777,6 @@ int enext(struct dirent *dp, struct dirent *ep, uint off, int *count)
             return 1;
         }
     }
-    dp->clus_cnt = 0;
-    dp->cur_clus = dp->first_clus;
     return -1;
 }
 

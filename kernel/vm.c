@@ -372,11 +372,11 @@ int
 uvmcopy(pagetable_t old, pagetable_t new, pagetable_t knew, uint64 sz)
 {
   pte_t *pte;
-  uint64 pa, i;
+  uint64 pa, i = 0, ki = 0;
   uint flags;
   char *mem;
 
-  for(i = 0; i < sz; i += PGSIZE){
+  while (i < sz){
     if((pte = walk(old, i, 0)) == NULL)
       panic("uvmcopy: pte should exist");
     if((*pte & PTE_V) == 0)
@@ -386,16 +386,20 @@ uvmcopy(pagetable_t old, pagetable_t new, pagetable_t knew, uint64 sz)
     if((mem = kalloc()) == NULL)
       goto err;
     memmove(mem, (char*)pa, PGSIZE);
-    if(mappages(new, i, PGSIZE, (uint64)mem, flags) != 0 ||
-       mappages(knew, i, PGSIZE, (uint64)mem, flags & ~PTE_U) != 0){
+    if(mappages(new, i, PGSIZE, (uint64)mem, flags) != 0) {
       kfree(mem);
       goto err;
     }
+    i += PGSIZE;
+    if(mappages(knew, ki, PGSIZE, (uint64)mem, flags & ~PTE_U) != 0){
+      goto err;
+    }
+    ki += PGSIZE;
   }
   return 0;
 
  err:
-  vmunmap(knew, 0, i / PGSIZE, 0);
+  vmunmap(knew, 0, ki / PGSIZE, 0);
   vmunmap(new, 0, i / PGSIZE, 1);
   return -1;
 }

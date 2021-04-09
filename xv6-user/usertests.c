@@ -1798,10 +1798,10 @@ rmdot(char *s)
     printf("%s: chdir dots failed\n", s);
     exit(1);
   }
-  // if(remove(".") == 0){
-  //   printf("%s: rm . worked!\n", s);
-  //   exit(1);
-  // }
+  if(remove(".") == 0){
+    printf("%s: rm . worked!\n", s);
+    exit(1);
+  }
   if(remove("..") == 0){
     printf("%s: rm .. worked!\n", s);
     exit(1);
@@ -1810,10 +1810,10 @@ rmdot(char *s)
     printf("%s: chdir / failed\n", s);
     exit(1);
   }
-  // if(remove("dots/.") == 0){
-  //   printf("%s: remove dots/. worked!\n", s);
-  //   exit(1);
-  // }
+  if(remove("dots/.") == 0){
+    printf("%s: remove dots/. worked!\n", s);
+    exit(1);
+  }
   if(remove("dots/..") == 0){
     printf("%s: remove dots/.. worked!\n", s);
     exit(1);
