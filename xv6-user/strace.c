@@ -15,7 +15,7 @@ main(int argc, char *argv[])
   }
 
   if (trace(atoi(argv[1])) < 0) {
-    fprintf(2, "%s: trace failed\n", argv[0]);
+    fprintf(2, "%s: strace failed\n", argv[0]);
     exit(1);
   }
   
@@ -23,6 +23,6 @@ main(int argc, char *argv[])
     nargv[i-2] = argv[i];
   }
   exec(nargv[0], nargv);  
-  printf("trace: exec %s fail\n", nargv[0]);
+  printf("strace: exec %s fail\n", nargv[0]);
   exit(0);
 }

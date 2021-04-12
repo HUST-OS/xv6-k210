@@ -145,14 +145,10 @@ create(char *path, short type)
     return NULL;
   }
 
-
-  elock(ep);
-
-  // what needs to do ?
-
   eunlock(dp);
   eput(dp);
 
+  elock(ep);
   return ep;
 }
 
@@ -199,7 +195,7 @@ sys_open(void)
   f->readable = !(omode & O_WRONLY);
   f->writable = (omode & O_WRONLY) || (omode & O_RDWR);
 
-  if((omode & O_TRUNC)){
+  if(!(ep->attribute & ATTR_DIRECTORY) && (omode & O_TRUNC)){
     etrunc(ep);
   }
 
@@ -368,7 +364,7 @@ isdirempty(struct dirent *dp)
   struct dirent ep;
   int count;
   int ret;
-  memset(&ep, 0, sizeof(ep));
+  ep.valid = 0;
   ret = enext(dp, &ep, 2 * 32, &count);   // skip the "." and ".."
   return ret == -1;
 }
@@ -394,13 +390,12 @@ sys_remove(void)
     return -1;
   }
   elock(ep);
-  if(//ep->ref != 1 ||
-     ((ep->attribute & ATTR_DIRECTORY) && !isdirempty(ep))){
+  if((ep->attribute & ATTR_DIRECTORY) && !isdirempty(ep)){
       eunlock(ep);
       eput(ep);
       return -1;
   }
-  ep->valid = -1;    // remove mark, eput will calls eupdate(), then eremove()
+  eremove(ep);
 
   eunlock(ep);
   eput(ep);

@@ -109,7 +109,6 @@ int fat32_init()
     // make sure that byts_per_sec has the same value with BSIZE 
     if (BSIZE != fat.bpb.byts_per_sec) 
         panic("byts_per_sec != BSIZE");
-    
     initlock(&ecache.lock, "ecache");
     memset(&root, 0, sizeof(root));
     initsleeplock(&root.lock, "entry");
@@ -130,7 +129,6 @@ int fat32_init()
         root.next->prev = de;
         root.next = de;
     }
-    
     return 0;
 }
 
@@ -361,7 +359,6 @@ int ewrite(struct dirent *entry, int user_src, uint64 src, uint off, uint n)
         if(off > entry->file_size) {
             entry->file_size = off;
             entry->dirty = 1;
-            // eupdate(entry);
         }
     }
     return tot;
@@ -479,12 +476,13 @@ uint8 cal_checksum(uchar* shortname)
  */
 static void make_entry(struct dirent *dp, uint off, char *name, uint8 attr, uint32 data, uint8 checksum)
 {
-    uint8 ebuf[32] = {0};
-    if ((ebuf[11] = attr) == ATTR_LONG_NAME) {
-        ebuf[0] = data;
-        ebuf[13] = checksum;
+    union dentry de;
+    memset(&de, 0, sizeof(de));
+    if ((de.sne.attr = attr) == ATTR_LONG_NAME) {
+        de.lne.order = data;
+        de.lne.checksum = checksum;
         name += ((data & ~LAST_LONG_ENTRY) - 1) * CHAR_LONG_NAME;
-        uint8 *w = ebuf + 1;
+        uint8 *w = (uint8 *)de.lne.name1;
         int end = 0;
         for (int i = 1; i <= CHAR_LONG_NAME; i++) {
             if (end) {
@@ -497,18 +495,18 @@ static void make_entry(struct dirent *dp, uint off, char *name, uint8 attr, uint
                 *w++ = 0;
             }
             switch (i) {
-                case 5:     w = ebuf + 14; break;
-                case 11:    w = ebuf + 28; break;
+                case 5:     w = (uint8 *)de.lne.name2; break;
+                case 11:    w = (uint8 *)de.lne.name3; break;
             }
         }
     } else {
-        strncpy((char *)ebuf, name, 11);
-        *(uint16 *)(ebuf + 20) = (uint16)(data >> 16);      // first clus high 16 bits
-        *(uint16 *)(ebuf + 26) = (uint16)(data & 0xff);     // low 16 bits
-        *(uint32 *)(ebuf + 28) = 0;                         // filesize is updated in eupdate()
+        strncpy(de.sne.name, name, sizeof(de.sne.name));
+        de.sne.fst_clus_hi = (uint16)(data >> 16);      // first clus high 16 bits
+        de.sne.fst_clus_lo = (uint16)(data & 0xff);     // low 16 bits
+        de.sne.file_size = 0;                         // filesize is updated in eupdate()
     }
     off = reloc_clus(dp, off, 1);
-    rw_clus(dp->cur_clus, 1, 0, (uint64)ebuf, off, sizeof(ebuf));
+    rw_clus(dp->cur_clus, 1, 0, (uint64)&de, off, sizeof(de));
 }
 
 /**
@@ -519,7 +517,7 @@ struct dirent *ealloc(struct dirent *dp, char *name, int dir)
     if (!(dp->attribute & ATTR_DIRECTORY)) {
         panic("ealloc not dir");
     }
-    if (!(name = formatname(name))) {        // detect illegal character
+    if (dp->valid != 1 || !(name = formatname(name))) {        // detect illegal character
         return NULL;
     }
     struct dirent *ep;
@@ -528,9 +526,6 @@ struct dirent *ealloc(struct dirent *dp, char *name, int dir)
         return ep;
     }
     ep = eget(dp, name);
-    if (ep->valid == 1) {    // shouldn't be valid
-        panic("ealloc");
-    }
     elock(ep);
     ep->attribute = 0;
     ep->file_size = 0;
@@ -546,13 +541,14 @@ struct dirent *ealloc(struct dirent *dp, char *name, int dir)
     if (dir) {    // generate "." and ".." for ep
         ep->attribute |= ATTR_DIRECTORY;
         ep->cur_clus = ep->first_clus = alloc_clus(dp->dev);
-        make_entry(ep, 0, ".", ATTR_DIRECTORY, ep->first_clus, 0);
-        make_entry(ep, 32, "..", ATTR_DIRECTORY, dp->first_clus, 0);
+        make_entry(ep, 0, ".          ", ATTR_DIRECTORY, ep->first_clus, 0);
+        make_entry(ep, 32, "..         ", ATTR_DIRECTORY, dp->first_clus, 0);
     } else {
         ep->attribute |= ATTR_ARCHIVE;
     }
     int entcnt = (strlen(name) + CHAR_LONG_NAME - 1) / CHAR_LONG_NAME;   // count of l-n-entries, rounds up
-    char shortname[CHAR_SHORT_NAME + 1] = {0};
+    char shortname[CHAR_SHORT_NAME + 1];
+    memset(shortname, 0, sizeof(shortname));
     generate_shortname(shortname, name);
     uint8 checksum = cal_checksum((uchar *)shortname);
     for (int i = entcnt; i > 0; i--) {
@@ -582,25 +578,28 @@ struct dirent *edup(struct dirent *entry)
 // Only update filesize and first cluster in this case.
 void eupdate(struct dirent *entry)
 {
-    if (!entry->dirty) { return; }
-    uint entcnt;
+    if (!entry->dirty || entry->valid != 1) { return; }
+    uint entcnt = 0;
+    elock(entry->parent);
     uint32 off = reloc_clus(entry->parent, entry->off, 0);
     rw_clus(entry->parent->cur_clus, 0, 0, (uint64) &entcnt, off, 1);
     entcnt &= ~LAST_LONG_ENTRY;
     off = reloc_clus(entry->parent, entry->off + (entcnt << 5), 0);
-    uint16 clus_high = (uint16)(entry->first_clus >> 16);
-    uint16 clus_low = (uint16)(entry->first_clus & 0xff);
-    rw_clus(entry->parent->cur_clus, 1, 0, (uint64) &clus_high, off + 20, sizeof(uint16));
-    rw_clus(entry->parent->cur_clus, 1, 0, (uint64) &clus_low, off + 26, sizeof(uint16));
-    rw_clus(entry->parent->cur_clus, 1, 0, (uint64) &entry->file_size, off + 28, sizeof(entry->file_size));
+    union dentry de;
+    rw_clus(entry->parent->cur_clus, 0, 0, (uint64)&de, off, sizeof(de));
+    de.sne.fst_clus_hi = (uint16)(entry->first_clus >> 16);
+    de.sne.fst_clus_lo = (uint16)(entry->first_clus & 0xff);
+    de.sne.file_size = entry->file_size;
+    rw_clus(entry->parent->cur_clus, 1, 0, (uint64)&de, off, sizeof(de));
+    eunlock(entry->parent);
     entry->dirty = 0;
 }
 
 // caller must hold entry->lock
+// remove the entry in its parent directory
 void eremove(struct dirent *entry)
 {
-    etrunc(entry);
-    uint entcnt;
+    uint entcnt = 0;
     elock(entry->parent);
     uint32 off = entry->off;
     uint32 off2 = reloc_clus(entry->parent, off, 0);
@@ -613,7 +612,7 @@ void eremove(struct dirent *entry)
         off2 = reloc_clus(entry->parent, off, 0);
     }
     eunlock(entry->parent);
-    entry->valid = 0;
+    entry->valid = -1;
 }
 
 // truncate a file
@@ -646,27 +645,32 @@ void eunlock(struct dirent *entry)
 void eput(struct dirent *entry)
 {
     acquire(&ecache.lock);
-    if (entry->valid != 0 && entry->ref == 1) {
+    if (entry != &root && entry->valid != 0 && entry->ref == 1) {
         // ref == 1 means no other process can have entry locked,
         // so this acquiresleep() won't block (or deadlock).
         acquiresleep(&entry->lock);
+        entry->next->prev = entry->prev;
+        entry->prev->next = entry->next;
+        entry->next = root.next;
+        entry->prev = &root;
+        root.next->prev = entry;
+        root.next = entry;
         release(&ecache.lock);
-        if (entry != &root) {
-            entry->next->prev = entry->prev;
-            entry->prev->next = entry->next;
-            entry->next = root.next;
-            entry->prev = &root;
-            root.next->prev = entry;
-            root.next = entry;
-            if (entry->valid == -1) {
-                eremove(entry);
-            } else {
-                eupdate(entry);
-            }
-            eput(entry->parent);
+        if (entry->valid == -1) {       // this means some one has called eremove()
+            etrunc(entry);
+        } else {
+            eupdate(entry);
         }
         releasesleep(&entry->lock);
+
+        // Once entry->ref decreases down to 0, we can't guarantee the entry->parent field remains unchanged.
+        // Because eget() may take the entry away and write it.
+        struct dirent *eparent = entry->parent;
         acquire(&ecache.lock);
+        entry->ref--;
+        release(&ecache.lock);
+        eput(eparent);
+        return;
     }
     entry->ref--;
     release(&ecache.lock);
@@ -721,7 +725,7 @@ static void read_entry_name(char *buffer, union dentry *d, int islong)
 static void read_entry_info(struct dirent *entry, union dentry *d)
 {
     entry->attribute = d->sne.attr;
-    entry->first_clus = (d->sne.fst_clus_hi << 16) | d->sne.fst_clus_lo;
+    entry->first_clus = ((uint32)d->sne.fst_clus_hi << 16) | d->sne.fst_clus_lo;
     entry->file_size = d->sne.file_size;
     entry->cur_clus = entry->first_clus;
     entry->clus_cnt = 0;
@@ -746,6 +750,7 @@ int enext(struct dirent *dp, struct dirent *ep, uint off, int *count)
         panic("enext ep valid");
     if (off % 32)
         panic("enext not align");
+    if (dp->valid != 1) { return -1; }
 
     union dentry de;
     int cnt = 0;
@@ -799,6 +804,9 @@ struct dirent *dirlookup(struct dirent *dp, char *filename, uint *poff)
             return edup(&root);
         }
         return edup(dp->parent);
+    }
+    if (dp->valid != 1) {
+        return NULL;
     }
     struct dirent *ep = eget(dp, filename);
     if (ep->valid == 1) { return ep; }                               // ecache hits
@@ -893,7 +901,7 @@ static struct dirent *lookup_path(char *path, int parent, char *name)
 
 struct dirent *ename(char *path)
 {
-    char name[FAT32_MAX_FILENAME + 1] = {0};
+    char name[FAT32_MAX_FILENAME + 1];
     return lookup_path(path, 0, name);
 }
 

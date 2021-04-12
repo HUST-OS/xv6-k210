@@ -202,7 +202,7 @@ UPROGS=\
 	$U/_wc\
 	$U/_test\
 	$U/_usertests\
-	$U/_trace
+	$U/_strace
 
 	# $U/_forktest\
 	# $U/_ln\

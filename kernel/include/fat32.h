@@ -56,6 +56,7 @@ struct dirent*  ealloc(struct dirent *dp, char *name, int dir);
 struct dirent*  edup(struct dirent *entry);
 void            eupdate(struct dirent *entry);
 void            etrunc(struct dirent *entry);
+void            eremove(struct dirent *entry);
 void            eput(struct dirent *entry);
 void            estat(struct dirent *ep, struct stat *st);
 void            elock(struct dirent *entry);
