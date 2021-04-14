@@ -27,5 +27,6 @@
 #define SYS_dev         23
 #define SYS_readdir     24
 #define SYS_getcwd      25
+#define SYS_rename      26
 
 #endif

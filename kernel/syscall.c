@@ -115,6 +115,7 @@ extern uint64 sys_getcwd(void);
 extern uint64 sys_remove(void);
 extern uint64 sys_trace(void);
 extern uint64 sys_sysinfo(void);
+extern uint64 sys_rename(void);
 
 static uint64 (*syscalls[])(void) = {
   [SYS_fork]        sys_fork,
@@ -142,6 +143,7 @@ static uint64 (*syscalls[])(void) = {
   [SYS_remove]      sys_remove,
   [SYS_trace]       sys_trace,
   [SYS_sysinfo]     sys_sysinfo,
+  [SYS_rename]      sys_rename,
 };
 
 static char *sysnames[] = {
@@ -170,6 +172,7 @@ static char *sysnames[] = {
   [SYS_remove]      "remove",
   [SYS_trace]       "trace",
   [SYS_sysinfo]     "sysinfo",
+  [SYS_rename]      "rename",
 };
 
 void
@@ -183,7 +186,7 @@ syscall(void)
     p->trapframe->a0 = syscalls[num]();
         // trace
     if ((p->tmask & (1 << num)) != 0) {
-      printf("pid %d: syscall %s -> %d\n", p->pid, sysnames[num], p->trapframe->a0);
+      printf("pid %d: %s -> %d\n", p->pid, sysnames[num], p->trapframe->a0);
     }
   } else {
     printf("pid %d %s: unknown sys call %d\n",

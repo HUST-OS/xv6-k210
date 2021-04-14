@@ -122,7 +122,7 @@ sys_fstat(void)
 }
 
 static struct dirent*
-create(char *path, short type)
+create(char *path, short type, int mode)
 {
   struct dirent *ep, *dp;
   char name[FAT32_MAX_FILENAME + 1];
@@ -130,8 +130,16 @@ create(char *path, short type)
   if((dp = enameparent(path, name)) == NULL)
     return NULL;
 
+  if (type == T_DIR) {
+    mode = ATTR_DIRECTORY;
+  } else if (mode & O_RDONLY) {
+    mode = ATTR_READ_ONLY;
+  } else {
+    mode = 0;  
+  }
+
   elock(dp);
-  if ((ep = ealloc(dp, name, type == T_DIR)) == NULL) {
+  if ((ep = ealloc(dp, name, mode)) == NULL) {
     eunlock(dp);
     eput(dp);
     return NULL;
@@ -139,8 +147,8 @@ create(char *path, short type)
   
   if ((type == T_DIR && !(ep->attribute & ATTR_DIRECTORY)) ||
       (type == T_FILE && (ep->attribute & ATTR_DIRECTORY))) {
-    eput(ep);
     eunlock(dp);
+    eput(ep);
     eput(dp);
     return NULL;
   }
@@ -164,7 +172,7 @@ sys_open(void)
     return -1;
 
   if(omode & O_CREATE){
-    ep = create(path, T_FILE);
+    ep = create(path, T_FILE, omode);
     if(ep == NULL){
       return -1;
     }
@@ -189,15 +197,15 @@ sys_open(void)
     return -1;
   }
 
+  if(!(ep->attribute & ATTR_DIRECTORY) && (omode & O_TRUNC)){
+    etrunc(ep);
+  }
+
   f->type = FD_ENTRY;
   f->off = (omode & O_APPEND) ? ep->file_size : 0;
   f->ep = ep;
   f->readable = !(omode & O_WRONLY);
   f->writable = (omode & O_WRONLY) || (omode & O_RDWR);
-
-  if(!(ep->attribute & ATTR_DIRECTORY) && (omode & O_TRUNC)){
-    etrunc(ep);
-  }
 
   eunlock(ep);
 
@@ -210,7 +218,7 @@ sys_mkdir(void)
   char path[FAT32_MAX_PATH];
   struct dirent *ep;
 
-  if(argstr(0, path, FAT32_MAX_PATH) < 0 || (ep = create(path, T_DIR)) == 0){
+  if(argstr(0, path, FAT32_MAX_PATH) < 0 || (ep = create(path, T_DIR, 0)) == 0){
     return -1;
   }
   eunlock(ep);
@@ -395,10 +403,94 @@ sys_remove(void)
       eput(ep);
       return -1;
   }
+  elock(ep->parent);      // Will this lead to deadlock?
   eremove(ep);
-
+  eunlock(ep->parent);
   eunlock(ep);
   eput(ep);
 
   return 0;
+}
+
+// Must hold too many locks at a time! It's possible to raise a deadlock.
+// Because this op takes some steps, we can't promise
+uint64
+sys_rename(void)
+{
+  char old[FAT32_MAX_PATH], new[FAT32_MAX_PATH];
+  if (argstr(0, old, FAT32_MAX_PATH) < 0 || argstr(1, new, FAT32_MAX_PATH) < 0) {
+      return -1;
+  }
+
+  struct dirent *src = NULL, *dst = NULL, *pdst = NULL;
+  int srclock = 0;
+  char *name;
+  if ((src = ename(old)) == NULL || (pdst = enameparent(new, old)) == NULL
+      || (name = formatname(old)) == NULL) {
+    goto fail;          // src doesn't exist || dst parent doesn't exist || illegal new name
+  }
+  for (struct dirent *ep = pdst; ep != NULL; ep = ep->parent) {
+    if (ep == src) {    // In what universe can we move a directory into its child?
+      goto fail;
+    }
+  }
+
+  uint off;
+  elock(src);     // must hold child's lock before acquiring parent's, because we do so in other similar cases
+  srclock = 1;
+  elock(pdst);
+  dst = dirlookup(pdst, name, &off);
+  if (dst != NULL) {
+    eunlock(pdst);
+    if (src == dst) {
+      goto fail;
+    } else if (src->attribute & dst->attribute & ATTR_DIRECTORY) {
+      elock(dst);
+      if (!isdirempty(dst)) {    // it's ok to overwrite an empty dir
+        eunlock(dst);
+        goto fail;
+      }
+      elock(pdst);
+    } else {                    // src is not a dir || dst exists and is not an dir
+      goto fail;
+    }
+  }
+
+  if (dst) {
+    eremove(dst);
+    eunlock(dst);
+  }
+  memmove(src->filename, name, FAT32_MAX_FILENAME);
+  emake(pdst, src, off);
+  if (src->parent != pdst) {
+    eunlock(pdst);
+    elock(src->parent);
+  }
+  eremove(src);
+  eunlock(src->parent);
+  struct dirent *psrc = src->parent;  // src must not be root, or it won't pass the for-loop test
+  src->parent = edup(pdst);
+  src->off = off;
+  src->valid = 1;
+  eunlock(src);
+
+  eput(psrc);
+  if (dst) {
+    eput(dst);
+  }
+  eput(pdst);
+  eput(src);
+
+  return 0;
+
+fail:
+  if (srclock)
+    eunlock(src);
+  if (dst)
+    eput(dst);
+  if (pdst)
+    eput(pdst);
+  if (src)
+    eput(src);
+  return -1;
 }

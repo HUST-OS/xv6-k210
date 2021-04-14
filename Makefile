@@ -202,7 +202,8 @@ UPROGS=\
 	$U/_wc\
 	$U/_test\
 	$U/_usertests\
-	$U/_strace
+	$U/_strace\
+	$U/_mv
 
 	# $U/_forktest\
 	# $U/_ln\
@@ -220,7 +221,7 @@ dst=/mnt
 fs: $(UPROGS)
 	@if [ ! -f "fs.img" ]; then \
 		echo "making fs image..."; \
-		dd if=/dev/zero of=fs.img bs=512k count=1024; \
+		dd if=/dev/zero of=fs.img bs=512k count=512; \
 		mkfs.vfat -F 32 fs.img; fi
 	@sudo mount fs.img $(dst)
 	@if [ ! -d "$(dst)/bin" ]; then sudo mkdir $(dst)/bin; fi

@@ -943,6 +943,7 @@ forkforkfork(char *s)
   close(open("stopforking", O_CREATE|O_RDWR));
   wait(0);
   sleep(10); // one second
+  remove("stopforking");
 }
 
 // regression test. does reparent() violate the parent-then-child
@@ -1140,7 +1141,7 @@ createdelete(char *s)
   enum { N = 20, NCHILD=4 };
   int pid, i, fd, pi;
   char name[32];
-  char illegal[] = { '\"', '*', '/', ':', '<', '>', '?', '\\', '|' };
+  char illegal[] = { '\"', '*', '/', ':', '<', '>', '?', '\\', '|', 0 };
   for(pi = 0; pi < NCHILD; pi++){
     pid = fork();
     if(pid < 0){
@@ -1163,9 +1164,11 @@ createdelete(char *s)
         }
         if(i > 0 && (i % 2 ) == 0){
           name[1] = '0' + (i / 2);
-          if(remove(name) < 0){
-            printf("%s: remove failed\n", s);
-            exit(1);
+          if (strchr(illegal, name[1]) == 0) {
+            if(remove(name) < 0){
+              printf("%s: remove failed\n", s);
+              exit(1);
+            }
           }
         }
       }
@@ -1201,7 +1204,7 @@ createdelete(char *s)
 
   for(i = 0; i < N; i++){
     for(pi = 0; pi < NCHILD; pi++){
-      name[0] = 'p' + i;
+      name[0] = 'p' + pi;
       name[1] = '0' + i;
       remove(name);
     }
@@ -2268,6 +2271,7 @@ bigargtest(char *s)
     exit(1);
   }
   close(fd);
+  remove("bigarg-ok");
 }
 
 // what happens when the file system runs out of blocks?
@@ -2665,7 +2669,7 @@ main(int argc, char *argv[])
     {createdelete, "createdelete"},
               // {linkremove, "linkremove"},
               // {linktest, "linktest"},
-              // {removeread, "removeread"},
+    {removeread, "removeread"},
               // {concreate, "concreate"},
     {subdir, "subdir"},
     {fourfiles, "fourfiles"},

@@ -52,7 +52,9 @@ struct dirent {
 
 int             fat32_init(void);
 struct dirent*  dirlookup(struct dirent *entry, char *filename, uint *poff);
-struct dirent*  ealloc(struct dirent *dp, char *name, int dir);
+char*           formatname(char *name);
+void            emake(struct dirent *dp, struct dirent *ep, uint off);
+struct dirent*  ealloc(struct dirent *dp, char *name, int attr);
 struct dirent*  edup(struct dirent *entry);
 void            eupdate(struct dirent *entry);
 void            etrunc(struct dirent *entry);

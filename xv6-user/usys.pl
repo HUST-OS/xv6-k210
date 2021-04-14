@@ -40,3 +40,4 @@ entry("getcwd");
 entry("remove");
 entry("trace");
 entry("sysinfo");
+entry("rename");
