@@ -1,5 +1,5 @@
 # XV6-RISCV On K210
-[English](./README.md) [中文](./README_cn.md)   
+[English](./README.md) | [中文](./README_cn.md)   
 在 `K210` 开发板上运行 `xv6-riscv` 操作系统  
 
 ```
@@ -37,9 +37,9 @@ cd xv6-k210
 make build
 ```
 
-## 在 k210 开发板上运行
+## <a id="title_k210">在 k210 开发板上运行</a>
 Xv6-k210 采用 FAT32 文件系统，而不是其原本的文件系统。您需要一张 FAT32 格式的 SD 卡才能运行。
-在编译项目后，您需要将 “/xv6-user” 目录下的 “_init” 和 “_sh” 重命名为 “init” 和 “sh”，并拷贝至 SD 卡的根目录下。
+在编译项目后，您需要将 “/xv6-user” 目录下的 “_init” 和 “_sh” 重命名为 “init” 和 “sh”，并拷贝至 SD 卡的根目录下。您还可以拷贝其他编译好的程序(以“\_”开头的文件)。
 或者，您可以将 SD 卡连至主机（需要读卡器），再直接运行以下命令。
 
 警告：这会格式化您的 SD 卡并清除卡上的原有数据！
@@ -58,7 +58,7 @@ make run k210-serialport=`USB 端口`(默认是 ttyUSB0)
 ```
 Ps: 在 `Linux` 上这个端口大部分情况是 `ttyUSB0`, 如果您使用 `Windows` 或者 `MacOS`，这个文档可以帮助到您：[maixpy-doc](https://maixpy.sipeed.com/zh/get_started/env_install_driver.html#)  
 
-## 在 qemu-system-riscv64 模拟器上运行
+## <a id="title_qemu">在 qemu-system-riscv64 模拟器上运行</a>
 首先，确保 `qemu-system-riscv64` 已经下载到您的机器上并且加到了环境变量中；  
 其次，需要一个 FAT32 磁盘镜像文件；
 ```bash
@@ -83,6 +83,25 @@ Shell 命令其实也是用户程序。这些程序应当放置在 SD 卡或 `fs
 - Ctrl-D -- 文件尾（EOF）  
 - Ctrl-P -- 打印进程列表
 
+## 添加用户程序
+1. 在 `xv6-user/` 目录下新建一个 C 文件，如 `myprog.c`，然后写入您的代码；
+2. 您可以引入 `user.h` 头文件，以使用其中提供的函数，如 `open`、`gets` 和 `printf`等；
+3. 在 `Makefile` 中添加一行 “`$U/_myprog\`”，具体如下：
+    ```Makefile
+    UPROGS=\
+        $U/_init\
+        $U/_sh\
+        $U/_cat\
+        ...
+        $U/_myprog\      # 请不要忽略开头的 '_'
+    ```
+4. 然后执行：
+    ```bash
+    make userprogs
+    ```
+    如果没有出错，您应该可以在 `xv6-user/` 中看到 `_myprog` 文件。最后，您需要将它拷贝到SD卡(参考<a href="#title_k210">此处</a>)
+    或磁盘镜像(参考<a href="#title_qemu">此处</a>)中。
+
 ## 进度
 - [x] 多核启动
 - [x] 裸机 printf
@@ -95,8 +114,8 @@ Shell 命令其实也是用户程序。这些程序应当放置在 SD 卡或 `fs
 - [x] 进程管理
 - [x] 文件系统
 - [x] 用户程序
-- [ ] 稳定的键盘输入（k210）
+- [X] 稳定的键盘输入（k210）
 
 ## TODO
-完善 k210 平台上的键盘输入。  
+解决用户态导致 RUSTSBI 报 panic 的 bug 
 

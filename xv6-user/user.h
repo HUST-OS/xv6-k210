@@ -1,3 +1,7 @@
+#include "kernel/include/types.h"
+#include "kernel/include/stat.h"
+#include "kernel/include/fcntl.h"
+
 struct stat;
 struct rtcdate;
 struct sysinfo;
