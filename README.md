@@ -1,6 +1,6 @@
 # XV6-RISCV On K210
 Run xv6-riscv on k210 board  
-[English](./README.md) [中文](./README_cn.md)   
+[English](./README.md) | [中文](./README_cn.md)   
 
 ```
  (`-')           (`-')                   <-.(`-')                            
@@ -40,7 +40,8 @@ make build
 ## Run on k210 board
 Instead of the original file system, xv6-k210 runs with FAT32. You might need an SD card with FAT32 format.  
 To start `shell`, you need to rename the "_init" and "_sh" in the "/xv6-user" to "init" and "sh" after building, 
-then copy them to the root of your SD card.   
+then copy them to the root of your SD card.  
+Also, you can copy other programs start with "\_". 
 Or you can directly run the command as below with your SD card connected to your PC (SD card reader required).
 
 Warning: this will format your SD card and clean your original data!
@@ -87,6 +88,25 @@ In addition, `shell` supports some shortcut keys as below:
 - Ctrl-U -- kill a line  
 - Ctrl-D -- end of file (EOF)  
 - Ctrl-P -- print process list  
+
+## Add my programs on xv6-k210
+1. Make a new C source file in `xv6-user/` like `myprog.c`, and put your codes;
+2. You can include `user.h` to use the functions declared in it, such as `open`, `gets` and `printf`;
+3. Add a line "`$U/_myprog\`" in `Makefile` as below:
+    ```Makefile
+    UPROGS=\
+        $U/_init\
+        $U/_sh\
+        $U/_cat\
+        ...
+        $U/_myprog\      # Don't ignore the leading '_'
+    ```
+4. Then make:
+    ```bash
+    make userprogs
+    ```
+    Now you might see `_myprog` in `xv6-user/` if no error detected. Finally you need to copy it into your SD (see [here](#run-on-k210-board))
+     or FS image (see [here](#run-on-qemu-system-riscv64)).
 
 ## Progress
 - [x] Multicore boot

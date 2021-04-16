@@ -715,9 +715,9 @@ void estat(struct dirent *de, struct stat *st)
  * @param   raw_entry   pointer to the entry in a sector buffer
  * @param   islong      if non-zero, read as l-n-e, otherwise s-n-e.
  */
-static void read_entry_name(char *buffer, union dentry *d, int islong)
+static void read_entry_name(char *buffer, union dentry *d)
 {
-    if (islong) {                       // long entry branch
+    if (d->lne.attr == ATTR_LONG_NAME) {                       // long entry branch
         wchar temp[NELEM(d->lne.name1)];
         memmove(temp, d->lne.name1, sizeof(temp));
         snstr(buffer, temp, NELEM(d->lne.name1));
@@ -797,11 +797,11 @@ int enext(struct dirent *dp, struct dirent *ep, uint off, int *count)
                 *count = lcnt + 1;                              // plus the s-n-e;
                 count = 0;
             }
-            read_entry_name(ep->filename + (lcnt - 1) * CHAR_LONG_NAME, &de, 1);
+            read_entry_name(ep->filename + (lcnt - 1) * CHAR_LONG_NAME, &de);
         } else {
             if (count) {
                 *count = 1;
-                read_entry_name(ep->filename, &de, 0);
+                read_entry_name(ep->filename, &de);
             }
             read_entry_info(ep, &de);
             return 1;
