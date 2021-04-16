@@ -35,7 +35,6 @@ OBJS += \
   $K/sysfile.o \
   $K/kernelvec.o \
   $K/timer.o \
-  $K/logo.o \
   $K/disk.o \
   $K/fat32.o \
   $K/plic.o \
@@ -130,7 +129,7 @@ ifndef CPUS
 CPUS := 2
 endif
 
-QEMUOPTS = -machine virt -kernel $T/kernel -m 128M -nographic
+QEMUOPTS = -machine virt -kernel $T/kernel -m 8M -nographic
 
 # use multi-core 
 QEMUOPTS += -smp $(CPUS)
@@ -201,13 +200,14 @@ UPROGS=\
 	$U/_find\
 	$U/_rm\
 	$U/_wc\
-	$U/_trace
+	$U/_test\
+	$U/_usertests\
+	$U/_strace\
+	$U/_mv\
 
 	# $U/_forktest\
 	# $U/_ln\
-	# $U/_test\
 	# $U/_stressfs\
-	# $U/_usertests\
 	# $U/_grind\
 	# $U/_zombie\
 
@@ -215,17 +215,19 @@ userprogs: $(UPROGS)
 
 dst=/mnt
 
+# @sudo cp $U/_init $(dst)/init
+# @sudo cp $U/_sh $(dst)/sh
 # Make fs image
 fs: $(UPROGS)
 	@if [ ! -f "fs.img" ]; then \
 		echo "making fs image..."; \
-		dd if=/dev/zero of=fs.img bs=512k count=1024; \
+		dd if=/dev/zero of=fs.img bs=512k count=512; \
 		mkfs.vfat -F 32 fs.img; fi
 	@sudo mount fs.img $(dst)
 	@if [ ! -d "$(dst)/bin" ]; then sudo mkdir $(dst)/bin; fi
-	@sudo cp $U/_init $(dst)/init
-	@sudo cp $U/_sh $(dst)/sh
+	@sudo cp README $(dst)/README
 	@for file in $$( ls $U/_* ); do \
+		sudo cp $$file $(dst)/$${file#$U/_};\
 		sudo cp $$file $(dst)/bin/$${file#$U/_}; done
 	@sudo umount $(dst)
 

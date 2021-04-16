@@ -4,10 +4,11 @@
 #include "include/gpiohs.h"
 #include "include/fpioa.h"
 #include "include/utils.h"
+#include "include/memlayout.h"
 
 #define GPIOHS_MAX_PINNO 32
 
-volatile gpiohs_t *const gpiohs = (volatile gpiohs_t *)GPIOHS_BASE_ADDR;
+volatile gpiohs_t *const gpiohs = (volatile gpiohs_t *)GPIOHS_V;
 
 // typedef struct _gpiohs_pin_instance
 // {

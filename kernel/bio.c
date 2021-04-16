@@ -20,10 +20,10 @@
 #include "include/spinlock.h"
 #include "include/sleeplock.h"
 #include "include/riscv.h"
-#include "include/defs.h"
-// #include "include/fs.h"
 #include "include/buf.h"
 #include "include/sdcard.h"
+#include "include/printf.h"
+#include "include/disk.h"
 
 struct {
   struct spinlock lock;

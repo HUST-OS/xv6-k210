@@ -2,7 +2,6 @@
 #include "kernel/include/types.h"
 #include "kernel/include/stat.h"
 #include "xv6-user/user.h"
-#include "kernel/include/fs.h"
 #include "kernel/include/fcntl.h"
 #include "kernel/include/syscall.h"
 #include "kernel/include/memlayout.h"
@@ -17,7 +16,9 @@
 // prints "OK".
 //
 
-#define BUFSZ  (MAXOPBLOCKS+2)*BSIZE
+#define BSIZE 512
+#define MAXFILE 512
+#define BUFSZ  ((MAXOPBLOCKS+2)*BSIZE)
 
 char buf[BUFSZ];
 char name[3];
@@ -43,7 +44,7 @@ copyin(char *s)
       exit(1);
     }
     close(fd);
-    unlink("copyin1");
+    remove("copyin1");
     
     n = write(1, (char*)addr, 8192);
     if(n > 0){
@@ -137,9 +138,9 @@ copyinstr2(char *s)
     b[i] = 'x';
   b[MAXPATH] = '\0';
   
-  int ret = unlink(b);
+  int ret = remove(b);
   if(ret != -1){
-    printf("unlink(%s) returned %d, not -1\n", b, ret);
+    printf("remove(%s) returned %d, not -1\n", b, ret);
     exit(1);
   }
 
@@ -149,11 +150,11 @@ copyinstr2(char *s)
     exit(1);
   }
 
-  ret = link(b, b);
-  if(ret != -1){
-    printf("link(%s, %s) returned %d, not -1\n", b, b, ret);
-    exit(1);
-  }
+  // ret = link(b, b);
+  // if(ret != -1){
+  //   printf("link(%s, %s) returned %d, not -1\n", b, b, ret);
+  //   exit(1);
+  // }
 
   char *args[] = { "xx", 0 };
   ret = exec(b, args);
@@ -207,9 +208,9 @@ copyinstr3(char *s)
   char *b = (char *) (top - 1);
   *b = 'x';
 
-  int ret = unlink(b);
+  int ret = remove(b);
   if(ret != -1){
-    printf("unlink(%s) returned %d, not -1\n", b, ret);
+    printf("remove(%s) returned %d, not -1\n", b, ret);
     exit(1);
   }
 
@@ -219,11 +220,11 @@ copyinstr3(char *s)
     exit(1);
   }
 
-  ret = link(b, b);
-  if(ret != -1){
-    printf("link(%s, %s) returned %d, not -1\n", b, b, ret);
-    exit(1);
-  }
+  // ret = link(b, b);
+  // if(ret != -1){
+  //   printf("link(%s, %s) returned %d, not -1\n", b, b, ret);
+  //   exit(1);
+  // }
 
   char *args[] = { "xx", 0 };
   ret = exec(b, args);
@@ -233,13 +234,13 @@ copyinstr3(char *s)
   }
 }
 
-// test O_TRUNC.
+// // test O_TRUNC.
 void
 truncate1(char *s)
 {
   char buf[32];
   
-  unlink("truncfile");
+  remove("truncfile");
   int fd1 = open("truncfile", O_CREATE|O_WRONLY|O_TRUNC);
   write(fd1, "abcd", 4);
   close(fd1);
@@ -282,7 +283,7 @@ truncate1(char *s)
     exit(1);
   }
 
-  unlink("truncfile");
+  remove("truncfile");
 
   close(fd1);
   close(fd2);
@@ -296,7 +297,7 @@ truncate1(char *s)
 void
 truncate2(char *s)
 {
-  unlink("truncfile");
+  remove("truncfile");
 
   int fd1 = open("truncfile", O_CREATE|O_TRUNC|O_WRONLY);
   write(fd1, "abcd", 4);
@@ -309,7 +310,7 @@ truncate2(char *s)
     exit(1);
   }
 
-  unlink("truncfile");
+  remove("truncfile");
   close(fd1);
   close(fd2);
 }
@@ -363,7 +364,7 @@ truncate3(char *s)
   }
 
   wait(&xstatus);
-  unlink("truncfile");
+  remove("truncfile");
   exit(xstatus);
 }
   
@@ -380,8 +381,8 @@ iputtest(char *s)
     printf("%s: chdir iputdir failed\n", s);
     exit(1);
   }
-  if(unlink("../iputdir") < 0){
-    printf("%s: unlink ../iputdir failed\n", s);
+  if(remove("../iputdir") < 0){
+    printf("%s: remove ../iputdir failed\n", s);
     exit(1);
   }
   if(chdir("/") < 0){
@@ -410,8 +411,8 @@ exitiputtest(char *s)
       printf("%s: child chdir failed\n", s);
       exit(1);
     }
-    if(unlink("../iputdir") < 0){
-      printf("%s: unlink ../iputdir failed\n", s);
+    if(remove("../iputdir") < 0){
+      printf("%s: remove ../iputdir failed\n", s);
       exit(1);
     }
     exit(0);
@@ -454,8 +455,8 @@ openiputtest(char *s)
     exit(0);
   }
   sleep(1);
-  if(unlink("oidir") != 0){
-    printf("%s: unlink failed\n", s);
+  if(remove("oidir") != 0){
+    printf("%s: remove failed\n", s);
     exit(1);
   }
   wait(&xstatus);
@@ -517,8 +518,8 @@ writetest(char *s)
   }
   close(fd);
 
-  if(unlink("small") < 0){
-    printf("%s: unlink small failed\n", s);
+  if(remove("small") < 0){
+    printf("%s: remove small failed\n", s);
     exit(1);
   }
 }
@@ -571,13 +572,13 @@ writebig(char *s)
     n++;
   }
   close(fd);
-  if(unlink("big") < 0){
-    printf("%s: unlink big failed\n", s);
+  if(remove("big") < 0){
+    printf("%s: remove big failed\n", s);
     exit(1);
   }
 }
 
-// many creates, followed by unlink test
+// many creates, followed by remove test
 void
 createtest(char *s)
 {
@@ -595,7 +596,7 @@ createtest(char *s)
   name[2] = '\0';
   for(i = 0; i < N; i++){
     name[1] = '0' + i;
-    unlink(name);
+    remove(name);
   }
 }
 
@@ -618,8 +619,8 @@ void dirtest(char *s)
     exit(1);
   }
 
-  if(unlink("dir0") < 0){
-    printf("%s: unlink dir0 failed\n", s);
+  if(remove("dir0") < 0){
+    printf("%s: remove dir0 failed\n", s);
     exit(1);
   }
   printf("%s: mkdir test ok\n");
@@ -632,7 +633,7 @@ exectest(char *s)
   char *echoargv[] = { "echo", "OK", 0 };
   char buf[3];
 
-  unlink("echo-ok");
+  remove("echo-ok");
   pid = fork();
   if(pid < 0) {
      printf("%s: fork failed\n", s);
@@ -670,7 +671,7 @@ exectest(char *s)
     printf("%s: read failed\n", s);
     exit(1);
   }
-  unlink("echo-ok");
+  remove("echo-ok");
   if(buf[0] == 'O' && buf[1] == 'K')
     exit(0);
   else {
@@ -917,7 +918,7 @@ forkfork(char *s)
 void
 forkforkfork(char *s)
 {
-  unlink("stopforking");
+  remove("stopforking");
 
   int pid = fork();
   if(pid < 0){
@@ -942,6 +943,7 @@ forkforkfork(char *s)
   close(open("stopforking", O_CREATE|O_RDWR));
   wait(0);
   sleep(10); // one second
+  remove("stopforking");
 }
 
 // regression test. does reparent() violate the parent-then-child
@@ -1017,7 +1019,7 @@ sharedfd(char *s)
   enum { N = 1000, SZ=10};
   char buf[SZ];
 
-  unlink("sharedfd");
+  remove("sharedfd");
   fd = open("sharedfd", O_CREATE|O_RDWR);
   if(fd < 0){
     printf("%s: cannot open sharedfd for writing", s);
@@ -1056,7 +1058,7 @@ sharedfd(char *s)
     }
   }
   close(fd);
-  unlink("sharedfd");
+  remove("sharedfd");
   if(nc == N*SZ && np == N*SZ){
     exit(0);
   } else {
@@ -1077,7 +1079,7 @@ fourfiles(char *s)
   
   for(pi = 0; pi < NCHILD; pi++){
     fname = names[pi];
-    unlink(fname);
+    remove(fname);
 
     pid = fork();
     if(pid < 0){
@@ -1128,7 +1130,7 @@ fourfiles(char *s)
       printf("wrong length %d\n", total);
       exit(1);
     }
-    unlink(fname);
+    remove(fname);
   }
 }
 
@@ -1139,7 +1141,7 @@ createdelete(char *s)
   enum { N = 20, NCHILD=4 };
   int pid, i, fd, pi;
   char name[32];
-
+  char illegal[] = { '\"', '*', '/', ':', '<', '>', '?', '\\', '|', 0 };
   for(pi = 0; pi < NCHILD; pi++){
     pid = fork();
     if(pid < 0){
@@ -1152,17 +1154,21 @@ createdelete(char *s)
       name[2] = '\0';
       for(i = 0; i < N; i++){
         name[1] = '0' + i;
-        fd = open(name, O_CREATE | O_RDWR);
-        if(fd < 0){
-          printf("%s: create failed\n", s);
-          exit(1);
+        if (strchr(illegal, name[1]) == 0) {
+          fd = open(name, O_CREATE | O_RDWR);
+          if(fd < 0){
+            printf("%s: create %s failed\n", s, name);
+            exit(1);
+          }
+          close(fd);
         }
-        close(fd);
         if(i > 0 && (i % 2 ) == 0){
           name[1] = '0' + (i / 2);
-          if(unlink(name) < 0){
-            printf("%s: unlink failed\n", s);
-            exit(1);
+          if (strchr(illegal, name[1]) == 0) {
+            if(remove(name) < 0){
+              printf("%s: remove failed\n", s);
+              exit(1);
+            }
           }
         }
       }
@@ -1182,6 +1188,7 @@ createdelete(char *s)
     for(pi = 0; pi < NCHILD; pi++){
       name[0] = 'p' + pi;
       name[1] = '0' + i;
+      if (strchr(illegal, name[1]) != 0) { continue; }
       fd = open(name, 0);
       if((i == 0 || i >= N/2) && fd < 0){
         printf("%s: oops createdelete %s didn't exist\n", s, name);
@@ -1197,294 +1204,294 @@ createdelete(char *s)
 
   for(i = 0; i < N; i++){
     for(pi = 0; pi < NCHILD; pi++){
-      name[0] = 'p' + i;
+      name[0] = 'p' + pi;
       name[1] = '0' + i;
-      unlink(name);
+      remove(name);
     }
   }
 }
 
-// can I unlink a file and still read it?
+// can I remove a file and still read it?
 void
-unlinkread(char *s)
+removeread(char *s)
 {
   enum { SZ = 5 };
   int fd, fd1;
 
-  fd = open("unlinkread", O_CREATE | O_RDWR);
+  fd = open("removeread", O_CREATE | O_RDWR);
   if(fd < 0){
-    printf("%s: create unlinkread failed\n", s);
+    printf("%s: create removeread failed\n", s);
     exit(1);
   }
   write(fd, "hello", SZ);
   close(fd);
 
-  fd = open("unlinkread", O_RDWR);
+  fd = open("removeread", O_RDWR);
   if(fd < 0){
-    printf("%s: open unlinkread failed\n", s);
+    printf("%s: open removeread failed\n", s);
     exit(1);
   }
-  if(unlink("unlinkread") != 0){
-    printf("%s: unlink unlinkread failed\n", s);
+  if(remove("removeread") != 0){
+    printf("%s: remove removeread failed\n", s);
     exit(1);
   }
 
-  fd1 = open("unlinkread", O_CREATE | O_RDWR);
+  fd1 = open("removeread", O_CREATE | O_RDWR);
   write(fd1, "yyy", 3);
   close(fd1);
 
   if(read(fd, buf, sizeof(buf)) != SZ){
-    printf("%s: unlinkread read failed", s);
+    printf("%s: removeread read failed", s);
     exit(1);
   }
   if(buf[0] != 'h'){
-    printf("%s: unlinkread wrong data\n", s);
+    printf("%s: removeread wrong data\n", s);
     exit(1);
   }
   if(write(fd, buf, 10) != 10){
-    printf("%s: unlinkread write failed\n", s);
+    printf("%s: removeread write failed\n", s);
     exit(1);
   }
   close(fd);
-  unlink("unlinkread");
+  remove("removeread");
 }
 
-void
-linktest(char *s)
-{
-  enum { SZ = 5 };
-  int fd;
+// void
+// linktest(char *s)
+// {
+//   enum { SZ = 5 };
+//   int fd;
 
-  unlink("lf1");
-  unlink("lf2");
+//   remove("lf1");
+//   remove("lf2");
 
-  fd = open("lf1", O_CREATE|O_RDWR);
-  if(fd < 0){
-    printf("%s: create lf1 failed\n", s);
-    exit(1);
-  }
-  if(write(fd, "hello", SZ) != SZ){
-    printf("%s: write lf1 failed\n", s);
-    exit(1);
-  }
-  close(fd);
+//   fd = open("lf1", O_CREATE|O_RDWR);
+//   if(fd < 0){
+//     printf("%s: create lf1 failed\n", s);
+//     exit(1);
+//   }
+//   if(write(fd, "hello", SZ) != SZ){
+//     printf("%s: write lf1 failed\n", s);
+//     exit(1);
+//   }
+//   close(fd);
 
-  if(link("lf1", "lf2") < 0){
-    printf("%s: link lf1 lf2 failed\n", s);
-    exit(1);
-  }
-  unlink("lf1");
+//   if(link("lf1", "lf2") < 0){
+//     printf("%s: link lf1 lf2 failed\n", s);
+//     exit(1);
+//   }
+//   remove("lf1");
 
-  if(open("lf1", 0) >= 0){
-    printf("%s: unlinked lf1 but it is still there!\n", s);
-    exit(1);
-  }
+//   if(open("lf1", 0) >= 0){
+//     printf("%s: removeed lf1 but it is still there!\n", s);
+//     exit(1);
+//   }
 
-  fd = open("lf2", 0);
-  if(fd < 0){
-    printf("%s: open lf2 failed\n", s);
-    exit(1);
-  }
-  if(read(fd, buf, sizeof(buf)) != SZ){
-    printf("%s: read lf2 failed\n", s);
-    exit(1);
-  }
-  close(fd);
+//   fd = open("lf2", 0);
+//   if(fd < 0){
+//     printf("%s: open lf2 failed\n", s);
+//     exit(1);
+//   }
+//   if(read(fd, buf, sizeof(buf)) != SZ){
+//     printf("%s: read lf2 failed\n", s);
+//     exit(1);
+//   }
+//   close(fd);
 
-  if(link("lf2", "lf2") >= 0){
-    printf("%s: link lf2 lf2 succeeded! oops\n", s);
-    exit(1);
-  }
+//   if(link("lf2", "lf2") >= 0){
+//     printf("%s: link lf2 lf2 succeeded! oops\n", s);
+//     exit(1);
+//   }
 
-  unlink("lf2");
-  if(link("lf2", "lf1") >= 0){
-    printf("%s: link non-existant succeeded! oops\n", s);
-    exit(1);
-  }
+//   remove("lf2");
+//   if(link("lf2", "lf1") >= 0){
+//     printf("%s: link non-existant succeeded! oops\n", s);
+//     exit(1);
+//   }
 
-  if(link(".", "lf1") >= 0){
-    printf("%s: link . lf1 succeeded! oops\n", s);
-    exit(1);
-  }
-}
+//   if(link(".", "lf1") >= 0){
+//     printf("%s: link . lf1 succeeded! oops\n", s);
+//     exit(1);
+//   }
+// }
 
-// test concurrent create/link/unlink of the same file
-void
-concreate(char *s)
-{
-  enum { N = 40 };
-  char file[3];
-  int i, pid, n, fd;
-  char fa[N];
-  struct {
-    ushort inum;
-    char name[DIRSIZ];
-  } de;
+// // test concurrent create/link/remove of the same file
+// void
+// concreate(char *s)
+// {
+//   enum { N = 40 };
+//   char file[3];
+//   int i, pid, n, fd;
+//   char fa[N];
+//   struct {
+//     ushort inum;
+//     char name[DIRSIZ];
+//   } de;
 
-  file[0] = 'C';
-  file[2] = '\0';
-  for(i = 0; i < N; i++){
-    file[1] = '0' + i;
-    unlink(file);
-    pid = fork();
-    if(pid && (i % 3) == 1){
-      link("C0", file);
-    } else if(pid == 0 && (i % 5) == 1){
-      link("C0", file);
-    } else {
-      fd = open(file, O_CREATE | O_RDWR);
-      if(fd < 0){
-        printf("concreate create %s failed\n", file);
-        exit(1);
-      }
-      close(fd);
-    }
-    if(pid == 0) {
-      exit(0);
-    } else {
-      int xstatus;
-      wait(&xstatus);
-      if(xstatus != 0)
-        exit(1);
-    }
-  }
+//   file[0] = 'C';
+//   file[2] = '\0';
+//   for(i = 0; i < N; i++){
+//     file[1] = '0' + i;
+//     remove(file);
+//     pid = fork();
+//     if(pid && (i % 3) == 1){
+//       link("C0", file);
+//     } else if(pid == 0 && (i % 5) == 1){
+//       link("C0", file);
+//     } else {
+//       fd = open(file, O_CREATE | O_RDWR);
+//       if(fd < 0){
+//         printf("concreate create %s failed\n", file);
+//         exit(1);
+//       }
+//       close(fd);
+//     }
+//     if(pid == 0) {
+//       exit(0);
+//     } else {
+//       int xstatus;
+//       wait(&xstatus);
+//       if(xstatus != 0)
+//         exit(1);
+//     }
+//   }
 
-  memset(fa, 0, sizeof(fa));
-  fd = open(".", 0);
-  n = 0;
-  while(read(fd, &de, sizeof(de)) > 0){
-    if(de.inum == 0)
-      continue;
-    if(de.name[0] == 'C' && de.name[2] == '\0'){
-      i = de.name[1] - '0';
-      if(i < 0 || i >= sizeof(fa)){
-        printf("%s: concreate weird file %s\n", s, de.name);
-        exit(1);
-      }
-      if(fa[i]){
-        printf("%s: concreate duplicate file %s\n", s, de.name);
-        exit(1);
-      }
-      fa[i] = 1;
-      n++;
-    }
-  }
-  close(fd);
+//   memset(fa, 0, sizeof(fa));
+//   fd = open(".", 0);
+//   n = 0;
+//   while(read(fd, &de, sizeof(de)) > 0){
+//     if(de.inum == 0)
+//       continue;
+//     if(de.name[0] == 'C' && de.name[2] == '\0'){
+//       i = de.name[1] - '0';
+//       if(i < 0 || i >= sizeof(fa)){
+//         printf("%s: concreate weird file %s\n", s, de.name);
+//         exit(1);
+//       }
+//       if(fa[i]){
+//         printf("%s: concreate duplicate file %s\n", s, de.name);
+//         exit(1);
+//       }
+//       fa[i] = 1;
+//       n++;
+//     }
+//   }
+//   close(fd);
 
-  if(n != N){
-    printf("%s: concreate not enough files in directory listing\n", s);
-    exit(1);
-  }
+//   if(n != N){
+//     printf("%s: concreate not enough files in directory listing\n", s);
+//     exit(1);
+//   }
 
-  for(i = 0; i < N; i++){
-    file[1] = '0' + i;
-    pid = fork();
-    if(pid < 0){
-      printf("%s: fork failed\n", s);
-      exit(1);
-    }
-    if(((i % 3) == 0 && pid == 0) ||
-       ((i % 3) == 1 && pid != 0)){
-      close(open(file, 0));
-      close(open(file, 0));
-      close(open(file, 0));
-      close(open(file, 0));
-      close(open(file, 0));
-      close(open(file, 0));
-    } else {
-      unlink(file);
-      unlink(file);
-      unlink(file);
-      unlink(file);
-      unlink(file);
-      unlink(file);
-    }
-    if(pid == 0)
-      exit(0);
-    else
-      wait(0);
-  }
-}
+//   for(i = 0; i < N; i++){
+//     file[1] = '0' + i;
+//     pid = fork();
+//     if(pid < 0){
+//       printf("%s: fork failed\n", s);
+//       exit(1);
+//     }
+//     if(((i % 3) == 0 && pid == 0) ||
+//        ((i % 3) == 1 && pid != 0)){
+//       close(open(file, 0));
+//       close(open(file, 0));
+//       close(open(file, 0));
+//       close(open(file, 0));
+//       close(open(file, 0));
+//       close(open(file, 0));
+//     } else {
+//       remove(file);
+//       remove(file);
+//       remove(file);
+//       remove(file);
+//       remove(file);
+//       remove(file);
+//     }
+//     if(pid == 0)
+//       exit(0);
+//     else
+//       wait(0);
+//   }
+// }
 
-// another concurrent link/unlink/create test,
-// to look for deadlocks.
-void
-linkunlink(char *s)
-{
-  int pid, i;
+// // another concurrent link/remove/create test,
+// // to look for deadlocks.
+// void
+// linkremove(char *s)
+// {
+//   int pid, i;
 
-  unlink("x");
-  pid = fork();
-  if(pid < 0){
-    printf("%s: fork failed\n", s);
-    exit(1);
-  }
+//   remove("x");
+//   pid = fork();
+//   if(pid < 0){
+//     printf("%s: fork failed\n", s);
+//     exit(1);
+//   }
 
-  unsigned int x = (pid ? 1 : 97);
-  for(i = 0; i < 100; i++){
-    x = x * 1103515245 + 12345;
-    if((x % 3) == 0){
-      close(open("x", O_RDWR | O_CREATE));
-    } else if((x % 3) == 1){
-      link("cat", "x");
-    } else {
-      unlink("x");
-    }
-  }
+//   unsigned int x = (pid ? 1 : 97);
+//   for(i = 0; i < 100; i++){
+//     x = x * 1103515245 + 12345;
+//     if((x % 3) == 0){
+//       close(open("x", O_RDWR | O_CREATE));
+//     } else if((x % 3) == 1){
+//       link("cat", "x");
+//     } else {
+//       remove("x");
+//     }
+//   }
 
-  if(pid)
-    wait(0);
-  else
-    exit(0);
-}
+//   if(pid)
+//     wait(0);
+//   else
+//     exit(0);
+// }
 
-// directory that uses indirect blocks
-void
-bigdir(char *s)
-{
-  enum { N = 500 };
-  int i, fd;
-  char name[10];
+// // directory that uses indirect blocks
+// void
+// bigdir(char *s)
+// {
+//   enum { N = 500 };
+//   int i, fd;
+//   char name[10];
 
-  unlink("bd");
+//   remove("bd");
 
-  fd = open("bd", O_CREATE);
-  if(fd < 0){
-    printf("%s: bigdir create failed\n", s);
-    exit(1);
-  }
-  close(fd);
+//   fd = open("bd", O_CREATE);
+//   if(fd < 0){
+//     printf("%s: bigdir create failed\n", s);
+//     exit(1);
+//   }
+//   close(fd);
 
-  for(i = 0; i < N; i++){
-    name[0] = 'x';
-    name[1] = '0' + (i / 64);
-    name[2] = '0' + (i % 64);
-    name[3] = '\0';
-    if(link("bd", name) != 0){
-      printf("%s: bigdir link(bd, %s) failed\n", s, name);
-      exit(1);
-    }
-  }
+//   for(i = 0; i < N; i++){
+//     name[0] = 'x';
+//     name[1] = '0' + (i / 64);
+//     name[2] = '0' + (i % 64);
+//     name[3] = '\0';
+//     if(link("bd", name) != 0){
+//       printf("%s: bigdir link(bd, %s) failed\n", s, name);
+//       exit(1);
+//     }
+//   }
 
-  unlink("bd");
-  for(i = 0; i < N; i++){
-    name[0] = 'x';
-    name[1] = '0' + (i / 64);
-    name[2] = '0' + (i % 64);
-    name[3] = '\0';
-    if(unlink(name) != 0){
-      printf("%s: bigdir unlink failed", s);
-      exit(1);
-    }
-  }
-}
+//   remove("bd");
+//   for(i = 0; i < N; i++){
+//     name[0] = 'x';
+//     name[1] = '0' + (i / 64);
+//     name[2] = '0' + (i % 64);
+//     name[3] = '\0';
+//     if(remove(name) != 0){
+//       printf("%s: bigdir remove failed", s);
+//       exit(1);
+//     }
+//   }
+// }
 
 void
 subdir(char *s)
 {
   int fd, cc;
 
-  unlink("ff");
+  remove("ff");
   if(mkdir("dd") != 0){
     printf("%s: mkdir dd failed\n", s);
     exit(1);
@@ -1498,8 +1505,8 @@ subdir(char *s)
   write(fd, "ff", 2);
   close(fd);
 
-  if(unlink("dd") >= 0){
-    printf("%s: unlink dd (non-empty dir) succeeded!\n", s);
+  if(remove("dd") >= 0){
+    printf("%s: remove dd (non-empty dir) succeeded!\n", s);
     exit(1);
   }
 
@@ -1528,17 +1535,17 @@ subdir(char *s)
   }
   close(fd);
 
-  if(link("dd/dd/ff", "dd/dd/ffff") != 0){
-    printf("link dd/dd/ff dd/dd/ffff failed\n", s);
-    exit(1);
-  }
+  // if(link("dd/dd/ff", "dd/dd/ffff") != 0){
+  //   printf("link dd/dd/ff dd/dd/ffff failed\n", s);
+  //   exit(1);
+  // }
 
-  if(unlink("dd/dd/ff") != 0){
-    printf("%s: unlink dd/dd/ff failed\n", s);
+  if(remove("dd/dd/ff") != 0){
+    printf("%s: remove dd/dd/ff failed\n", s);
     exit(1);
   }
   if(open("dd/dd/ff", O_RDONLY) >= 0){
-    printf("%s: open (unlinked) dd/dd/ff succeeded\n", s);
+    printf("%s: open (removeed) dd/dd/ff succeeded\n", s);
     exit(1);
   }
 
@@ -1559,19 +1566,19 @@ subdir(char *s)
     exit(1);
   }
 
-  fd = open("dd/dd/ffff", 0);
-  if(fd < 0){
-    printf("%s: open dd/dd/ffff failed\n", s);
-    exit(1);
-  }
-  if(read(fd, buf, sizeof(buf)) != 2){
-    printf("%s: read dd/dd/ffff wrong len\n", s);
-    exit(1);
-  }
-  close(fd);
+  // fd = open("dd/dd/ffff", 0);
+  // if(fd < 0){
+  //   printf("%s: open dd/dd/ffff failed\n", s);
+  //   exit(1);
+  // }
+  // if(read(fd, buf, sizeof(buf)) != 2){
+  //   printf("%s: read dd/dd/ffff wrong len\n", s);
+  //   exit(1);
+  // }
+  // close(fd);
 
   if(open("dd/dd/ff", O_RDONLY) >= 0){
-    printf("%s: open (unlinked) dd/dd/ff succeeded!\n", s);
+    printf("%s: open (removeed) dd/dd/ff succeeded!\n", s);
     exit(1);
   }
 
@@ -1595,65 +1602,65 @@ subdir(char *s)
     printf("%s: open dd wronly succeeded!\n", s);
     exit(1);
   }
-  if(link("dd/ff/ff", "dd/dd/xx") == 0){
-    printf("%s: link dd/ff/ff dd/dd/xx succeeded!\n", s);
-    exit(1);
-  }
-  if(link("dd/xx/ff", "dd/dd/xx") == 0){
-    printf("%s: link dd/xx/ff dd/dd/xx succeeded!\n", s);
-    exit(1);
-  }
-  if(link("dd/ff", "dd/dd/ffff") == 0){
-    printf("%s: link dd/ff dd/dd/ffff succeeded!\n", s);
-    exit(1);
-  }
-  if(mkdir("dd/ff/ff") == 0){
-    printf("%s: mkdir dd/ff/ff succeeded!\n", s);
-    exit(1);
-  }
-  if(mkdir("dd/xx/ff") == 0){
-    printf("%s: mkdir dd/xx/ff succeeded!\n", s);
-    exit(1);
-  }
-  if(mkdir("dd/dd/ffff") == 0){
-    printf("%s: mkdir dd/dd/ffff succeeded!\n", s);
-    exit(1);
-  }
-  if(unlink("dd/xx/ff") == 0){
-    printf("%s: unlink dd/xx/ff succeeded!\n", s);
-    exit(1);
-  }
-  if(unlink("dd/ff/ff") == 0){
-    printf("%s: unlink dd/ff/ff succeeded!\n", s);
-    exit(1);
-  }
-  if(chdir("dd/ff") == 0){
-    printf("%s: chdir dd/ff succeeded!\n", s);
-    exit(1);
-  }
-  if(chdir("dd/xx") == 0){
-    printf("%s: chdir dd/xx succeeded!\n", s);
-    exit(1);
-  }
+  // if(link("dd/ff/ff", "dd/dd/xx") == 0){
+  //   printf("%s: link dd/ff/ff dd/dd/xx succeeded!\n", s);
+  //   exit(1);
+  // }
+  // if(link("dd/xx/ff", "dd/dd/xx") == 0){
+  //   printf("%s: link dd/xx/ff dd/dd/xx succeeded!\n", s);
+  //   exit(1);
+  // }
+  // if(link("dd/ff", "dd/dd/ffff") == 0){
+  //   printf("%s: link dd/ff dd/dd/ffff succeeded!\n", s);
+  //   exit(1);
+  // }
+  // if(mkdir("dd/ff/ff") == 0){
+  //   printf("%s: mkdir dd/ff/ff succeeded!\n", s);
+  //   exit(1);
+  // }
+  // if(mkdir("dd/xx/ff") == 0){
+  //   printf("%s: mkdir dd/xx/ff succeeded!\n", s);
+  //   exit(1);
+  // }
+  // if(mkdir("dd/dd/ffff") == 0){
+  //   printf("%s: mkdir dd/dd/ffff succeeded!\n", s);
+  //   exit(1);
+  // }
+  // if(remove("dd/xx/ff") == 0){
+  //   printf("%s: remove dd/xx/ff succeeded!\n", s);
+  //   exit(1);
+  // }
+  // if(remove("dd/ff/ff") == 0){
+  //   printf("%s: remove dd/ff/ff succeeded!\n", s);
+  //   exit(1);
+  // }
+  // if(chdir("dd/ff") == 0){
+  //   printf("%s: chdir dd/ff succeeded!\n", s);
+  //   exit(1);
+  // }
+  // if(chdir("dd/xx") == 0){
+  //   printf("%s: chdir dd/xx succeeded!\n", s);
+  //   exit(1);
+  // }
 
-  if(unlink("dd/dd/ffff") != 0){
-    printf("%s: unlink dd/dd/ff failed\n", s);
+  // if(remove("dd/dd/ffff") != 0){
+  //   printf("%s: remove dd/dd/ff failed\n", s);
+  //   exit(1);
+  // }
+  if(remove("dd/ff") != 0){
+    printf("%s: remove dd/ff failed\n", s);
     exit(1);
   }
-  if(unlink("dd/ff") != 0){
-    printf("%s: unlink dd/ff failed\n", s);
+  if(remove("dd") == 0){
+    printf("%s: remove non-empty dd succeeded!\n", s);
     exit(1);
   }
-  if(unlink("dd") == 0){
-    printf("%s: unlink non-empty dd succeeded!\n", s);
+  if(remove("dd/dd") < 0){
+    printf("%s: remove dd/dd failed\n", s);
     exit(1);
   }
-  if(unlink("dd/dd") < 0){
-    printf("%s: unlink dd/dd failed\n", s);
-    exit(1);
-  }
-  if(unlink("dd") < 0){
-    printf("%s: unlink dd failed\n", s);
+  if(remove("dd") < 0){
+    printf("%s: remove dd failed\n", s);
     exit(1);
   }
 }
@@ -1664,7 +1671,7 @@ bigwrite(char *s)
 {
   int fd, sz;
 
-  unlink("bigwrite");
+  remove("bigwrite");
   for(sz = 499; sz < (MAXOPBLOCKS+2)*BSIZE; sz += 471){
     fd = open("bigwrite", O_CREATE | O_RDWR);
     if(fd < 0){
@@ -1680,7 +1687,7 @@ bigwrite(char *s)
       }
     }
     close(fd);
-    unlink("bigwrite");
+    remove("bigwrite");
   }
 }
 
@@ -1690,7 +1697,7 @@ bigfile(char *s)
   enum { N = 20, SZ=600 };
   int fd, i, total, cc;
 
-  unlink("bigfile.dat");
+  remove("bigfile.dat");
   fd = open("bigfile.dat", O_CREATE | O_RDWR);
   if(fd < 0){
     printf("%s: cannot create bigfile", s);
@@ -1734,7 +1741,7 @@ bigfile(char *s)
     printf("%s: read bigfile wrong total\n", s);
     exit(1);
   }
-  unlink("bigfile.dat");
+  remove("bigfile.dat");
 }
 
 void
@@ -1775,12 +1782,12 @@ fourteen(char *s)
   }
 
   // clean up
-  unlink("123456789012345/12345678901234");
-  unlink("12345678901234/12345678901234");
-  unlink("12345678901234/12345678901234/12345678901234");
-  unlink("123456789012345/123456789012345/123456789012345");
-  unlink("12345678901234/123456789012345");
-  unlink("12345678901234");
+  remove("123456789012345/12345678901234");
+  remove("12345678901234/12345678901234");
+  remove("12345678901234/12345678901234/12345678901234");
+  remove("123456789012345/123456789012345/123456789012345");
+  remove("12345678901234/123456789012345");
+  remove("12345678901234");
 }
 
 void
@@ -1794,11 +1801,11 @@ rmdot(char *s)
     printf("%s: chdir dots failed\n", s);
     exit(1);
   }
-  if(unlink(".") == 0){
+  if(remove(".") == 0){
     printf("%s: rm . worked!\n", s);
     exit(1);
   }
-  if(unlink("..") == 0){
+  if(remove("..") == 0){
     printf("%s: rm .. worked!\n", s);
     exit(1);
   }
@@ -1806,16 +1813,16 @@ rmdot(char *s)
     printf("%s: chdir / failed\n", s);
     exit(1);
   }
-  if(unlink("dots/.") == 0){
-    printf("%s: unlink dots/. worked!\n", s);
+  if(remove("dots/.") == 0){
+    printf("%s: remove dots/. worked!\n", s);
     exit(1);
   }
-  if(unlink("dots/..") == 0){
-    printf("%s: unlink dots/.. worked!\n", s);
+  if(remove("dots/..") == 0){
+    printf("%s: remove dots/.. worked!\n", s);
     exit(1);
   }
-  if(unlink("dots") != 0){
-    printf("%s: unlink dots failed!\n", s);
+  if(remove("dots") != 0){
+    printf("%s: remove dots failed!\n", s);
     exit(1);
   }
 }
@@ -1849,16 +1856,16 @@ dirfile(char *s)
     printf("%s: mkdir dirfile/xx succeeded!\n", s);
     exit(1);
   }
-  if(unlink("dirfile/xx") == 0){
-    printf("%s: unlink dirfile/xx succeeded!\n", s);
+  if(remove("dirfile/xx") == 0){
+    printf("%s: remove dirfile/xx succeeded!\n", s);
     exit(1);
   }
-  if(link("README", "dirfile/xx") == 0){
-    printf("%s: link to dirfile/xx succeeded!\n", s);
-    exit(1);
-  }
-  if(unlink("dirfile") != 0){
-    printf("%s: unlink dirfile failed!\n", s);
+  // if(link("README", "dirfile/xx") == 0){
+  //   printf("%s: link to dirfile/xx succeeded!\n", s);
+  //   exit(1);
+  // }
+  if(remove("dirfile") != 0){
+    printf("%s: remove dirfile failed!\n", s);
     exit(1);
   }
 
@@ -1882,7 +1889,7 @@ iref(char *s)
 {
   int i, fd;
 
-  for(i = 0; i < NINODE + 1; i++){
+  for(i = 0; i < NINODE - 4; i++){
     if(mkdir("irefd") != 0){
       printf("%s: mkdir irefd failed\n", s);
       exit(1);
@@ -1893,20 +1900,20 @@ iref(char *s)
     }
 
     mkdir("");
-    link("README", "");
+    // link("README", "");
     fd = open("", O_CREATE);
     if(fd >= 0)
       close(fd);
     fd = open("xx", O_CREATE);
     if(fd >= 0)
       close(fd);
-    unlink("xx");
+    remove("xx");
   }
 
   // clean up
   for(i = 0; i < NINODE + 1; i++){
     chdir("..");
-    unlink("irefd");
+    remove("irefd");
   }
 
   chdir("/");
@@ -2019,7 +2026,7 @@ sbrkbasic(char *s)
 void
 sbrkmuch(char *s)
 {
-  enum { BIG=100*1024*1024 };
+  enum { BIG=3*1024*1024 };
   char *c, *oldbrk, *a, *lastaddr, *p;
   uint64 amt;
 
@@ -2179,7 +2186,7 @@ sbrkarg(char *s)
 
   a = sbrk(PGSIZE);
   fd = open("sbrk", O_CREATE|O_WRONLY);
-  unlink("sbrk");
+  remove("sbrk");
   if(fd < 0)  {
     printf("%s: open sbrk failed\n", s);
     exit(1);
@@ -2207,8 +2214,9 @@ validatetest(char *s)
   hi = 1100*1024;
   for(p = 0; p <= (uint)hi; p += PGSIZE){
     // try to crash the kernel by passing in a bad string pointer
-    if(link("nosuchfile", (char*)p) != -1){
+    if(open((char*)p, O_RDONLY) != -1){
       printf("%s: link should not succeed\n", s);
+      printf("bad string:[%s]\n", (char*)p);
       exit(1);
     }
   }
@@ -2237,7 +2245,7 @@ bigargtest(char *s)
 {
   int pid, fd, xstatus;
 
-  unlink("bigarg-ok");
+  remove("bigarg-ok");
   pid = fork();
   if(pid == 0){
     static char *args[MAXARG];
@@ -2263,6 +2271,7 @@ bigargtest(char *s)
     exit(1);
   }
   close(fd);
+  remove("bigarg-ok");
 }
 
 // what happens when the file system runs out of blocks?
@@ -2311,7 +2320,7 @@ fsfull()
     name[3] = '0' + (nfiles % 100) / 10;
     name[4] = '0' + (nfiles % 10);
     name[5] = '\0';
-    unlink(name);
+    remove(name);
     nfiles--;
   }
 
@@ -2447,7 +2456,7 @@ badwrite(char *s)
 {
   int assumed_free = 600;
   
-  unlink("junk");
+  remove("junk");
   for(int i = 0; i < assumed_free; i++){
     int fd = open("junk", O_CREATE|O_WRONLY);
     if(fd < 0){
@@ -2456,7 +2465,7 @@ badwrite(char *s)
     }
     write(fd, (char*)0xffffffffffL, 1);
     close(fd);
-    unlink("junk");
+    remove("junk");
   }
 
   int fd = open("junk", O_CREATE|O_WRONLY);
@@ -2469,7 +2478,7 @@ badwrite(char *s)
     exit(1);
   }
   close(fd);
-  unlink("junk");
+  remove("junk");
 
   exit(0);
 }
@@ -2650,7 +2659,7 @@ main(int argc, char *argv[])
     {reparent2, "reparent2"},
     {pgbug, "pgbug" },
     {sbrkbugs, "sbrkbugs" },
-    // {badwrite, "badwrite" },
+    {badwrite, "badwrite" },
     {badarg, "badarg" },
     {reparent, "reparent" },
     {twochildren, "twochildren"},
@@ -2658,10 +2667,10 @@ main(int argc, char *argv[])
     {forkforkfork, "forkforkfork"},
     {argptest, "argptest"},
     {createdelete, "createdelete"},
-    {linkunlink, "linkunlink"},
-    {linktest, "linktest"},
-    {unlinkread, "unlinkread"},
-    {concreate, "concreate"},
+              // {linkremove, "linkremove"},
+              // {linktest, "linktest"},
+    {removeread, "removeread"},
+              // {concreate, "concreate"},
     {subdir, "subdir"},
     {fourfiles, "fourfiles"},
     {sharedfd, "sharedfd"},
@@ -2688,12 +2697,12 @@ main(int argc, char *argv[])
     {preempt, "preempt"},
     {exitwait, "exitwait"},
     {rmdot, "rmdot"},
-    {fourteen, "fourteen"},
+              // {fourteen, "fourteen"},
     {bigfile, "bigfile"},
     {dirfile, "dirfile"},
     {iref, "iref"},
     {forktest, "forktest"},
-    {bigdir, "bigdir"}, // slow
+              // {bigdir, "bigdir"}, // slow
     { 0, 0},
   };
 

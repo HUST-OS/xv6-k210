@@ -14,7 +14,8 @@ typedef unsigned long uint64;
 typedef unsigned long uintptr_t;
 typedef uint64 pde_t;
 
-#define NULL ((void *)0)
+// #define NULL ((void *)0)
+#define NULL 0
 
 #define readb(addr) (*(volatile uint8 *)(addr))
 #define readw(addr) (*(volatile uint16 *)(addr))
@@ -37,5 +38,7 @@ typedef uint64 pde_t;
     {                                         \
         (*(volatile uint64 *)(addr)) = (v); \
     }
+
+#define NELEM(x) (sizeof(x)/sizeof((x)[0]))
 
 #endif

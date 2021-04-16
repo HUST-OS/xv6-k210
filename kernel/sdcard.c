@@ -2,7 +2,6 @@
 #include "include/types.h"
 #include "include/riscv.h"
 #include "include/gpiohs.h"
-#include "include/defs.h"
 #include "include/buf.h"
 #include "include/spinlock.h"
 

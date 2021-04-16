@@ -1,7 +1,7 @@
 # Initial process that execs /init.
 # This code runs in user space.
 
-#include "include/syscall.h"
+#include "include/sysnum.h"
 
 # exec(init, argv)
 .globl start

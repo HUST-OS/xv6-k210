@@ -1,6 +1,5 @@
 #include "include/types.h"
 #include "include/utils.h"
-#include "include/encoding.h"
 
 void set_bit(volatile uint32 *bits, uint32 mask, uint32 value)
 {

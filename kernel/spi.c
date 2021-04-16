@@ -1,20 +1,20 @@
 // SPI Protocol Implementation
 
 #include "include/types.h"
-#include "include/platform.h"
 #include "include/riscv.h"
 #include "include/utils.h"
-#include "include/defs.h"
 #include "include/dmac.h"
 #include "include/spi.h"
 #include "include/sysctl.h"
+#include "include/kalloc.h"
+#include "include/string.h"
 
 volatile spi_t *const spi[4] =
     {
-        (volatile spi_t *)SPI0_BASE_ADDR,
-        (volatile spi_t *)SPI1_BASE_ADDR,
-        (volatile spi_t *)SPI_SLAVE_BASE_ADDR,
-        (volatile spi_t *)SPI3_BASE_ADDR};
+        (volatile spi_t *)SPI0_V,
+        (volatile spi_t *)SPI1_V,
+        (volatile spi_t *)SPI_SLAVE_V,
+        (volatile spi_t *)SPI2_V};
 
 void spi_init(spi_device_num_t spi_num, spi_work_mode_t work_mode, spi_frame_format_t frame_format,
               uint64 data_bit_length, uint32 endian)

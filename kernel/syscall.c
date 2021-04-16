@@ -6,9 +6,11 @@
 #include "include/spinlock.h"
 #include "include/proc.h"
 #include "include/syscall.h"
-#include "include/defs.h"
 #include "include/sysinfo.h"
-
+#include "include/kalloc.h"
+#include "include/vm.h"
+#include "include/string.h"
+#include "include/printf.h"
 
 // Fetch the uint64 at addr from the current process.
 int
@@ -17,7 +19,8 @@ fetchaddr(uint64 addr, uint64 *ip)
   struct proc *p = myproc();
   if(addr >= p->sz || addr+sizeof(uint64) > p->sz)
     return -1;
-  if(copyin(p->pagetable, (char *)ip, addr, sizeof(*ip)) != 0)
+  // if(copyin(p->pagetable, (char *)ip, addr, sizeof(*ip)) != 0)
+  if(copyin2((char *)ip, addr, sizeof(*ip)) != 0)
     return -1;
   return 0;
 }
@@ -27,8 +30,9 @@ fetchaddr(uint64 addr, uint64 *ip)
 int
 fetchstr(uint64 addr, char *buf, int max)
 {
-  struct proc *p = myproc();
-  int err = copyinstr(p->pagetable, buf, addr, max);
+  // struct proc *p = myproc();
+  // int err = copyinstr(p->pagetable, buf, addr, max);
+  int err = copyinstr2(buf, addr, max);
   if(err < 0)
     return err;
   return strlen(buf);
@@ -106,70 +110,74 @@ extern uint64 sys_write(void);
 extern uint64 sys_uptime(void);
 extern uint64 sys_test_proc(void);
 extern uint64 sys_dev(void);
-extern uint64 sys_dir(void);
+extern uint64 sys_readdir(void);
 extern uint64 sys_getcwd(void);
 extern uint64 sys_remove(void);
 extern uint64 sys_trace(void);
 extern uint64 sys_sysinfo(void);
+extern uint64 sys_rename(void);
 
 static uint64 (*syscalls[])(void) = {
-[SYS_fork]    sys_fork,
-[SYS_exit]    sys_exit,
-[SYS_wait]    sys_wait,
-[SYS_pipe]    sys_pipe,
-[SYS_read]    sys_read,
-[SYS_kill]    sys_kill,
-[SYS_exec]    sys_exec,
-[SYS_fstat]   sys_fstat,
-[SYS_chdir]   sys_chdir,
-[SYS_dup]     sys_dup,
-[SYS_getpid]  sys_getpid,
-[SYS_sbrk]    sys_sbrk,
-[SYS_sleep]   sys_sleep,
-[SYS_uptime]  sys_uptime,
-[SYS_open]    sys_open,
-[SYS_write]   sys_write,
-[SYS_mkdir]   sys_mkdir,
-[SYS_close]   sys_close,
-[SYS_test_proc]    sys_test_proc,
-[SYS_dev]     sys_dev,
-[SYS_dir]     sys_dir,
-[SYS_getcwd]  sys_getcwd,
-[SYS_remove]  sys_remove,
-[SYS_trace]   sys_trace,
-[SYS_sysinfo] sys_sysinfo,
+  [SYS_fork]        sys_fork,
+  [SYS_exit]        sys_exit,
+  [SYS_wait]        sys_wait,
+  [SYS_pipe]        sys_pipe,
+  [SYS_read]        sys_read,
+  [SYS_kill]        sys_kill,
+  [SYS_exec]        sys_exec,
+  [SYS_fstat]       sys_fstat,
+  [SYS_chdir]       sys_chdir,
+  [SYS_dup]         sys_dup,
+  [SYS_getpid]      sys_getpid,
+  [SYS_sbrk]        sys_sbrk,
+  [SYS_sleep]       sys_sleep,
+  [SYS_uptime]      sys_uptime,
+  [SYS_open]        sys_open,
+  [SYS_write]       sys_write,
+  [SYS_mkdir]       sys_mkdir,
+  [SYS_close]       sys_close,
+  [SYS_test_proc]   sys_test_proc,
+  [SYS_dev]         sys_dev,
+  [SYS_readdir]     sys_readdir,
+  [SYS_getcwd]      sys_getcwd,
+  [SYS_remove]      sys_remove,
+  [SYS_trace]       sys_trace,
+  [SYS_sysinfo]     sys_sysinfo,
+  [SYS_rename]      sys_rename,
+};
+
+static char *sysnames[] = {
+  [SYS_fork]        "fork",
+  [SYS_exit]        "exit",
+  [SYS_wait]        "wait",
+  [SYS_pipe]        "pipe",
+  [SYS_read]        "read",
+  [SYS_kill]        "kill",
+  [SYS_exec]        "exec",
+  [SYS_fstat]       "fstat",
+  [SYS_chdir]       "chdir",
+  [SYS_dup]         "dup",
+  [SYS_getpid]      "getpid",
+  [SYS_sbrk]        "sbrk",
+  [SYS_sleep]       "sleep",
+  [SYS_uptime]      "uptime",
+  [SYS_open]        "open",
+  [SYS_write]       "write",
+  [SYS_mkdir]       "mkdir",
+  [SYS_close]       "close",
+  [SYS_test_proc]   "test_proc",
+  [SYS_dev]         "dev",
+  [SYS_readdir]     "readdir",
+  [SYS_getcwd]      "getcwd",
+  [SYS_remove]      "remove",
+  [SYS_trace]       "trace",
+  [SYS_sysinfo]     "sysinfo",
+  [SYS_rename]      "rename",
 };
 
 void
 syscall(void)
 {
-  static char *sysnames[] = {
-    [SYS_fork]        "fork",
-    [SYS_exit]        "exit",
-    [SYS_wait]        "wait",
-    [SYS_pipe]        "pipe",
-    [SYS_read]        "read",
-    [SYS_kill]        "kill",
-    [SYS_exec]        "exec",
-    [SYS_fstat]       "fstat",
-    [SYS_chdir]       "chdir",
-    [SYS_dup]         "dup",
-    [SYS_getpid]      "getpid",
-    [SYS_sbrk]        "sbrk",
-    [SYS_sleep]       "sleep",
-    [SYS_uptime]      "uptime",
-    [SYS_open]        "open",
-    [SYS_write]       "write",
-    [SYS_mkdir]       "mkdir",
-    [SYS_close]       "close",
-    [SYS_test_proc]   "test_proc",
-    [SYS_dev]         "dev",
-    [SYS_dir]         "dir",
-    [SYS_getcwd]      "getcwd",
-    [SYS_remove]      "remove",
-    [SYS_trace]       "trace",
-    [SYS_sysinfo]     "sysinfo",
-  };
   int num;
   struct proc *p = myproc();
 
@@ -178,7 +186,7 @@ syscall(void)
     p->trapframe->a0 = syscalls[num]();
         // trace
     if ((p->tmask & (1 << num)) != 0) {
-      printf("pid %d: syscall %s -> %d\n", p->pid, sysnames[num], p->trapframe->a0);
+      printf("pid %d: %s -> %d\n", p->pid, sysnames[num], p->trapframe->a0);
     }
   } else {
     printf("pid %d %s: unknown sys call %d\n",
@@ -199,7 +207,7 @@ uint64
 sys_sysinfo(void)
 {
   uint64 addr;
-  struct proc *p = myproc();
+  // struct proc *p = myproc();
 
   if (argaddr(0, &addr) < 0) {
     return -1;
@@ -209,7 +217,8 @@ sys_sysinfo(void)
   info.freemem = freemem_amount();
   info.nproc = procnum();
 
-  if (copyout(p->pagetable, addr, (char *)&info, sizeof(info)) < 0) {
+  // if (copyout(p->pagetable, addr, (char *)&info, sizeof(info)) < 0) {
+  if (copyout2(addr, (char *)&info, sizeof(info)) < 0) {
     return -1;
   }
 

@@ -39,7 +39,7 @@ ls(char *path)
   }
 
   if (st.type == T_DIR){
-    while(dir(fd, &st) == 1){
+    while(readdir(fd, &st) == 1){
       printf("%s %s\t%d\n", fmtname(st.name), types[st.type], st.size);
     }
   } else {

@@ -9,17 +9,20 @@
 
 #include "include/types.h"
 #include "include/riscv.h"
-#include "include/defs.h"
 #include "include/param.h"
 #include "include/memlayout.h"
 #include "include/spinlock.h"
 #include "include/sleeplock.h"
 #include "include/buf.h"
 #include "include/virtio.h"
+#include "include/proc.h"
+#include "include/vm.h"
+#include "include/string.h"
+#include "include/printf.h"
 
 
 // the address of virtio mmio register r.
-#define R(r) ((volatile uint32 *)(VIRTIO0 + (r)))
+#define R(r) ((volatile uint32 *)(VIRTIO0_V + (r)))
 
 static struct disk {
  // memory for virtio descriptors &c for queue 0.
@@ -207,7 +210,7 @@ virtio_disk_rw(struct buf *b, int write)
 
   // buf0 is on a kernel stack, which is not direct mapped,
   // thus the call to kvmpa().
-  disk.desc[idx[0]].addr = (uint64) kvmpa((uint64) &buf0);
+  disk.desc[idx[0]].addr = (uint64) kwalkaddr(myproc()->kpagetable, (uint64) &buf0);
   disk.desc[idx[0]].len = sizeof(buf0);
   disk.desc[idx[0]].flags = VRING_DESC_F_NEXT;
   disk.desc[idx[0]].next = idx[1];

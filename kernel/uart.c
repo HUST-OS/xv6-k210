@@ -9,7 +9,6 @@
 #include "include/riscv.h"
 #include "include/spinlock.h"
 #include "include/proc.h"
-#include "include/defs.h"
 #include "include/intr.h"
 
 // the UART control registers are memory-mapped

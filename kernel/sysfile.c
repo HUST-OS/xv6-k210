@@ -7,16 +7,19 @@
 
 #include "include/types.h"
 #include "include/riscv.h"
-#include "include/defs.h"
 #include "include/param.h"
 #include "include/stat.h"
 #include "include/spinlock.h"
 #include "include/proc.h"
-// #include "include/fs.h"
 #include "include/sleeplock.h"
 #include "include/file.h"
+#include "include/pipe.h"
 #include "include/fcntl.h"
 #include "include/fat32.h"
+#include "include/syscall.h"
+#include "include/string.h"
+#include "include/printf.h"
+#include "include/vm.h"
 
 
 // Fetch the nth word-sized system call argument as a file descriptor
@@ -29,7 +32,7 @@ argfd(int n, int *pfd, struct file **pf)
 
   if(argint(n, &fd) < 0)
     return -1;
-  if(fd < 0 || fd >= NOFILE || (f=myproc()->ofile[fd]) == 0)
+  if(fd < 0 || fd >= NOFILE || (f=myproc()->ofile[fd]) == NULL)
     return -1;
   if(pfd)
     *pfd = fd;
@@ -119,49 +122,62 @@ sys_fstat(void)
 }
 
 static struct dirent*
-create(char *path, short type)
+create(char *path, short type, int mode)
 {
   struct dirent *ep, *dp;
   char name[FAT32_MAX_FILENAME + 1];
 
-  if((dp = enameparent(path, name)) == 0)
-    return 0;
+  if((dp = enameparent(path, name)) == NULL)
+    return NULL;
 
-  elock(dp);
-  if((ep = ealloc(dp, name, type == T_DIR)) == 0){
-    eunlock(dp);
-    eput(dp);
-    return 0;
+  if (type == T_DIR) {
+    mode = ATTR_DIRECTORY;
+  } else if (mode & O_RDONLY) {
+    mode = ATTR_READ_ONLY;
+  } else {
+    mode = 0;  
   }
 
-  elock(ep);
-
-  // what needs to do ?
+  elock(dp);
+  if ((ep = ealloc(dp, name, mode)) == NULL) {
+    eunlock(dp);
+    eput(dp);
+    return NULL;
+  }
+  
+  if ((type == T_DIR && !(ep->attribute & ATTR_DIRECTORY)) ||
+      (type == T_FILE && (ep->attribute & ATTR_DIRECTORY))) {
+    eunlock(dp);
+    eput(ep);
+    eput(dp);
+    return NULL;
+  }
 
   eunlock(dp);
   eput(dp);
 
+  elock(ep);
   return ep;
 }
 
 uint64
 sys_open(void)
 {
-  char path[FAT32_MAX_PATH + 1];
+  char path[FAT32_MAX_PATH];
   int fd, omode;
   struct file *f;
   struct dirent *ep;
 
-  if(argstr(0, path, FAT32_MAX_PATH + 1) < 0 || argint(1, &omode) < 0)
+  if(argstr(0, path, FAT32_MAX_PATH) < 0 || argint(1, &omode) < 0)
     return -1;
 
   if(omode & O_CREATE){
-    ep = create(path, T_FILE);
-    if(ep == 0){
+    ep = create(path, T_FILE, omode);
+    if(ep == NULL){
       return -1;
     }
   } else {
-    if((ep = ename(path)) == 0){
+    if((ep = ename(path)) == NULL){
       return -1;
     }
     elock(ep);
@@ -172,23 +188,24 @@ sys_open(void)
     }
   }
 
-  if((f = filealloc()) == 0){
+  if((f = filealloc()) == NULL || (fd = fdalloc(f)) < 0){
+    if (f) {
+      fileclose(f);
+    }
     eunlock(ep);
     eput(ep);
     return -1;
   }
 
+  if(!(ep->attribute & ATTR_DIRECTORY) && (omode & O_TRUNC)){
+    etrunc(ep);
+  }
+
   f->type = FD_ENTRY;
-  f->off = 0;
+  f->off = (omode & O_APPEND) ? ep->file_size : 0;
   f->ep = ep;
   f->readable = !(omode & O_WRONLY);
   f->writable = (omode & O_WRONLY) || (omode & O_RDWR);
-  
-  if ((fd = fdalloc(f)) < 0){
-    eunlock(ep);
-    fileclose(f);
-    return -1;
-  }
 
   eunlock(ep);
 
@@ -201,7 +218,7 @@ sys_mkdir(void)
   char path[FAT32_MAX_PATH];
   struct dirent *ep;
 
-  if(argstr(0, path, FAT32_MAX_PATH) < 0 || (ep = create(path, T_DIR)) == 0){
+  if(argstr(0, path, FAT32_MAX_PATH) < 0 || (ep = create(path, T_DIR, 0)) == 0){
     return -1;
   }
   eunlock(ep);
@@ -209,32 +226,14 @@ sys_mkdir(void)
   return 0;
 }
 
-// uint64
-// sys_mknod(void)
-// {
-//   struct dirent *ep;
-//   char path[FAT32_MAX_PATH];
-//   int major, minor;
-
-//   if((argstr(0, path, FAT32_MAX_PATH)) < 0 ||
-//      argint(1, &major) < 0 ||
-//      argint(2, &minor) < 0 ||
-//      (ep = create(path, T_DEVICE, major, minor)) == 0){
-//     return -1;
-//   }
-//   eunlock(ep);
-//   eput(ep);
-//   return 0;
-// }
-
 uint64
 sys_chdir(void)
 {
-  char path[MAXPATH];
+  char path[FAT32_MAX_PATH];
   struct dirent *ep;
   struct proc *p = myproc();
   
-  if(argstr(0, path, MAXPATH) < 0 || (ep = ename(path)) == 0){
+  if(argstr(0, path, FAT32_MAX_PATH) < 0 || (ep = ename(path)) == NULL){
     return -1;
   }
   elock(ep);
@@ -247,48 +246,6 @@ sys_chdir(void)
   eput(p->cwd);
   p->cwd = ep;
   return 0;
-}
-
-uint64
-sys_exec(void)
-{
-  char path[MAXPATH], *argv[MAXARG];
-  int i;
-  uint64 uargv, uarg;
-
-  if(argstr(0, path, MAXPATH) < 0 || argaddr(1, &uargv) < 0){
-    return -1;
-  }
-  memset(argv, 0, sizeof(argv));
-  for(i=0;; i++){
-    if(i >= NELEM(argv)){
-      goto bad;
-    }
-    if(fetchaddr(uargv+sizeof(uint64)*i, (uint64*)&uarg) < 0){
-      goto bad;
-    }
-    if(uarg == 0){
-      argv[i] = 0;
-      break;
-    }
-    argv[i] = kalloc();
-    if(argv[i] == 0)
-      goto bad;
-    if(fetchstr(uarg, argv[i], PGSIZE) < 0)
-      goto bad;
-  }
-
-  int ret = exec(path, argv);
-
-  for(i = 0; i < NELEM(argv) && argv[i] != 0; i++)
-    kfree(argv[i]);
-
-  return ret;
-
- bad:
-  for(i = 0; i < NELEM(argv) && argv[i] != 0; i++)
-    kfree(argv[i]);
-  return -1;
 }
 
 uint64
@@ -311,8 +268,10 @@ sys_pipe(void)
     fileclose(wf);
     return -1;
   }
-  if(copyout(p->pagetable, fdarray, (char*)&fd0, sizeof(fd0)) < 0 ||
-     copyout(p->pagetable, fdarray+sizeof(fd0), (char *)&fd1, sizeof(fd1)) < 0){
+  // if(copyout(p->pagetable, fdarray, (char*)&fd0, sizeof(fd0)) < 0 ||
+  //    copyout(p->pagetable, fdarray+sizeof(fd0), (char *)&fd1, sizeof(fd1)) < 0){
+  if(copyout2(fdarray, (char*)&fd0, sizeof(fd0)) < 0 ||
+     copyout2(fdarray+sizeof(fd0), (char *)&fd1, sizeof(fd1)) < 0){
     p->ofile[fd0] = 0;
     p->ofile[fd1] = 0;
     fileclose(rf);
@@ -341,7 +300,7 @@ sys_dev(void)
   if(major < 0 || major >= NDEV)
     return -1;
 
-  if((f = filealloc()) == 0 || (fd = fdalloc(f)) < 0){
+  if((f = filealloc()) == NULL || (fd = fdalloc(f)) < 0){
     if(f)
       fileclose(f);
     return -1;
@@ -359,7 +318,7 @@ sys_dev(void)
 
 // To support ls command
 uint64
-sys_dir(void)
+sys_readdir(void)
 {
   struct file *f;
   uint64 p;
@@ -378,15 +337,15 @@ sys_getcwd(void)
     return -1;
 
   struct dirent *de = myproc()->cwd;
-  char path[MAXPATH];
+  char path[FAT32_MAX_PATH];
   char *s;
   int len;
 
-  if (de->parent == 0) {
+  if (de->parent == NULL) {
     s = "/";
   } else {
-    s = path + MAXPATH - 1;
-    *s-- = '\0';
+    s = path + FAT32_MAX_PATH - 1;
+    *s = '\0';
     while (de->parent) {
       len = strlen(de->filename);
       s -= len;
@@ -398,7 +357,8 @@ sys_getcwd(void)
     }
   }
 
-  if (copyout(myproc()->pagetable, addr, s, strlen(s) + 1) < 0)
+  // if (copyout(myproc()->pagetable, addr, s, strlen(s) + 1) < 0)
+  if (copyout2(addr, s, strlen(s) + 1) < 0)
     return -1;
   
   return 0;
@@ -412,7 +372,7 @@ isdirempty(struct dirent *dp)
   struct dirent ep;
   int count;
   int ret;
-  memset(&ep, 0, sizeof(ep));
+  ep.valid = 0;
   ret = enext(dp, &ep, 2 * 32, &count);   // skip the "." and ".."
   return ret == -1;
 }
@@ -422,24 +382,115 @@ sys_remove(void)
 {
   char path[FAT32_MAX_PATH];
   struct dirent *ep;
-
-  if(argstr(0, path, MAXPATH) < 0)
+  int len;
+  if((len = argstr(0, path, FAT32_MAX_PATH)) <= 0)
     return -1;
-  if((ep = ename(path)) == 0){
+
+  char *s = path + len - 1;
+  while (s >= path && *s == '/') {
+    s--;
+  }
+  if (s >= path && *s == '.' && (s == path || *--s == '/')) {
+    return -1;
+  }
+  
+  if((ep = ename(path)) == NULL){
     return -1;
   }
   elock(ep);
-
-  if(ep->ref != 1 ||
-    ((ep->attribute & ATTR_DIRECTORY) && !isdirempty(ep))){
+  if((ep->attribute & ATTR_DIRECTORY) && !isdirempty(ep)){
       eunlock(ep);
       eput(ep);
       return -1;
   }
-  ep->valid = 2;    // remove mark, eput will calls eupdate(), then etrunc()
-
+  elock(ep->parent);      // Will this lead to deadlock?
+  eremove(ep);
+  eunlock(ep->parent);
   eunlock(ep);
   eput(ep);
 
   return 0;
+}
+
+// Must hold too many locks at a time! It's possible to raise a deadlock.
+// Because this op takes some steps, we can't promise
+uint64
+sys_rename(void)
+{
+  char old[FAT32_MAX_PATH], new[FAT32_MAX_PATH];
+  if (argstr(0, old, FAT32_MAX_PATH) < 0 || argstr(1, new, FAT32_MAX_PATH) < 0) {
+      return -1;
+  }
+
+  struct dirent *src = NULL, *dst = NULL, *pdst = NULL;
+  int srclock = 0;
+  char *name;
+  if ((src = ename(old)) == NULL || (pdst = enameparent(new, old)) == NULL
+      || (name = formatname(old)) == NULL) {
+    goto fail;          // src doesn't exist || dst parent doesn't exist || illegal new name
+  }
+  for (struct dirent *ep = pdst; ep != NULL; ep = ep->parent) {
+    if (ep == src) {    // In what universe can we move a directory into its child?
+      goto fail;
+    }
+  }
+
+  uint off;
+  elock(src);     // must hold child's lock before acquiring parent's, because we do so in other similar cases
+  srclock = 1;
+  elock(pdst);
+  dst = dirlookup(pdst, name, &off);
+  if (dst != NULL) {
+    eunlock(pdst);
+    if (src == dst) {
+      goto fail;
+    } else if (src->attribute & dst->attribute & ATTR_DIRECTORY) {
+      elock(dst);
+      if (!isdirempty(dst)) {    // it's ok to overwrite an empty dir
+        eunlock(dst);
+        goto fail;
+      }
+      elock(pdst);
+    } else {                    // src is not a dir || dst exists and is not an dir
+      goto fail;
+    }
+  }
+
+  if (dst) {
+    eremove(dst);
+    eunlock(dst);
+  }
+  memmove(src->filename, name, FAT32_MAX_FILENAME);
+  emake(pdst, src, off);
+  if (src->parent != pdst) {
+    eunlock(pdst);
+    elock(src->parent);
+  }
+  eremove(src);
+  eunlock(src->parent);
+  struct dirent *psrc = src->parent;  // src must not be root, or it won't pass the for-loop test
+  src->parent = edup(pdst);
+  src->off = off;
+  src->valid = 1;
+  eunlock(src);
+
+  eput(psrc);
+  if (dst) {
+    eput(dst);
+  }
+  eput(pdst);
+  eput(src);
+
+  return 0;
+
+fail:
+  if (srclock)
+    eunlock(src);
+  if (dst)
+    eput(dst);
+  if (pdst)
+    eput(pdst);
+  if (src)
+    eput(src);
+  return -1;
 }
