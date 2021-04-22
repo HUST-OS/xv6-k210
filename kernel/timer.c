@@ -32,9 +32,11 @@ set_next_timeout() {
 }
 
 void timer_tick() {
-    acquire(&tickslock);
-    ticks++;
-    wakeup(&ticks);
-    release(&tickslock);
+    if (cpuid() == 0) {
+        // acquire(&tickslock);
+        ticks++;
+        wakeup(&ticks);
+        // release(&tickslock);
+    }
     set_next_timeout();
 }

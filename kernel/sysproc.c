@@ -23,43 +23,6 @@ sys_exec(void)
   }
 
   return execve((char *)path, (char **)argv, 0);
-//   char path[FAT32_MAX_PATH], *argv[MAXARG];
-//   int i;
-//   uint64 uargv, uarg;
-
-//   if(argstr(0, path, FAT32_MAX_PATH) < 0 || argaddr(1, &uargv) < 0){
-//     return -1;
-//   }
-//   memset(argv, 0, sizeof(argv));
-//   for(i=0;; i++){
-//     if(i >= NELEM(argv)){
-//       goto bad;
-//     }
-//     if(fetchaddr(uargv+sizeof(uint64)*i, (uint64*)&uarg) < 0){
-//       goto bad;
-//     }
-//     if(uarg == 0){
-//       argv[i] = 0;
-//       break;
-//     }
-//     argv[i] = kalloc();
-//     if(argv[i] == 0)
-//       goto bad;
-//     if(fetchstr(uarg, argv[i], PGSIZE) < 0)
-//       goto bad;
-//   }
-
-//   int ret = execve(path, argv, 0);
-
-//   for(i = 0; i < NELEM(argv) && argv[i] != 0; i++)
-//     kfree(argv[i]);
-
-//   return ret;
-
-//  bad:
-//   for(i = 0; i < NELEM(argv) && argv[i] != 0; i++)
-//     kfree(argv[i]);
-//   return -1;
 }
 
 uint64
@@ -127,16 +90,21 @@ sys_sleep(void)
 
   if(argint(0, &n) < 0)
     return -1;
-  acquire(&tickslock);
+  struct proc *p = myproc();
+  // acquire(&tickslock);
+  acquire(&p->lock);
   ticks0 = ticks;
   while(ticks - ticks0 < n){
-    if(myproc()->killed){
-      release(&tickslock);
+    if(p->killed){
+      // release(&tickslock);
+      release(&p->lock);
       return -1;
     }
-    sleep(&ticks, &tickslock);
+    // sleep(&ticks, &tickslock);
+    sleep(&ticks, &p->lock);
   }
-  release(&tickslock);
+  // release(&tickslock);
+  release(&p->lock);
   return 0;
 }
 

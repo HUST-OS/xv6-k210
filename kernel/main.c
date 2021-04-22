@@ -43,7 +43,7 @@ main(unsigned long hartid, unsigned long dtb_pa)
     kinit();         // physical page allocator
     kvminit();       // create kernel page table
     kvminithart();   // turn on paging
-    timerinit();     // init a lock for timer
+    // timerinit();     // init a lock for timer
     trapinithart();  // install kernel trap vector, including interrupt handler
     procinit();
     plicinit();

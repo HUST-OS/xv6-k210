@@ -39,6 +39,32 @@ loadseg(pagetable_t pagetable, uint64 va, struct dirent *ep, uint offset, uint s
   return 0;
 }
 
+// push arg or env strings into user stack, return strings count
+static int pushstack(pagetable_t pt, uint64 table[], char **utable, int maxc, uint64 *spp, char *buf)
+{
+  uint64 sp = *spp;
+  uint64 stackbase = PGROUNDDOWN(sp);
+  uint64 argc, argp;
+
+  for (argc = 0; utable; argc++) {
+    if (argc >= maxc || fetchaddr((uint64)(utable + argc), &argp) < 0)
+      return -1;
+    if (argp == 0)
+      break;
+    int arglen = fetchstr(argp, buf, PGSIZE);   // '\0' included in PGSIZE, but not in envlen
+    if (arglen++ < 0)                                 // including '\0'
+      return -1;
+    sp -= arglen;
+    sp -= sp % 16;
+    if (sp < stackbase || copyout(pt, sp, buf, arglen) < 0)
+      return -1;
+    table[argc] = sp;
+  }
+  table[argc] = 0;
+  *spp = sp;
+  return argc;
+}
+
 // All argvs are pointers came from user space, and should be checked by sys_caller
 int execve(char *path, char **argv, char **envp)
 {
@@ -49,28 +75,21 @@ int execve(char *path, char **argv, char **envp)
   struct proc *p = myproc();
 
   if ((buf = kalloc()) == NULL || copyinstr2(buf, (uint64)path, FAT32_MAX_PATH) < 0
-      || (ep = ename(buf)) == NULL) {
-    #ifdef DEBUG
-    printf("[exec] %s not found\n", path);
-    #endif
+      || (ep = ename(buf)) == NULL)
     goto bad;
-  }
   elock(ep);
 
   // Check ELF header
   struct elfhdr elf;
-  if (eread(ep, 0, (uint64) &elf, 0, sizeof(elf)) != sizeof(elf))
-    goto bad;
-  if (elf.magic != ELF_MAGIC)
+  if (eread(ep, 0, (uint64) &elf, 0, sizeof(elf)) != sizeof(elf) || elf.magic != ELF_MAGIC)
     goto bad;
 
   // Make a copy of p->kpt without old user space, 
   // but with the same kstack we are using now, which can't be changed.
   // Load program into memory.
   uint64 sz = 0;
-  if ((pagetable = proc_pagetable(p)) == NULL)
-    goto bad;
-  if ((kpagetable = (pagetable_t)kalloc()) == NULL)
+  if ((pagetable = proc_pagetable(p)) == NULL ||
+      (kpagetable = (pagetable_t)kalloc()) == NULL)
     goto bad;
   memmove(kpagetable, p->kpagetable, PGSIZE);
   for (int i = 0; i < PX(2, MAXUVA); i++) {
@@ -82,9 +101,7 @@ int execve(char *path, char **argv, char **envp)
       goto bad;
     if (ph.type != ELF_PROG_LOAD)
       continue;
-    if (ph.memsz < ph.filesz)
-      goto bad;
-    if (ph.vaddr + ph.memsz < ph.vaddr)
+    if (ph.memsz < ph.filesz || ph.vaddr + ph.memsz < ph.vaddr)
       goto bad;
     uint64 sz1;
     if ((sz1 = uvmalloc(pagetable, kpagetable, sz, ph.vaddr + ph.memsz)) == 0)
@@ -115,67 +132,28 @@ int execve(char *path, char **argv, char **envp)
   if (copyout(pagetable, sp, (char *)&ep, sizeof(uint64)) < 0)  // *ep is 0 now, borrow it
     goto bad;
 
-  // Push env strings
-  uint64 argc = 0, envc = 0, uargv[MAXARG + 1], uenvp[MAXENV + 1], argp;
-  while (envp) {
-    if (envc >= MAXENV || fetchaddr((uint64)(envp + envc), &argp) < 0)
-      goto bad;
-    if (argp == 0)
-      break;
-    int envlen = fetchstr(argp, buf, PGSIZE);   // '\0' included in PGSIZE, but not in envlen
-    if (envlen++ < 0)                                 // including '\0'
-      goto bad;
-    sp -= envlen;
-    sp -= sp % 16;
-    if (sp < stackbase)
-      goto bad;
-    if (copyout(pagetable, sp, buf, envlen) < 0)
-      goto bad;
-    uenvp[envc++] = sp;
-  }
-  uenvp[envc] = 0;
-  // Push envp[] table
-  sp -= (envc + 1) * sizeof(uint64);
-  sp -= sp % 16;
-  if (sp < stackbase)
-    goto bad;
-  if (copyout(pagetable, sp, (char *)uenvp, (envc + 1) * sizeof(uint64)) < 0)
-    goto bad;
-  p->trapframe->a2 = sp;
-  // Push argument strings, prepare rest of stack in ustack.
-  while (argv) {
-    if (argc >= MAXARG || fetchaddr((uint64)(argv + argc), &argp) < 0)
-      goto bad;
-    if (argp == 0)
-      break;
-    int argvlen = fetchstr(argp, buf, PGSIZE);
-    if (argvlen++ < 0)
-      goto bad;
-    sp -= argvlen;
-    sp -= sp % 16; // riscv sp must be 16-byte aligned
-    if (sp < stackbase)
-      goto bad;
-    if (copyout(pagetable, sp, buf, argvlen) < 0)
-      goto bad;
-    uargv[argc++] = sp;
-  }
-  uargv[argc] = 0;
-  // push the array of argv[] pointers.
-  sp -= (argc + 1) * sizeof(uint64);
-  sp -= sp % 16;
-  if (sp < stackbase)
-    goto bad;
-  if (copyout(pagetable, sp, (char *)uargv, (argc + 1) * sizeof(uint64)) < 0)
-    goto bad;
-
-  // arguments to user main(argc, argv)
+  // arguments to user main(argc, argv, envp)
   // argc is returned via the system call return
   // value, which goes in a0.
+  int argc, envc;
+  uint64 uargv[MAXARG + 1], uenvp[MAXENV + 1];
+  if ((envc = pushstack(pagetable, uenvp, envp, MAXENV, &sp, buf)) < 0 ||
+      (argc = pushstack(pagetable, uargv, argv, MAXARG, &sp, buf)) < 0)
+    goto bad;
+  sp -= (envc + 1) * sizeof(uint64);
+  uint64 a2 = sp;
+  sp -= (argc + 1) * sizeof(uint64);
+  if (sp < stackbase || 
+      copyout(pagetable, a2, (char *)uenvp, (envc + 1) * sizeof(uint64)) < 0 ||
+      copyout(pagetable, sp, (char *)uargv, (argc + 1) * sizeof(uint64)) < 0)
+    goto bad;
   p->trapframe->a1 = sp;
+  p->trapframe->a2 = a2;
 
   // Save program name for debugging.
   memmove(p->name, pname, sizeof(p->name));
-    
+  kfree(buf);
+
   // Commit to the user image.
   pagetable_t oldpagetable = p->pagetable;
   pagetable_t oldkpagetable = p->kpagetable;
@@ -185,17 +163,14 @@ int execve(char *path, char **argv, char **envp)
   p->sz = sz;
   p->trapframe->epc = elf.entry;  // initial program counter = main
   p->trapframe->sp = sp; // initial stack pointer
-  kfree(buf);
   proc_freepagetable(oldpagetable, oldsz);
   w_satp(MAKE_SATP(p->kpagetable));
   sfence_vma();
   kvmfree(oldkpagetable, 0);
+
   return argc; // this ends up in a0, the first argument to main(argc, argv)
 
  bad:
-  #ifdef DEBUG
-  printf("[exec] reach bad\n");
-  #endif
   if (buf)
     kfree(buf);
   if (pagetable)
