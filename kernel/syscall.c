@@ -116,6 +116,7 @@ extern uint64 sys_remove(void);
 extern uint64 sys_trace(void);
 extern uint64 sys_sysinfo(void);
 extern uint64 sys_rename(void);
+extern uint64 sys_execve(void);
 
 static uint64 (*syscalls[])(void) = {
   [SYS_fork]        sys_fork,
@@ -144,6 +145,7 @@ static uint64 (*syscalls[])(void) = {
   [SYS_trace]       sys_trace,
   [SYS_sysinfo]     sys_sysinfo,
   [SYS_rename]      sys_rename,
+  [SYS_execve]      sys_execve,
 };
 
 static char *sysnames[] = {
@@ -173,6 +175,7 @@ static char *sysnames[] = {
   [SYS_trace]       "trace",
   [SYS_sysinfo]     "sysinfo",
   [SYS_rename]      "rename",
+  [SYS_execve]      "execve",
 };
 
 void

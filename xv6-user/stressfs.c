@@ -10,7 +10,6 @@
 #include "kernel/include/types.h"
 #include "kernel/include/stat.h"
 #include "xv6-user/user.h"
-#include "kernel/include/fs.h"
 #include "kernel/include/fcntl.h"
 
 int

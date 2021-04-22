@@ -1,16 +1,28 @@
-#include "kernel/include/types.h"
-#include "kernel/include/stat.h"
-#include "kernel/include/sysinfo.h"
-#include "xv6-user/user.h"
+#include "user.h"
 
-int main()
+char *myenvp[] = {
+    "PATH=/bin",
+    "env1=xxx",
+    "env2=yyy",
+    "env3=zzz",
+};
+
+int main(int argc, char *argv[], char *envp[])
 {
-    struct sysinfo info;
-    if (sysinfo(&info) < 0) {
-        printf("sysinfo fail!\n");
-    } else {
-        printf("memory left: %d KB\n", info.freemem >> 10);
-        printf("process amount: %d\n", info.nproc);
+    printf("argc: %d\n", argc);
+    for (int i = 0; i < argc; i++) {
+        printf("arg%d: [%s]\n", i, argv[i]);
+    }
+    for (int i = 0; envp[i]; i++) {
+        printf("env%d: [%s]\n", i, envp[i]);
+    }
+    int fk = 0;
+    if (argc > 1) {
+        fk = atoi(argv[1]);
+    }
+    if (fk && fork() == 0) {
+        strcpy(argv[1], "0");
+        execve("test", argv, myenvp);
     }
     exit(0);
 }

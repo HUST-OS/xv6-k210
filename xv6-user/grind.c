@@ -6,7 +6,6 @@
 #include "kernel/include/types.h"
 #include "kernel/include/stat.h"
 #include "xv6-user/user.h"
-#include "kernel/include/fs.h"
 #include "kernel/include/fcntl.h"
 #include "kernel/include/syscall.h"
 #include "kernel/include/memlayout.h"
@@ -72,13 +71,15 @@ go(int which_child)
     } else if(what == 2){
       close(open("grindir/../grindir/../b", O_CREATE|O_RDWR));
     } else if(what == 3){
-      unlink("grindir/../a");
+      // unlink("grindir/../a");
+      remove("grindir/../a");
     } else if(what == 4){
       if(chdir("grindir") != 0){
         printf("chdir grindir failed\n");
         exit(1);
       }
-      unlink("../b");
+      // unlink("../b");
+      remove("../b");
       chdir("/");
     } else if(what == 5){
       close(fd);
@@ -93,17 +94,19 @@ go(int which_child)
     } else if(what == 9){
       mkdir("grindir/../a");
       close(open("a/../a/./a", O_CREATE|O_RDWR));
-      unlink("a/a");
+      // unlink("a/a");
+      remove("a/a");
     } else if(what == 10){
       mkdir("/../b");
       close(open("grindir/../b/b", O_CREATE|O_RDWR));
-      unlink("b/b");
+      // unlink("b/b");
+      remove("b/b");
     } else if(what == 11){
-      unlink("b");
-      link("../grindir/./../a", "../b");
+      // unlink("b");
+      // link("../grindir/./../a", "../b");
     } else if(what == 12){
-      unlink("../grindir/../a");
-      link(".././b", "/grindir/../a");
+      // unlink("../grindir/../a");
+      // link(".././b", "/grindir/../a");
     } else if(what == 13){
       int pid = fork();
       if(pid == 0){
@@ -180,12 +183,15 @@ go(int which_child)
     } else if(what == 20){
       int pid = fork();
       if(pid == 0){
-        unlink("a");
+        // unlink("a");
+        remove("a");
         mkdir("a");
         chdir("a");
-        unlink("../a");
+        // unlink("../a");
+        remove("../a");
         fd = open("x", O_CREATE|O_RDWR);
-        unlink("x");
+        // unlink("x");
+        remove("x");
         exit(0);
       } else if(pid < 0){
         printf("fork failed\n");
@@ -193,7 +199,8 @@ go(int which_child)
       }
       wait(0);
     } else if(what == 21){
-      unlink("c");
+      // unlink("c");
+      remove("c");
       // should always succeed. check that there are free i-nodes,
       // file descriptors, blocks.
       int fd1 = open("c", O_CREATE|O_RDWR);
@@ -214,12 +221,13 @@ go(int which_child)
         printf("fstat reports wrong size %d\n", (int)st.size);
         exit(1);
       }
-      if(st.ino > 200){
-        printf("fstat reports crazy i-number %d\n", st.ino);
-        exit(1);
-      }
+      // if(st.ino > 200){
+      //   printf("fstat reports crazy i-number %d\n", st.ino);
+      //   exit(1);
+      // }
       close(fd1);
-      unlink("c");
+      // unlink("c");
+      remove("c");
     } else if(what == 22){
       // echo hi | cat
       int aa[2], bb[2];
@@ -295,8 +303,10 @@ go(int which_child)
 void
 iter()
 {
-  unlink("a");
-  unlink("b");
+  // unlink("a");
+  // unlink("b");
+  remove("a");
+  remove("b");
   
   int pid1 = fork();
   if(pid1 < 0){
@@ -335,15 +345,18 @@ iter()
 int
 main()
 {
-  while(1){
-    int pid = fork();
-    if(pid == 0){
-      iter();
-      exit(0);
+  if (fork() == 0) {
+    while(1){
+      int pid = fork();
+      if(pid == 0){
+        iter();
+        exit(0);
+      }
+      if(pid > 0){
+        wait(0);
+      }
+      sleep(20);
     }
-    if(pid > 0){
-      wait(0);
-    }
-    sleep(20);
   }
+  exit(0);
 }

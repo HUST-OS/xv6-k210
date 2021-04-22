@@ -16,6 +16,7 @@ int read(int fd, void *buf, int len);
 int close(int fd);
 int kill(int pid);
 int exec(char*, char**);
+int execve(char *name, char *argv[], char *envp[]);
 int open(const char *filename, int mode);
 int fstat(int fd, struct stat*);
 int mkdir(const char *dirname);

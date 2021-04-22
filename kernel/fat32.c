@@ -570,8 +570,7 @@ struct dirent *ealloc(struct dirent *dp, char *name, int attr)
     ep->clus_cnt = 0;
     ep->cur_clus = 0;
     ep->dirty = 0;
-    strncpy(ep->filename, name, FAT32_MAX_FILENAME);
-    ep->filename[FAT32_MAX_FILENAME] = '\0';
+    safestrcpy(ep->filename, name, FAT32_MAX_FILENAME);
     if (attr == ATTR_DIRECTORY) {    // generate "." and ".." for ep
         ep->attribute |= ATTR_DIRECTORY;
         ep->cur_clus = ep->first_clus = alloc_clus(dp->dev);
@@ -588,11 +587,9 @@ struct dirent *ealloc(struct dirent *dp, char *name, int attr)
 
 struct dirent *edup(struct dirent *entry)
 {
-    if (entry != 0) {
-        acquire(&ecache.lock);
-        entry->ref++;
-        release(&ecache.lock);
-    }
+    acquire(&ecache.lock);
+    entry->ref++;
+    release(&ecache.lock);
     return entry;
 }
 

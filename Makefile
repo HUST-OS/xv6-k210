@@ -200,16 +200,14 @@ UPROGS=\
 	$U/_find\
 	$U/_rm\
 	$U/_wc\
-	$U/_test\
+	$U/_info\
 	$U/_usertests\
 	$U/_strace\
 	$U/_mv\
-
-	# $U/_forktest\
-	# $U/_ln\
-	# $U/_stressfs\
-	# $U/_grind\
-	# $U/_zombie\
+	$U/_test\
+	$U/_grind\
+	$U/_forktest\
+	$U/_stressfs\
 
 userprogs: $(UPROGS)
 

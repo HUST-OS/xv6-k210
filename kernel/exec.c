@@ -3,8 +3,6 @@
 #include "include/param.h"
 #include "include/memlayout.h"
 #include "include/riscv.h"
-#include "include/spinlock.h"
-#include "include/sleeplock.h"
 #include "include/proc.h"
 #include "include/elf.h"
 #include "include/fat32.h"
@@ -12,6 +10,7 @@
 #include "include/vm.h"
 #include "include/printf.h"
 #include "include/string.h"
+#include "include/syscall.h"
 
 // Load a program segment into pagetable at virtual address va.
 // va must be page-aligned
@@ -40,30 +39,17 @@ loadseg(pagetable_t pagetable, uint64 va, struct dirent *ep, uint offset, uint s
   return 0;
 }
 
-
-int exec(char *path, char **argv)
+// All argvs are pointers came from user space, and should be checked by sys_caller
+int execve(char *path, char **argv, char **envp)
 {
-  char *s, *last;
-  int i, off;
-  uint64 argc, sz = 0, sp, ustack[MAXARG+1], stackbase;
-  struct elfhdr elf;
-  struct dirent *ep;
-  struct proghdr ph;
-  pagetable_t pagetable = 0, oldpagetable;
-  pagetable_t kpagetable = 0, oldkpagetable;
+  struct dirent *ep = NULL;
+  pagetable_t pagetable = NULL;
+  pagetable_t kpagetable = NULL;
+  char *buf = NULL;
   struct proc *p = myproc();
 
-  // Make a copy of p->kpt without old user space, 
-  // but with the same kstack we are using now, which can't be changed
-  if ((kpagetable = (pagetable_t)kalloc()) == NULL) {
-    return -1;
-  }
-  memmove(kpagetable, p->kpagetable, PGSIZE);
-  for (int i = 0; i < PX(2, MAXUVA); i++) {
-    kpagetable[i] = 0;
-  }
-
-  if((ep = ename(path)) == NULL) {
+  if ((buf = kalloc()) == NULL || copyinstr2(buf, (uint64)path, FAT32_MAX_PATH) < 0
+      || (ep = ename(buf)) == NULL) {
     #ifdef DEBUG
     printf("[exec] %s not found\n", path);
     #endif
@@ -72,70 +58,114 @@ int exec(char *path, char **argv)
   elock(ep);
 
   // Check ELF header
-  if(eread(ep, 0, (uint64) &elf, 0, sizeof(elf)) != sizeof(elf))
+  struct elfhdr elf;
+  if (eread(ep, 0, (uint64) &elf, 0, sizeof(elf)) != sizeof(elf))
     goto bad;
-  if(elf.magic != ELF_MAGIC)
-    goto bad;
-  if((pagetable = proc_pagetable(p)) == NULL)
+  if (elf.magic != ELF_MAGIC)
     goto bad;
 
+  // Make a copy of p->kpt without old user space, 
+  // but with the same kstack we are using now, which can't be changed.
   // Load program into memory.
-  for(i=0, off=elf.phoff; i<elf.phnum; i++, off+=sizeof(ph)){
-    if(eread(ep, 0, (uint64)&ph, off, sizeof(ph)) != sizeof(ph))
+  uint64 sz = 0;
+  if ((pagetable = proc_pagetable(p)) == NULL)
+    goto bad;
+  if ((kpagetable = (pagetable_t)kalloc()) == NULL)
+    goto bad;
+  memmove(kpagetable, p->kpagetable, PGSIZE);
+  for (int i = 0; i < PX(2, MAXUVA); i++) {
+    kpagetable[i] = 0;
+  }
+  struct proghdr ph;
+  for (int i = 0, off = elf.phoff; i < elf.phnum; i++, off += sizeof(ph)) {
+    if (eread(ep, 0, (uint64)&ph, off, sizeof(ph)) != sizeof(ph))
       goto bad;
-    if(ph.type != ELF_PROG_LOAD)
+    if (ph.type != ELF_PROG_LOAD)
       continue;
-    if(ph.memsz < ph.filesz)
+    if (ph.memsz < ph.filesz)
       goto bad;
-    if(ph.vaddr + ph.memsz < ph.vaddr)
+    if (ph.vaddr + ph.memsz < ph.vaddr)
       goto bad;
     uint64 sz1;
-    if((sz1 = uvmalloc(pagetable, kpagetable, sz, ph.vaddr + ph.memsz)) == 0)
+    if ((sz1 = uvmalloc(pagetable, kpagetable, sz, ph.vaddr + ph.memsz)) == 0)
       goto bad;
     sz = sz1;
-    if(ph.vaddr % PGSIZE != 0)
+    if (ph.vaddr % PGSIZE != 0)
       goto bad;
-    if(loadseg(pagetable, ph.vaddr, ep, ph.off, ph.filesz) < 0)
+    if (loadseg(pagetable, ph.vaddr, ep, ph.off, ph.filesz) < 0)
       goto bad;
   }
+  char pname[16];
+  safestrcpy(pname, ep->filename, sizeof(pname));
   eunlock(ep);
   eput(ep);
   ep = 0;
-
-  p = myproc();
-  uint64 oldsz = p->sz;
 
   // Allocate two pages at the next page boundary.
   // Use the second as the user stack.
   sz = PGROUNDUP(sz);
   uint64 sz1;
-  if((sz1 = uvmalloc(pagetable, kpagetable, sz, sz + 2*PGSIZE)) == 0)
+  if ((sz1 = uvmalloc(pagetable, kpagetable, sz, sz + 2 * PGSIZE)) == 0)
     goto bad;
   sz = sz1;
-  uvmclear(pagetable, sz-2*PGSIZE);
-  sp = sz;
-  stackbase = sp - PGSIZE;
-
-  // Push argument strings, prepare rest of stack in ustack.
-  for(argc = 0; argv[argc]; argc++) {
-    if(argc >= MAXARG)
-      goto bad;
-    sp -= strlen(argv[argc]) + 1;
-    sp -= sp % 16; // riscv sp must be 16-byte aligned
-    if(sp < stackbase)
-      goto bad;
-    if(copyout(pagetable, sp, argv[argc], strlen(argv[argc]) + 1) < 0)
-      goto bad;
-    ustack[argc] = sp;
-  }
-  ustack[argc] = 0;
-
-  // push the array of argv[] pointers.
-  sp -= (argc+1) * sizeof(uint64);
-  sp -= sp % 16;
-  if(sp < stackbase)
+  uvmclear(pagetable, sz - 2 * PGSIZE);
+  uint64 sp = sz;
+  uint64 stackbase = sp - PGSIZE;
+  sp -= sizeof(uint64);
+  if (copyout(pagetable, sp, (char *)&ep, sizeof(uint64)) < 0)  // *ep is 0 now, borrow it
     goto bad;
-  if(copyout(pagetable, sp, (char *)ustack, (argc+1)*sizeof(uint64)) < 0)
+
+  // Push env strings
+  uint64 argc = 0, envc = 0, uargv[MAXARG + 1], uenvp[MAXENV + 1], argp;
+  while (envp) {
+    if (envc >= MAXENV || fetchaddr((uint64)(envp + envc), &argp) < 0)
+      goto bad;
+    if (argp == 0)
+      break;
+    int envlen = fetchstr(argp, buf, PGSIZE);   // '\0' included in PGSIZE, but not in envlen
+    if (envlen++ < 0)                                 // including '\0'
+      goto bad;
+    sp -= envlen;
+    sp -= sp % 16;
+    if (sp < stackbase)
+      goto bad;
+    if (copyout(pagetable, sp, buf, envlen) < 0)
+      goto bad;
+    uenvp[envc++] = sp;
+  }
+  uenvp[envc] = 0;
+  // Push envp[] table
+  sp -= (envc + 1) * sizeof(uint64);
+  sp -= sp % 16;
+  if (sp < stackbase)
+    goto bad;
+  if (copyout(pagetable, sp, (char *)uenvp, (envc + 1) * sizeof(uint64)) < 0)
+    goto bad;
+  p->trapframe->a2 = sp;
+  // Push argument strings, prepare rest of stack in ustack.
+  while (argv) {
+    if (argc >= MAXARG || fetchaddr((uint64)(argv + argc), &argp) < 0)
+      goto bad;
+    if (argp == 0)
+      break;
+    int argvlen = fetchstr(argp, buf, PGSIZE);
+    if (argvlen++ < 0)
+      goto bad;
+    sp -= argvlen;
+    sp -= sp % 16; // riscv sp must be 16-byte aligned
+    if (sp < stackbase)
+      goto bad;
+    if (copyout(pagetable, sp, buf, argvlen) < 0)
+      goto bad;
+    uargv[argc++] = sp;
+  }
+  uargv[argc] = 0;
+  // push the array of argv[] pointers.
+  sp -= (argc + 1) * sizeof(uint64);
+  sp -= sp % 16;
+  if (sp < stackbase)
+    goto bad;
+  if (copyout(pagetable, sp, (char *)uargv, (argc + 1) * sizeof(uint64)) < 0)
     goto bad;
 
   // arguments to user main(argc, argv)
@@ -144,19 +174,18 @@ int exec(char *path, char **argv)
   p->trapframe->a1 = sp;
 
   // Save program name for debugging.
-  for(last=s=path; *s; s++)
-    if(*s == '/')
-      last = s+1;
-  safestrcpy(p->name, last, sizeof(p->name));
+  memmove(p->name, pname, sizeof(p->name));
     
   // Commit to the user image.
-  oldpagetable = p->pagetable;
-  oldkpagetable = p->kpagetable;
+  pagetable_t oldpagetable = p->pagetable;
+  pagetable_t oldkpagetable = p->kpagetable;
+  uint64 oldsz = p->sz;
   p->pagetable = pagetable;
   p->kpagetable = kpagetable;
   p->sz = sz;
   p->trapframe->epc = elf.entry;  // initial program counter = main
   p->trapframe->sp = sp; // initial stack pointer
+  kfree(buf);
   proc_freepagetable(oldpagetable, oldsz);
   w_satp(MAKE_SATP(p->kpagetable));
   sfence_vma();
@@ -167,11 +196,13 @@ int exec(char *path, char **argv)
   #ifdef DEBUG
   printf("[exec] reach bad\n");
   #endif
-  if(pagetable)
+  if (buf)
+    kfree(buf);
+  if (pagetable)
     proc_freepagetable(pagetable, sz);
-  if(kpagetable)
+  if (kpagetable)
     kvmfree(kpagetable, 0);
-  if(ep){
+  if (ep) {
     eunlock(ep);
     eput(ep);
   }
