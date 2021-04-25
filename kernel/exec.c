@@ -6,7 +6,7 @@
 #include "include/proc.h"
 #include "include/elf.h"
 #include "include/fat32.h"
-#include "include/kalloc.h"
+#include "include/pm.h"
 #include "include/vm.h"
 #include "include/printf.h"
 #include "include/string.h"
@@ -40,29 +40,39 @@ loadseg(pagetable_t pagetable, uint64 va, struct dirent *ep, uint offset, uint s
 }
 
 // push arg or env strings into user stack, return strings count
-static int pushstack(pagetable_t pt, uint64 table[], char **utable, int maxc, uint64 *spp, char *buf)
+static int pushstack(pagetable_t pt, uint64 table[], char **utable, int maxc, uint64 *spp)
 {
   uint64 sp = *spp;
   uint64 stackbase = PGROUNDDOWN(sp);
   uint64 argc, argp;
-
+  char *buf;
+  
+  if ((buf = allocpage()) == NULL) {
+    return -1;
+  }
   for (argc = 0; utable; argc++) {
     if (argc >= maxc || fetchaddr((uint64)(utable + argc), &argp) < 0)
-      return -1;
+      goto bad;
     if (argp == 0)
       break;
     int arglen = fetchstr(argp, buf, PGSIZE);   // '\0' included in PGSIZE, but not in envlen
     if (arglen++ < 0)                                 // including '\0'
-      return -1;
+      goto bad;
     sp -= arglen;
     sp -= sp % 16;
     if (sp < stackbase || copyout(pt, sp, buf, arglen) < 0)
-      return -1;
+      goto bad;
     table[argc] = sp;
   }
   table[argc] = 0;
   *spp = sp;
+  freepage(buf);
   return argc;
+
+bad:
+  if (buf)
+    freepage(buf);
+  return -1;
 }
 
 // All argvs are pointers came from user space, and should be checked by sys_caller
@@ -71,11 +81,9 @@ int execve(char *path, char **argv, char **envp)
   struct dirent *ep = NULL;
   pagetable_t pagetable = NULL;
   pagetable_t kpagetable = NULL;
-  char *buf = NULL;
   struct proc *p = myproc();
 
-  if ((buf = kalloc()) == NULL || copyinstr2(buf, (uint64)path, FAT32_MAX_PATH) < 0
-      || (ep = ename(buf)) == NULL)
+  if ((ep = ename(path)) == NULL)
     goto bad;
   elock(ep);
 
@@ -89,7 +97,7 @@ int execve(char *path, char **argv, char **envp)
   // Load program into memory.
   uint64 sz = 0;
   if ((pagetable = proc_pagetable(p)) == NULL ||
-      (kpagetable = (pagetable_t)kalloc()) == NULL)
+      (kpagetable = (pagetable_t)allocpage()) == NULL)
     goto bad;
   memmove(kpagetable, p->kpagetable, PGSIZE);
   for (int i = 0; i < PX(2, MAXUVA); i++) {
@@ -137,8 +145,8 @@ int execve(char *path, char **argv, char **envp)
   // value, which goes in a0.
   int argc, envc;
   uint64 uargv[MAXARG + 1], uenvp[MAXENV + 1];
-  if ((envc = pushstack(pagetable, uenvp, envp, MAXENV, &sp, buf)) < 0 ||
-      (argc = pushstack(pagetable, uargv, argv, MAXARG, &sp, buf)) < 0)
+  if ((envc = pushstack(pagetable, uenvp, envp, MAXENV, &sp)) < 0 ||
+      (argc = pushstack(pagetable, uargv, argv, MAXARG, &sp)) < 0)
     goto bad;
   sp -= (envc + 1) * sizeof(uint64);
   uint64 a2 = sp;
@@ -152,7 +160,6 @@ int execve(char *path, char **argv, char **envp)
 
   // Save program name for debugging.
   memmove(p->name, pname, sizeof(p->name));
-  kfree(buf);
 
   // Commit to the user image.
   pagetable_t oldpagetable = p->pagetable;
@@ -171,8 +178,6 @@ int execve(char *path, char **argv, char **envp)
   return argc; // this ends up in a0, the first argument to main(argc, argv)
 
  bad:
-  if (buf)
-    kfree(buf);
   if (pagetable)
     proc_freepagetable(pagetable, sz);
   if (kpagetable)

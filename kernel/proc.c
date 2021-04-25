@@ -6,7 +6,7 @@
 #include "include/spinlock.h"
 #include "include/proc.h"
 #include "include/intr.h"
-#include "include/kalloc.h"
+#include "include/pm.h"
 #include "include/printf.h"
 #include "include/string.h"
 #include "include/fat32.h"
@@ -55,21 +55,10 @@ procinit(void)
   
   initlock(&pid_lock, "nextpid");
   for(p = proc; p < &proc[NPROC]; p++) {
-      initlock(&p->lock, "proc");
-
-      // Allocate a page for the process's kernel stack.
-      // Map it high in memory, followed by an invalid
-      // guard page.
-      // char *pa = kalloc();
-      // // printf("[procinit]kernel stack: %p\n", (uint64)pa);
-      // if(pa == 0)
-      //   panic("kalloc");
-      // uint64 va = KSTACK((int) (p - proc));
-      // // printf("[procinit]kvmmap va %p to pa %p\n", va, (uint64)pa);
-      // kvmmap(va, (uint64)pa, PGSIZE, PTE_R | PTE_W);
-      // p->kstack = va;
+    p->state = UNUSED;
+    initlock(&p->lock, "proc");
   }
-  kvminithart();
+  memset(cpus, 0, sizeof(cpus));
   #ifdef DEBUG
   printf("procinit\n");
   #endif
@@ -140,7 +129,7 @@ found:
   p->pid = allocpid();
 
   // Allocate a trapframe page.
-  if((p->trapframe = (struct trapframe *)kalloc()) == NULL){
+  if((p->trapframe = (struct trapframe *)allocpage()) == NULL){
     release(&p->lock);
     return NULL;
   }
@@ -153,6 +142,8 @@ found:
     release(&p->lock);
     return NULL;
   }
+
+  memset(p->ofile, 0, sizeof(p->ofile));
 
   p->kstack = VKSTACK;
 
@@ -172,7 +163,7 @@ static void
 freeproc(struct proc *p)
 {
   if(p->trapframe)
-    kfree((void*)p->trapframe);
+    freepage((void*)p->trapframe);
   p->trapframe = 0;
   if (p->kpagetable) {
     kvmfree(p->kpagetable, 1);

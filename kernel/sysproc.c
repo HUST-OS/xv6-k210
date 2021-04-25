@@ -7,7 +7,7 @@
 #include "include/proc.h"
 #include "include/syscall.h"
 #include "include/timer.h"
-#include "include/kalloc.h"
+#include "include/pm.h"
 #include "include/string.h"
 #include "include/printf.h"
 
@@ -16,25 +16,27 @@ extern int execve(char *path, char **argv, char **envp);
 uint64
 sys_exec(void)
 {
-  uint64 path, argv;
+  char path[FAT32_MAX_PATH];
+  uint64 argv;
 
-  if(argaddr(0, &path) < 0 || argaddr(1, &argv) < 0){
+  if(argstr(0, path, FAT32_MAX_PATH) < 0 || argaddr(1, &argv) < 0){
     return -1;
   }
 
-  return execve((char *)path, (char **)argv, 0);
+  return execve(path, (char **)argv, 0);
 }
 
 uint64
 sys_execve(void)
 {
-  uint64 path, argv, envp;
+  char path[FAT32_MAX_PATH];
+  uint64 argv, envp;
 
-  if(argaddr(0, &path) < 0 || argaddr(1, &argv) < 0 || argaddr(2, &envp)){
+  if(argstr(0, path, FAT32_MAX_PATH) < 0 || argaddr(1, &argv) < 0 || argaddr(2, &envp)){
     return -1;
   }
 
-  return execve((char *)path, (char **)argv, (char **)envp);
+  return execve(path, (char **)argv, (char **)envp);
 }
 
 uint64
@@ -43,6 +45,10 @@ sys_exit(void)
   int n;
   if(argint(0, &n) < 0)
     return -1;
+  // since exit never return, we print the trace-info here
+  if (myproc()->tmask & (1 << (SYS_exit - 1))) {
+    printf(")\n");
+  }
   exit(n);
   return 0;  // not reached
 }
@@ -65,7 +71,18 @@ sys_wait(void)
   uint64 p;
   if(argaddr(0, &p) < 0)
     return -1;
-  return wait(p);
+  // since wait suspends the proc, we print the left trace-info here
+  // and when coming back, we re-print the leading trace-info for a clear view
+  struct proc *pr = myproc();
+  int mask = pr->tmask & (1 << (SYS_wait - 1));
+  if (mask) {
+    printf(") ...\n");
+  }
+  int ret = wait(p);
+  if (mask) {
+    printf("pid %d: return from wait(0x%x", pr->pid, p);
+  }
+  return ret;
 }
 
 uint64

@@ -7,7 +7,7 @@
 #include "include/proc.h"
 #include "include/syscall.h"
 #include "include/sysinfo.h"
-#include "include/kalloc.h"
+#include "include/pm.h"
 #include "include/vm.h"
 #include "include/string.h"
 #include "include/printf.h"
@@ -32,10 +32,11 @@ fetchstr(uint64 addr, char *buf, int max)
 {
   // struct proc *p = myproc();
   // int err = copyinstr(p->pagetable, buf, addr, max);
-  int err = copyinstr2(buf, addr, max);
-  if(err < 0)
-    return err;
-  return strlen(buf);
+  int ret = copyinstr2(buf, addr, max);
+  return ret;
+  // if(err < 0)
+  //   return err;
+  // return strlen(buf);
 }
 
 static uint64
@@ -65,6 +66,13 @@ int
 argint(int n, int *ip)
 {
   *ip = argraw(n);
+  struct proc *p = myproc();
+  if (p->tmask & (1 << (p->trapframe->a7 - 1))) {
+    if (n != 0) {
+      printf(", ");
+    }
+    printf("%d", *ip);
+  }
   return 0;
 }
 
@@ -75,6 +83,13 @@ int
 argaddr(int n, uint64 *ip)
 {
   *ip = argraw(n);
+  struct proc *p = myproc();
+  if (p->tmask & (1 << (p->trapframe->a7 - 1))) {
+      if (n != 0) {
+      printf(", ");
+    }
+    printf("0x%x", *ip);
+  }
   return 0;
 }
 
@@ -87,7 +102,12 @@ argstr(int n, char *buf, int max)
   uint64 addr;
   if(argaddr(n, &addr) < 0)
     return -1;
-  return fetchstr(addr, buf, max);
+  int ret = fetchstr(addr, buf, max);
+  struct proc *p = myproc();
+  if (ret >= 0 && (p->tmask & (1 << (p->trapframe->a7 - 1)))) {
+    printf("=\"%s\"", buf);
+  }
+  return ret;
 }
 
 extern uint64 sys_chdir(void);
@@ -186,11 +206,16 @@ syscall(void)
 
   num = p->trapframe->a7;
   if(num > 0 && num < NELEM(syscalls) && syscalls[num]) {
-    p->trapframe->a0 = syscalls[num]();
-        // trace
-    if ((p->tmask & (1 << num)) != 0) {
-      printf("pid %d: %s -> %d\n", p->pid, sysnames[num], p->trapframe->a0);
+    // trace
+    int trace = p->tmask & (1 << (num - 1));
+    if (trace) {
+      printf("pid %d: %s(", p->pid, sysnames[num]);
     }
+    p->trapframe->a0 = syscalls[num]();
+    if (trace) {
+      printf(") -> %d\n", p->trapframe->a0);
+    }
+    
   } else {
     printf("pid %d %s: unknown sys call %d\n",
             p->pid, p->name, num);
@@ -217,7 +242,7 @@ sys_sysinfo(void)
   }
 
   struct sysinfo info;
-  info.freemem = freemem_amount();
+  info.freemem = idlepages() << PGSHIFT;
   info.nproc = procnum();
 
   // if (copyout(p->pagetable, addr, (char *)&info, sizeof(info)) < 0) {

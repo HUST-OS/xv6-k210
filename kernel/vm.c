@@ -4,7 +4,7 @@
 #include "include/elf.h"
 #include "include/riscv.h"
 #include "include/vm.h"
-#include "include/kalloc.h"
+#include "include/pm.h"
 #include "include/proc.h"
 #include "include/printf.h"
 #include "include/string.h"
@@ -22,7 +22,7 @@ extern char trampoline[]; // trampoline.S
 void
 kvminit()
 {
-  kernel_pagetable = (pagetable_t) kalloc();
+  kernel_pagetable = (pagetable_t) allocpage();
   // printf("kernel_pagetable: %p\n", kernel_pagetable);
 
   memset(kernel_pagetable, 0, PGSIZE);
@@ -92,7 +92,6 @@ void
 kvminithart()
 {
   w_satp(MAKE_SATP(kernel_pagetable));
-  // reg_info();
   sfence_vma();
   #ifdef DEBUG
   printf("kvminithart\n");
@@ -123,7 +122,7 @@ walk(pagetable_t pagetable, uint64 va, int alloc)
     if(*pte & PTE_V) {
       pagetable = (pagetable_t)PTE2PA(*pte);
     } else {
-      if(!alloc || (pagetable = (pde_t*)kalloc()) == NULL)
+      if(!alloc || (pagetable = (pde_t*)allocpage()) == NULL)
         return NULL;
       memset(pagetable, 0, PGSIZE);
       *pte = PA2PTE(pagetable) | PTE_V;
@@ -239,7 +238,7 @@ vmunmap(pagetable_t pagetable, uint64 va, uint64 npages, int do_free)
       panic("vmunmap: not a leaf");
     if(do_free){
       uint64 pa = PTE2PA(*pte);
-      kfree((void*)pa);
+      freepage((void*)pa);
     }
     *pte = 0;
   }
@@ -251,7 +250,7 @@ pagetable_t
 uvmcreate()
 {
   pagetable_t pagetable;
-  pagetable = (pagetable_t) kalloc();
+  pagetable = (pagetable_t) allocpage();
   if(pagetable == NULL)
     return NULL;
   memset(pagetable, 0, PGSIZE);
@@ -268,7 +267,7 @@ uvminit(pagetable_t pagetable, pagetable_t kpagetable, uchar *src, uint sz)
 
   if(sz >= PGSIZE)
     panic("inituvm: more than a page");
-  mem = kalloc();
+  mem = allocpage();
   // printf("[uvminit]kalloc: %p\n", mem);
   memset(mem, 0, PGSIZE);
   mappages(pagetable, 0, PGSIZE, (uint64)mem, PTE_W|PTE_R|PTE_X|PTE_U);
@@ -292,14 +291,14 @@ uvmalloc(pagetable_t pagetable, pagetable_t kpagetable, uint64 oldsz, uint64 new
 
   oldsz = PGROUNDUP(oldsz);
   for(a = oldsz; a < newsz; a += PGSIZE){
-    mem = kalloc();
+    mem = allocpage();
     if(mem == NULL){
       uvmdealloc(pagetable, kpagetable, a, oldsz);
       return 0;
     }
     memset(mem, 0, PGSIZE);
     if (mappages(pagetable, a, PGSIZE, (uint64)mem, PTE_W|PTE_X|PTE_R|PTE_U) != 0) {
-      kfree(mem);
+      freepage(mem);
       uvmdealloc(pagetable, kpagetable, a, oldsz);
       return 0;
     }
@@ -349,7 +348,7 @@ freewalk(pagetable_t pagetable)
       panic("freewalk: leaf");
     }
   }
-  kfree((void*)pagetable);
+  freepage((void*)pagetable);
 }
 
 // Free user memory pages,
@@ -383,11 +382,11 @@ uvmcopy(pagetable_t old, pagetable_t new, pagetable_t knew, uint64 sz)
       panic("uvmcopy: page not present");
     pa = PTE2PA(*pte);
     flags = PTE_FLAGS(*pte);
-    if((mem = kalloc()) == NULL)
+    if((mem = allocpage()) == NULL)
       goto err;
     memmove(mem, (char*)pa, PGSIZE);
     if(mappages(new, i, PGSIZE, (uint64)mem, flags) != 0) {
-      kfree(mem);
+      freepage(mem);
       goto err;
     }
     i += PGSIZE;
@@ -536,6 +535,7 @@ int
 copyinstr2(char *dst, uint64 srcva, uint64 max)
 {
   int got_null = 0;
+  char *old = dst;
   uint64 sz = myproc()->sz;
   while(srcva < sz && max > 0){
     char *p = (char *)srcva;
@@ -551,7 +551,7 @@ copyinstr2(char *dst, uint64 srcva, uint64 max)
     dst++;
   }
   if(got_null){
-    return 0;
+    return dst - old;
   } else {
     return -1;
   }
@@ -561,13 +561,12 @@ copyinstr2(char *dst, uint64 srcva, uint64 max)
 pagetable_t
 proc_kpagetable()
 {
-  pagetable_t kpt = (pagetable_t) kalloc();
+  pagetable_t kpt = (pagetable_t) allocpage();
   if (kpt == NULL)
     return NULL;
   memmove(kpt, kernel_pagetable, PGSIZE);
 
-  // remap stack and trampoline, because they share the same page table of level 1 and 0
-  char *pstack = kalloc();
+  char *pstack = allocpage();
   if(pstack == NULL)
     goto fail;
   if (mappages(kpt, VKSTACK, PGSIZE, (uint64)pstack, PTE_R | PTE_W) != 0)
@@ -593,7 +592,7 @@ kfreewalk(pagetable_t kpt)
       break;
     }
   }
-  kfree((void *) kpt);
+  freepage((void *) kpt);
 }
 
 void
@@ -620,7 +619,7 @@ kvmfree(pagetable_t kpt, int stack_free)
     }
   }
   kvmfreeusr(kpt);
-  kfree(kpt);
+  freepage(kpt);
 }
 
 void vmprint(pagetable_t pagetable)

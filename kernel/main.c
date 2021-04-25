@@ -8,12 +8,13 @@
 #include "include/sbi.h"
 #include "include/console.h"
 #include "include/printf.h"
-#include "include/kalloc.h"
 #include "include/timer.h"
 #include "include/trap.h"
 #include "include/proc.h"
 #include "include/plic.h"
+#include "include/pm.h"
 #include "include/vm.h"
+#include "include/kmalloc.h"
 #include "include/disk.h"
 #include "include/buf.h"
 #ifndef QEMU
@@ -40,9 +41,10 @@ main(unsigned long hartid, unsigned long dtb_pa)
     #ifdef DEBUG
     printf("hart %d enter main()...\n", hartid);
     #endif
-    kinit();         // physical page allocator
+    kpminit();       // physical page allocator
     kvminit();       // create kernel page table
     kvminithart();   // turn on paging
+    kmallocinit();   // small physical memory allocator
     // timerinit();     // init a lock for timer
     trapinithart();  // install kernel trap vector, including interrupt handler
     procinit();
