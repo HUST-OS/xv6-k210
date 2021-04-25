@@ -20,6 +20,7 @@ struct env{
 };
 
 struct env envs[NENVS];
+char envsc[NENVS][128];
 int nenv = 0;
 
 struct cmd {
@@ -93,7 +94,7 @@ export(char *argv[])
       return 0;
     }
     for(int i=0; i<nenv; i++)
-      printf("export %s=%s\n", envs[i].name, envs[i].value);
+      printf("export %s\n", envsc[i]);
     return 0;
   }
   else if(nenv == NENVS)
@@ -103,6 +104,7 @@ export(char *argv[])
   }
   char name[32], value[96];
   char *s = argv[1], *t = name;
+  strcpy(envsc[nenv], s);
 
   for(s=argv[1], t=name; (*t=*s++)!='='; t++)
     ;
@@ -272,9 +274,8 @@ main(void)
   }
 
   // Add an embedded env var(for basic commands in shell)
-  strcpy(envs[nenv].name, "SHELL");
-  strcpy(envs[nenv].value, "/bin");
-  nenv++;
+  char *SHELL = "SHELL=/bin";
+  export((&SHELL) - 1);
 
   getcwd(mycwd);
   // Read and run input commands.
