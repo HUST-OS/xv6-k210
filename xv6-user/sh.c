@@ -84,9 +84,9 @@ checkenvname(char* s)
 }
 
 int
-export(char *argv[])
+export(char *argv)
 {
-  if(!strcmp(argv[1], "-p"))
+  if(!strcmp(argv, "-p"))
   { // print all the env vars
     if(!nenv)
     {
@@ -103,14 +103,14 @@ export(char *argv[])
     return -1;
   }
   char name[32], value[96];
-  char *s = argv[1], *t = name;
+  char *s = argv, *t = name;
   strcpy(envsc[nenv], s);
 
-  for(s=argv[1], t=name; (*t=*s++)!='='; t++)
+  for(s=argv, t=name; (*t=*s++)!='='; t++)
     ;
   *t = 0;
 
-  if(checkenvname(name) != ((s - argv[1]) - 1))
+  if(checkenvname(name) != ((s - argv) - 1))
   {
     fprintf(2, "Invalid NAME!\n");
     return -1;
@@ -259,6 +259,22 @@ getcmd(char *buf, int nbuf)
   return 0;
 }
 
+int readline(int fd, char *buf){
+  int i;
+  char c;
+
+  for(i = 0; ; i++){
+    read(fd, &c, 1);
+    if(c == '\n' || c == 0)
+      break;
+    else
+      *(buf+i) = c;
+  }
+  *(buf+i) = 0;
+
+  return i;
+}
+
 int
 main(void)
 {
@@ -274,8 +290,14 @@ main(void)
   }
 
   // Add an embedded env var(for basic commands in shell)
-  char *SHELL = "SHELL=/bin";
-  export((&SHELL) - 1);
+  fd = open("shrc", O_RDONLY);
+  char SHELL[128];
+  if(fd < 0){
+    fprintf(2, "sh: cannot open shrc\n");
+  } else{
+    while(readline(fd, SHELL))
+      export(SHELL);
+  }
 
   getcwd(mycwd);
   // Read and run input commands.
@@ -302,7 +324,7 @@ main(void)
         // Export must be called by the parent, not the child.
         if(ecmd->argv[1] == NULL)
           fprintf(2, "Usage: export [-p] [NAME=VALUE]\n");
-        else if(export(ecmd->argv) < 0)
+        else if(export(ecmd->argv[1]) < 0)
           fprintf(2, "export failed\n");
         free(cmd);
         continue;
