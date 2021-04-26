@@ -12,7 +12,14 @@
 #include "include/string.h"
 #include "include/printf.h"
 
-void freerange(void *pa_start, void *pa_end);
+static void
+freerange(void *pa_start, void *pa_end)
+{
+  char *p;
+  p = (char*)PGROUNDUP((uint64)pa_start);
+  for(; p + PGSIZE <= (char*)pa_end; p += PGSIZE)
+    kfree(p);
+}
 
 extern char kernel_end[]; // first address after kernel.
 
@@ -37,15 +44,6 @@ kinit()
   printf("kernel_end: %p, phystop: %p\n", kernel_end, (void*)PHYSTOP);
   printf("kinit\n");
   #endif
-}
-
-void
-freerange(void *pa_start, void *pa_end)
-{
-  char *p;
-  p = (char*)PGROUNDUP((uint64)pa_start);
-  for(; p + PGSIZE <= (char*)pa_end; p += PGSIZE)
-    kfree(p);
 }
 
 // Free the page of physical memory pointed at by v,

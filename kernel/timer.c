@@ -15,6 +15,8 @@ uint ticks;
 
 void timerinit() {
     initlock(&tickslock, "time");
+	ticks = 0;
+
     #ifdef DEBUG
     printf("timerinit\n");
     #endif

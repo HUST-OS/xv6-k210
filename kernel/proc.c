@@ -48,33 +48,53 @@ void reg_info(void) {
 }
 
 // initialize the proc table at boot time.
-void
-procinit(void)
-{
-  struct proc *p;
+/*void*/
+/*procinit(void)*/
+/*{*/
+  /*struct proc *p;*/
   
-  initlock(&pid_lock, "nextpid");
-  for(p = proc; p < &proc[NPROC]; p++) {
-      initlock(&p->lock, "proc");
+  /*initlock(&pid_lock, "nextpid");*/
+  /*for(p = proc; p < &proc[NPROC]; p++) {*/
+      /*initlock(&p->lock, "proc");*/
 
-      // Allocate a page for the process's kernel stack.
-      // Map it high in memory, followed by an invalid
-      // guard page.
-      // char *pa = kalloc();
-      // // printf("[procinit]kernel stack: %p\n", (uint64)pa);
-      // if(pa == 0)
-      //   panic("kalloc");
-      // uint64 va = KSTACK((int) (p - proc));
-      // // printf("[procinit]kvmmap va %p to pa %p\n", va, (uint64)pa);
-      // kvmmap(va, (uint64)pa, PGSIZE, PTE_R | PTE_W);
-      // p->kstack = va;
-  }
-  //kvminithart();
+      /*// Allocate a page for the process's kernel stack.*/
+      /*// Map it high in memory, followed by an invalid*/
+      /*// guard page.*/
+      /*// char *pa = kalloc();*/
+      /*// // printf("[procinit]kernel stack: %p\n", (uint64)pa);*/
+      /*// if(pa == 0)*/
+      /*//   panic("kalloc");*/
+      /*// uint64 va = KSTACK((int) (p - proc));*/
+      /*// // printf("[procinit]kvmmap va %p to pa %p\n", va, (uint64)pa);*/
+      /*// kvmmap(va, (uint64)pa, PGSIZE, PTE_R | PTE_W);*/
+      /*// p->kstack = va;*/
+  /*}*/
+  /*//kvminithart();*/
 
-  memset(cpus, 0, sizeof(cpus));
-  #ifdef DEBUG
-  printf("procinit\n");
-  #endif
+  /*memset(cpus, 0, sizeof(cpus));*/
+  /*#ifdef DEBUG*/
+  /*printf("procinit\n");*/
+  /*#endif*/
+/*}*/
+
+void procinit(void) {
+	// init proc[]
+	initlock(&pid_lock, "nextpid");
+	nextpid = 1;
+	for (struct proc *p = proc; p != &proc[NPROC]; p ++) {
+		initlock(&p->lock, "proc");
+		p->state = UNUSED;
+	}
+
+	// init cpus[] 
+	for (struct cpu *c = cpus; c != &cpus[NCPU]; c ++) {
+		c->proc = 0;
+		c->noff = 0;
+	}
+
+	#ifdef DEBUG 
+	printf("procinit\n");
+	#endif 
 }
 
 // Must be called with interrupts disabled,
@@ -141,6 +161,9 @@ allocproc(void)
 found:
   p->pid = allocpid();
 
+  p->chan = NULL;
+  p->killed = 0;
+
   // Allocate a trapframe page.
   if((p->trapframe = (struct trapframe *)kalloc()) == NULL){
     release(&p->lock);
@@ -156,11 +179,13 @@ found:
     return NULL;
   }
 
+  memset(p->ofile, 0, sizeof(p->ofile));
+
   p->kstack = VKSTACK;
 
   // Set up new context to start executing at forkret,
   // which returns to user space.
-  memset(&p->context, 0, sizeof(p->context));
+  //memset(&p->context, 0, sizeof(p->context));
   p->context.ra = (uint64)forkret;
   p->context.sp = p->kstack + PGSIZE;
 
