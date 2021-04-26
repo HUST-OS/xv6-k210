@@ -213,8 +213,6 @@ userprogs: $(UPROGS)
 
 dst=/mnt
 
-# @sudo cp $U/_init $(dst)/init
-# @sudo cp $U/_sh $(dst)/sh
 # Make fs image
 fs: $(UPROGS)
 	@if [ ! -f "fs.img" ]; then \
@@ -223,11 +221,12 @@ fs: $(UPROGS)
 		mkfs.vfat -F 32 fs.img; fi
 	@sudo mount fs.img $(dst)
 	@if [ ! -d "$(dst)/bin" ]; then sudo mkdir $(dst)/bin; fi
-	@sudo cp README $(dst)/README
-	@sudo cp ./xv6-user/shrc $(dst)/shrc
 	@for file in $$( ls $U/_* ); do \
-		sudo cp $$file $(dst)/$${file#$U/_};\
 		sudo cp $$file $(dst)/bin/$${file#$U/_}; done
+	@sudo cp $U/_init $(dst)/init
+	@sudo cp $U/_sh $(dst)/sh
+	@sudo cp $U/shrc $(dst)/shrc
+	@sudo cp README $(dst)/README
 	@sudo umount $(dst)
 
 # Write sdcard
@@ -237,6 +236,16 @@ sdcard: fs
 		sudo dd if=fs.img of=$(sd); \
 	else \
 		echo "sd card not detected!"; fi
+
+# Write sdcard mounted at $dst
+mounted-sd: fs
+	@if [ ! -d "$(dst)/bin" ]; then sudo mkdir $(dst)/bin; fi
+	@for file in $$( ls $U/_* ); do \
+		sudo cp $$file $(dst)/bin/$${file#$U/_}; done
+	@sudo cp $U/_init $(dst)/init
+	@sudo cp $U/_sh $(dst)/sh
+	@sudo cp $U/shrc $(dst)/shrc
+	@sudo cp README $(dst)/README
 
 clean: 
 	rm -f *.tex *.dvi *.idx *.aux *.log *.ind *.ilg \

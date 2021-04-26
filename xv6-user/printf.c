@@ -4,12 +4,44 @@
 
 #include <stdarg.h>
 
+#define BUF_SIZE 128
+
 static char digits[] = "0123456789ABCDEF";
+static char *_outbuf = NULL;
+static int _idx = 0;
+
+void
+putc(int ch, int fd)
+{
+  write(fd, &ch, 1);
+}
+
+void
+putchar(int ch)
+{
+  write(1, &ch, 1);
+}
 
 static void
-putc(int fd, char c)
+fflush(int fd)
 {
-  write(fd, &c, 1);
+  if (_idx != 0) {
+    write(fd, _outbuf, _idx);
+    _idx = 0;
+  }
+}
+
+static void
+outchar(int fd, char c)
+{
+  if (_outbuf == NULL) {
+    _outbuf = (char *)malloc(BUF_SIZE);
+    _idx = 0;
+  }
+  _outbuf[_idx++] = c;
+  if (_idx == BUF_SIZE) {
+    fflush(fd);
+  }
 }
 
 static void
@@ -35,16 +67,16 @@ printint(int fd, int xx, int base, int sgn)
     buf[i++] = '-';
 
   while(--i >= 0)
-    putc(fd, buf[i]);
+    outchar(fd, buf[i]);
 }
 
 static void
 printptr(int fd, uint64 x) {
   int i;
-  putc(fd, '0');
-  putc(fd, 'x');
+  outchar(fd, '0');
+  outchar(fd, 'x');
   for (i = 0; i < (sizeof(uint64) * 2); i++, x <<= 4)
-    putc(fd, digits[x >> (sizeof(uint64) * 8 - 4)]);
+    outchar(fd, digits[x >> (sizeof(uint64) * 8 - 4)]);
 }
 
 // Print to the given fd. Only understands %d, %x, %p, %s.
@@ -61,7 +93,7 @@ vprintf(int fd, const char *fmt, va_list ap)
       if(c == '%'){
         state = '%';
       } else {
-        putc(fd, c);
+        outchar(fd, c);
       }
     } else if(state == '%'){
       if(c == 'd'){
@@ -77,21 +109,22 @@ vprintf(int fd, const char *fmt, va_list ap)
         if(s == 0)
           s = "(null)";
         while(*s != 0){
-          putc(fd, *s);
+          outchar(fd, *s);
           s++;
         }
       } else if(c == 'c'){
-        putc(fd, va_arg(ap, uint));
+        outchar(fd, va_arg(ap, uint));
       } else if(c == '%'){
-        putc(fd, c);
+        outchar(fd, c);
       } else {
         // Unknown % sequence.  Print it to draw attention.
-        putc(fd, '%');
-        putc(fd, c);
+        outchar(fd, '%');
+        outchar(fd, c);
       }
       state = 0;
     }
   }
+  fflush(fd);
 }
 
 void

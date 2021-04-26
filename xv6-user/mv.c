@@ -44,7 +44,7 @@ int main(int argc, char *argv[])
             exit(-1);
         }
     }
-    printf("moving [%s] to [%s]\n", src, dst);
+    // printf("moving [%s] to [%s]\n", src, dst);
     if (rename(src, dst) < 0) {
         fprintf(2, "mv: fail to rename %s to %s!\n", src, dst);
         exit(-1);

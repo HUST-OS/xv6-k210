@@ -535,6 +535,7 @@ copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max)
 int
 copyinstr2(char *dst, uint64 srcva, uint64 max)
 {
+  char *old = dst;
   int got_null = 0;
   uint64 sz = myproc()->sz;
   while(srcva < sz && max > 0){
@@ -551,7 +552,7 @@ copyinstr2(char *dst, uint64 srcva, uint64 max)
     dst++;
   }
   if(got_null){
-    return 0;
+    return dst - old;
   } else {
     return -1;
   }

@@ -1,2 +1,2 @@
-SHELL=/bin
+PATH=/bin
 TEST=TEST

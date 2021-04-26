@@ -20,7 +20,7 @@ struct env{
 };
 
 struct env envs[NENVS];
-char envsc[NENVS][128];
+char *envsc[NENVS] = {0};
 int nenv = 0;
 
 struct cmd {
@@ -104,6 +104,7 @@ export(char *argv)
   }
   char name[32], value[96];
   char *s = argv, *t = name;
+  envsc[nenv] = (char*)malloc(strlen(argv)+1);
   strcpy(envsc[nenv], s);
 
   for(s=argv, t=name; (*t=*s++)!='='; t++)
@@ -177,7 +178,7 @@ runcmd(struct cmd *cmd)
     if(ecmd->argv[0] == 0)
       exit(1);
     
-    exec(ecmd->argv[0], ecmd->argv);
+    execve(ecmd->argv[0], ecmd->argv, envsc);
 
     int i;
     char env_cmd[64];
@@ -192,7 +193,7 @@ runcmd(struct cmd *cmd)
       while((*s_tmp++ = *d_tmp++))
         ;
 
-      exec(env_cmd, ecmd->argv);
+      execve(env_cmd, ecmd->argv, envsc);
     }
     fprintf(2, "exec %s failed\n", ecmd->argv[0]);
     break;
@@ -278,7 +279,7 @@ int readline(int fd, char *buf){
 int
 main(void)
 {
-  static char buf[100];
+  static char buf[128];
   int fd;
 
   // Ensure that three file descriptors are open.
@@ -291,12 +292,12 @@ main(void)
 
   // Add an embedded env var(for basic commands in shell)
   fd = open("shrc", O_RDONLY);
-  char SHELL[128];
   if(fd < 0){
     fprintf(2, "sh: cannot open shrc\n");
   } else{
-    while(readline(fd, SHELL))
-      export(SHELL);
+    while(readline(fd, buf))
+      export(buf);
+    close(fd);
   }
 
   getcwd(mycwd);
