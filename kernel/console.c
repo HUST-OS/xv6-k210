@@ -34,6 +34,7 @@ void consputc(int c) {
     sbi_console_putchar(c);
   }
 }
+
 struct {
   struct spinlock lock;
   
