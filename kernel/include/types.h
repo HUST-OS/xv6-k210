@@ -1,6 +1,8 @@
 #ifndef __TYPES_H
 #define __TYPES_H
 
+// Maybe we should give up using types like `uint`, 
+// but use types with a clear size, say `uint32`
 typedef unsigned int   uint;
 typedef unsigned short ushort;
 typedef unsigned char  uchar;
@@ -10,6 +12,11 @@ typedef unsigned char uint8;
 typedef unsigned short uint16;
 typedef unsigned int  uint32;
 typedef unsigned long uint64;
+
+typedef char int8;
+typedef short int16;
+typedef int int32;
+typedef long int64;
 
 typedef unsigned long uintptr_t;
 typedef uint64 pde_t;

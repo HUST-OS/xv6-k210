@@ -7,7 +7,7 @@
 #include "include/proc.h"
 #include "include/syscall.h"
 #include "include/timer.h"
-#include "include/kalloc.h"
+#include "include/pm.h"
 #include "include/string.h"
 #include "include/printf.h"
 

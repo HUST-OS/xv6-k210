@@ -7,7 +7,7 @@
 #include "include/sleeplock.h"
 #include "include/file.h"
 #include "include/pipe.h"
-#include "include/kalloc.h"
+#include "include/pm.h"
 #include "include/vm.h"
 
 int
@@ -19,7 +19,7 @@ pipealloc(struct file **f0, struct file **f1)
   *f0 = *f1 = 0;
   if((*f0 = filealloc()) == NULL || (*f1 = filealloc()) == NULL)
     goto bad;
-  if((pi = (struct pipe*)kalloc()) == NULL)
+  if((pi = (struct pipe*)allocpage()) == NULL)
     goto bad;
   pi->readopen = 1;
   pi->writeopen = 1;
@@ -38,7 +38,7 @@ pipealloc(struct file **f0, struct file **f1)
 
  bad:
   if(pi)
-    kfree((char*)pi);
+    freepage((char*)pi);
   if(*f0)
     fileclose(*f0);
   if(*f1)
@@ -59,7 +59,7 @@ pipeclose(struct pipe *pi, int writable)
   }
   if(pi->readopen == 0 && pi->writeopen == 0){
     release(&pi->lock);
-    kfree((char*)pi);
+    freepage((char*)pi);
   } else
     release(&pi->lock);
 }

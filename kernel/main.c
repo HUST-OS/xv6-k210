@@ -8,16 +8,17 @@
 #include "include/sbi.h"
 #include "include/console.h"
 #include "include/printf.h"
-#include "include/kalloc.h"
 #include "include/timer.h"
 #include "include/trap.h"
 #include "include/proc.h"
 #include "include/plic.h"
+#include "include/pm.h"
 #include "include/vm.h"
+#include "include/kmalloc.h"
 #include "include/disk.h"
 #include "include/buf.h"
+#include "include/debug.h"
 #ifndef QEMU
-#include "include/sdcard.h"
 #include "include/fpioa.h"
 #include "include/dmac.h"
 #endif
@@ -40,9 +41,10 @@ main(unsigned long hartid, unsigned long dtb_pa)
     #ifdef DEBUG
     printf("hart %d enter main()...\n", hartid);
     #endif
-    kinit();         // physical page allocator
+    kpminit();       // physical page allocator
     kvminit();       // create kernel page table
     kvminithart();   // turn on paging
+    kmallocinit();   // small physical memory allocator
     // timerinit();     // init a lock for timer
     trapinithart();  // install kernel trap vector, including interrupt handler
     procinit();
@@ -57,11 +59,14 @@ main(unsigned long hartid, unsigned long dtb_pa)
     fileinit();      // file table
     userinit();      // first user process
     printf("hart 0 init done\n");
+
+	__test_module(kmtest);
     
-    for(int i = 1; i < NCPU; i++) {
-      unsigned long mask = 1 << i;
-      sbi_send_ipi(&mask);
-    }
+	// is ipi necessary here?
+	for(int i = 1; i < NCPU; i++) {
+	  unsigned long mask = 1 << i;
+	  sbi_send_ipi(&mask);
+	}
     __sync_synchronize();
     started = 1;
   }
@@ -78,6 +83,8 @@ main(unsigned long hartid, unsigned long dtb_pa)
     trapinithart();
     plicinithart();  // ask PLIC for device interrupts
     printf("hart 1 init done\n");
+
+	__test_module(kmtest);
   }
   scheduler();
 }

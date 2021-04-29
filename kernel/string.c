@@ -1,13 +1,41 @@
 #include "include/types.h"
 
 void*
-memset(void *dst, int c, uint n)
+memset2(void *dst, int c, uint n)
 {
   char *cdst = (char *) dst;
   int i;
   for(i = 0; i < n; i++){
     cdst[i] = c;
   }
+  return dst;
+}
+
+void*
+memset(void *dst, int c, uint n)
+{
+  uint64 p = (uint64)dst;
+  uint64 c64 = c & 0xff;
+  c64 = (c64 << 8) | c64;
+  c64 = (c64 << 16) | c64;
+  c64 = (c64 << 32) | c64;
+
+  while (n && (p & 7)) {
+    *(char *)p = c;
+    p++;
+    n--;
+  }
+  while (n >= sizeof(uint64)) {
+    *(uint64 *)p = c64;
+    p += sizeof(uint64);
+    n -= sizeof(uint64);
+  }
+  while (n > 0) {
+    *(char *)p = c;
+    p++;
+    n--;
+  }
+
   return dst;
 }
 

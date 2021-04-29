@@ -7,7 +7,7 @@
 #include "include/proc.h"
 #include "include/syscall.h"
 #include "include/sysinfo.h"
-#include "include/kalloc.h"
+#include "include/pm.h"
 #include "include/vm.h"
 #include "include/string.h"
 #include "include/printf.h"
@@ -242,7 +242,7 @@ sys_sysinfo(void)
   }
 
   struct sysinfo info;
-  info.freemem = freemem_amount();
+  info.freemem = idlepages() << PGSHIFT;
   info.nproc = procnum();
 
   // if (copyout(p->pagetable, addr, (char *)&info, sizeof(info)) < 0) {

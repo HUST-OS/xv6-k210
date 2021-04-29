@@ -6,6 +6,8 @@
 #include "include/sysctl.h"
 #include "include/memlayout.h"
 
+#include "include/printf.h"
+
 /* Copyright 2018 Canaan Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");

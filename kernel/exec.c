@@ -6,7 +6,7 @@
 #include "include/proc.h"
 #include "include/elf.h"
 #include "include/fat32.h"
-#include "include/kalloc.h"
+#include "include/pm.h"
 #include "include/vm.h"
 #include "include/printf.h"
 #include "include/string.h"
@@ -46,8 +46,8 @@ static int pushstack(pagetable_t pt, uint64 table[], char **utable, int maxc, ui
   uint64 stackbase = PGROUNDDOWN(sp);
   uint64 argc, argp;
   char *buf;
-  
-  if ((buf = kalloc()) == NULL) {
+
+  if ((buf = allocpage()) == NULL) {
     return -1;
   }
   for (argc = 0; utable; argc++) {
@@ -66,12 +66,12 @@ static int pushstack(pagetable_t pt, uint64 table[], char **utable, int maxc, ui
   }
   table[argc] = 0;
   *spp = sp;
-  kfree(buf);
+  freepage(buf);
   return argc;
 
 bad:
   if (buf)
-    kfree(buf);
+    freepage(buf);
   return -1;
 }
 
@@ -97,7 +97,7 @@ int execve(char *path, char **argv, char **envp)
   // Load program into memory.
   uint64 sz = 0;
   if ((pagetable = proc_pagetable(p)) == NULL ||
-      (kpagetable = (pagetable_t)kalloc()) == NULL)
+      (kpagetable = (pagetable_t)allocpage()) == NULL)
     goto bad;
   memmove(kpagetable, p->kpagetable, PGSIZE);
   for (int i = 0; i < PX(2, MAXUVA); i++) {

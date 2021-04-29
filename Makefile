@@ -1,7 +1,7 @@
-platform	:= k210
-# platform	:= qemu
-# mode := debug
-mode := release
+#platform	:= k210
+platform	:= qemu
+mode := debug
+#mode := release
 K=kernel
 U=xv6-user
 T=target
@@ -15,7 +15,8 @@ endif
 
 OBJS += \
   $K/printf.o \
-  $K/kalloc.o \
+  $K/pm.o \
+  $K/kmalloc.o \
   $K/intr.o \
   $K/spinlock.o \
   $K/string.o \
