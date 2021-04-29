@@ -17,8 +17,8 @@
 #include "include/kmalloc.h"
 #include "include/disk.h"
 #include "include/buf.h"
+#include "include/debug.h"
 #ifndef QEMU
-#include "include/sdcard.h"
 #include "include/fpioa.h"
 #include "include/dmac.h"
 #endif
@@ -59,11 +59,14 @@ main(unsigned long hartid, unsigned long dtb_pa)
     fileinit();      // file table
     userinit();      // first user process
     printf("hart 0 init done\n");
+
+	__test_module(kmtest);
     
-    for(int i = 1; i < NCPU; i++) {
-      unsigned long mask = 1 << i;
-      sbi_send_ipi(&mask);
-    }
+	// is ipi necessary here?
+	for(int i = 1; i < NCPU; i++) {
+	  unsigned long mask = 1 << i;
+	  sbi_send_ipi(&mask);
+	}
     __sync_synchronize();
     started = 1;
   }
@@ -80,6 +83,8 @@ main(unsigned long hartid, unsigned long dtb_pa)
     trapinithart();
     plicinithart();  // ask PLIC for device interrupts
     printf("hart 1 init done\n");
+
+	__test_module(kmtest);
   }
   scheduler();
 }
