@@ -29,7 +29,7 @@ int uptime(void);
 int test_proc(int);
 int dev(int, short, short);
 int readdir(int fd, struct stat*);
-int getcwd(char *buf);
+int getcwd(char *buf, uint size);
 int remove(char *filename);
 int trace(int mask);
 int sysinfo(struct sysinfo *);

@@ -333,36 +333,38 @@ uint64
 sys_getcwd(void)
 {
   uint64 addr;
-  if (argaddr(0, &addr) < 0)
+  uint64 size;
+  if (argaddr(0, &addr) < 0 || argint(1, (int*)&size) < 0)
     return -1;
 
   struct dirent *de = myproc()->cwd;
-  char path[FAT32_MAX_PATH];
-  char *s;
-  int len;
-
-  if (de->parent == NULL) {
-    s = "/";
-  } else {
-    s = path + FAT32_MAX_PATH - 1;
-    *s = '\0';
-    while (de->parent) {
-      len = strlen(de->filename);
-      s -= len;
-      if (s <= path)          // can't reach root "/"
-        return -1;
-      strncpy(s, de->filename, len);
-      *--s = '/';
-      de = de->parent;
-    }
-  }
-
-  // if (copyout(myproc()->pagetable, addr, s, strlen(s) + 1) < 0)
-  if (copyout2(addr, s, strlen(s) + 1) < 0)
-    return -1;
+  struct dirent *dir[32];
+  int top = 0;
   
-  return 0;
+  while (de != NULL) {
+    if (top >= NELEM(dir)) {
+      return -1;
+    }
+    dir[top++] = de;
+    de = de->parent;
+  }
+  top -= 2;   // point to top and skip root
 
+  int n = 0;
+  do {
+    if (size < n + 2 || copyout2(addr + n, "/", 2) < 0) {
+      return -1;
+    }
+    if (top < 0) { break; }   // occurs when cwd is root
+    n++;
+    int len = strlen(dir[top]->filename);
+    if (size < n + len + 1 || copyout2(addr + n, dir[top]->filename, len + 1) < 0)
+      return -1;
+    n += len;
+    top--;
+  } while (top >= 0);
+
+  return 0;
 }
 
 // Is the directory dp empty except for "." and ".." ?

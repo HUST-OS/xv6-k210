@@ -300,7 +300,7 @@ main(void)
     close(fd);
   }
 
-  getcwd(mycwd);
+  getcwd(mycwd, sizeof(mycwd));
   // Read and run input commands.
   while(getcmd(buf, sizeof(buf)) >= 0){
     replace(buf);
@@ -309,7 +309,7 @@ main(void)
       buf[strlen(buf)-1] = 0;  // chop \n
       if(chdir(buf+3) < 0)
         fprintf(2, "cannot cd %s\n", buf+3);
-      getcwd(mycwd);
+      getcwd(mycwd, sizeof(mycwd));
     }
     else{
       struct cmd *cmd = parsecmd(buf);
