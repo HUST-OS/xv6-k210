@@ -20,6 +20,7 @@ void            kfree(void *addr);
 
 #ifdef DEBUG 
 void            kmtest();
+void            kmview(void);
 #endif 
 
 #endif

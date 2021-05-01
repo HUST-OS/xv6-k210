@@ -234,11 +234,13 @@ void kfree(void *addr) {
 			__debug_error("free", "NULL == tmp\n");
 			while (1);
 		}
-
+		
+		#ifdef DEBUG
 		for (struct kmem_node *it = alloc->list; NULL != it; it = it->next) {
 			printf("%p -> ", it);
 		}
 		printf("\n");
+		#endif
 		*pprev = tmp->next;
 		__debug_info("kfree", "alloc->list = %p\n", alloc->list);
 		__debug_info("kfree", "tmp = %p\n", tmp);
@@ -285,7 +287,7 @@ static void km_view_allocator(struct kmem_allocator *alloc) {
 }
 
 // for debugging 
-static void kmview(void)
+void kmview(void)
 {
 	// display all the content in kmem_table
 

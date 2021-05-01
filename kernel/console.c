@@ -20,6 +20,7 @@
 #include "include/riscv.h"
 #include "include/proc.h"
 #include "include/sbi.h"
+#include "include/kmalloc.h"
 
 #define BACKSPACE 0x100
 #define C(x)  ((x)-'@')  // Control-x
@@ -137,6 +138,12 @@ consoleintr(int c)
   case C('P'):  // Print process list.
     procdump();
     break;
+  case C('E'):  // Print file-entry list.
+    eprint();
+    break;
+  // case C('M'):  // Print mem-alloc list.
+  //   kmview();
+  //   break;
   case C('U'):  // Kill line.
     while(cons.e != cons.w &&
           cons.buf[(cons.e-1) % INPUT_BUF] != '\n'){
