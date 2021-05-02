@@ -363,7 +363,7 @@ static struct dirent *eget(struct dirent *parent, char *name)
             ep = *epp;
             if (ep->valid == 1 && strncmp(ep->filename, name, FAT32_MAX_FILENAME) == 0) {
                 if (ep->ref++ == 0) {
-                    ep->parent->ref++;
+                    parent->ref++;
                 }
                 *epp = ep->next;
                 ep->next = parent->child;
@@ -840,7 +840,7 @@ struct dirent *dirlookup(struct dirent *dp, char *filename, uint *poff)
         if (type == 0) {
             if (poff && count >= entcnt) {
                 *poff = off;
-                poff = 0;
+                poff = NULL;
             }
         } else if (strncmp(filename, ep->filename, FAT32_MAX_FILENAME) == 0) {
             ep->parent = edup(dp);

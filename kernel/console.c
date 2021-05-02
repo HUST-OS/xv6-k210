@@ -21,6 +21,7 @@
 #include "include/proc.h"
 #include "include/sbi.h"
 #include "include/kmalloc.h"
+#include "include/buf.h"
 
 #define BACKSPACE 0x100
 #define C(x)  ((x)-'@')  // Control-x
@@ -140,6 +141,9 @@ consoleintr(int c)
     break;
   case C('E'):  // Print file-entry list.
     eprint();
+    break;
+  case C('B'):  // Print buffer list.
+    bprint();
     break;
   // case C('M'):  // Print mem-alloc list.
   //   kmview();
