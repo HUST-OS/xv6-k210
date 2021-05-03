@@ -456,6 +456,7 @@ sys_rename(void)
       eremove(dst);
       eunlock(dst);
       eput(dst);
+      dst = NULL;
     } else {                    // src is not a dir || dst exists and is not an dir
       goto fail;
     }
@@ -463,7 +464,10 @@ sys_rename(void)
 
   struct dirent *psrc = src->parent;  // src must not be root, or it won't pass the for-loop test
   memmove(src->filename, name, FAT32_MAX_FILENAME);
-  emake(pdst, src, off);
+  if (emake(pdst, src, off) < 0) {
+    eunlock(pdst);
+    goto fail;
+  }
   if (psrc != pdst) {
     elock(psrc);
   }

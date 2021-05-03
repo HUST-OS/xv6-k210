@@ -62,7 +62,9 @@ sys_getpid(void)
 uint64
 sys_fork(void)
 {
-  return fork();
+  extern int fork_cow();
+  return fork_cow();
+  // return fork();
 }
 
 uint64

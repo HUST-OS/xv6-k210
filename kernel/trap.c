@@ -12,22 +12,23 @@
 #include "include/console.h"
 #include "include/timer.h"
 #include "include/disk.h"
+#include "include/vm.h"
+
+#define CAUSE_INT_SOFT      0x8000000000000001L
+#define CAUSE_INT_TIMER     0x8000000000000005L
+#define CAUSE_INT_EXT       0x8000000000000009L
+
+#define CAUSE_EXC_SYS       0x8
+#ifdef QEMU
+#define CAUSE_EXC_STRPG     0xf
+#else
+#define CAUSE_EXC_STRPG     0x7
+#endif
 
 extern char trampoline[], uservec[], userret[];
-
-// in kernelvec.S, calls kerneltrap().
-extern void kernelvec();
-
-int devintr();
-
-// void
-// trapinit(void)
-// {
-//   initlock(&tickslock, "time");
-//   #ifdef DEBUG
-//   printf("trapinit\n");
-//   #endif
-// }
+extern void kernelvec(); // in kernelvec.S, calls kerneltrap().
+int handle_intr(uint64 scause);
+int handle_excp(uint64 scause);
 
 // set up to take exceptions and traps while in the kernel.
 void
@@ -51,7 +52,6 @@ void
 usertrap(void)
 {
   // printf("run in usertrap\n");
-  int which_dev = 0;
 
   if((r_sstatus() & SSTATUS_SPP) != 0)
     panic("usertrap: not from user mode");
@@ -65,7 +65,8 @@ usertrap(void)
   // save user program counter.
   p->trapframe->epc = r_sepc();
   
-  if(r_scause() == 8){
+  uint64 cause = r_scause();
+  if(cause == CAUSE_EXC_SYS){
     // system call
     if(p->killed)
       exit(-1);
@@ -77,21 +78,21 @@ usertrap(void)
     intr_on();
     syscall();
   } 
-  else if((which_dev = devintr()) != 0){
+  else if (handle_intr(cause) >= 0) {
     // ok
   } 
-  else {
-    printf("\nusertrap(): unexpected scause %p pid=%d %s\n", r_scause(), p->pid, p->name);
-    printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
-    // trapframedump(p->trapframe);
-    p->killed = 1;
+  else if (handle_excp(cause) < 0) {
+		printf("\nusertrap(): unexpected scause %p pid=%d %s\n", cause, p->pid, p->name);
+		printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
+		// trapframedump(p->trapframe);
+		p->killed = 1;
   }
 
   if(p->killed)
     exit(-1);
 
   // give up the CPU if this is a timer interrupt.
-  if(which_dev == 2)
+  if(cause == CAUSE_INT_TIMER)
     yield();
 
   usertrapret();
@@ -147,7 +148,6 @@ usertrapret(void)
 // on whatever the current kernel stack is.
 void 
 kerneltrap() {
-  int which_dev = 0;
   uint64 sepc = r_sepc();
   uint64 sstatus = r_sstatus();
   uint64 scause = r_scause();
@@ -157,20 +157,24 @@ kerneltrap() {
   if(intr_get() != 0)
     panic("kerneltrap: interrupts enabled");
 
-  if((which_dev = devintr()) == 0){
+  if (handle_intr(scause) >= 0) {
+		// ok
+	}
+	else if (handle_excp(scause) < 0) {
     printf("\nscause %p\n", scause);
     printf("sepc=%p stval=%p hart=%d\n", r_sepc(), r_stval(), r_tp());
     struct proc *p = myproc();
-    if (p != 0) {
+    if (p != NULL) {
       printf("pid: %d, name: %s\n", p->pid, p->name);
     }
     panic("kerneltrap");
   }
-  // printf("which_dev: %d\n", which_dev);
   
   // give up the CPU if this is a timer interrupt.
-  if(which_dev == 2 && myproc() != 0 && myproc()->state == RUNNING) {
-    yield();
+  if(scause == CAUSE_INT_TIMER) {
+		struct proc *p = myproc();
+		if (p != NULL && p->state == RUNNING)
+    	yield();
   }
   // the yield() may have caused some traps to occur,
   // so restore trap registers for use by kernelvec.S's sepc instruction.
@@ -183,17 +187,15 @@ kerneltrap() {
 // returns  2 if timer interrupt, 
 //          1 if other device, 
 //          0 if not recognized. 
-int devintr(void) {
-	uint64 scause = r_scause();
-
+int handle_intr(uint64 scause) {
 	#ifdef QEMU 
 	// handle external interrupt 
-	if ((0x8000000000000000L & scause) && 9 == (scause & 0xff)) 
+	if (scause == CAUSE_INT_EXT) 
 	#else 
 	// on k210, supervisor software interrupt is used 
 	// in alternative to supervisor external interrupt, 
 	// which is not available on k210. 
-	if (0x8000000000000001L == scause && 9 == r_stval()) 
+	if (CAUSE_INT_SOFT == scause && 9 == r_stval()) 
 	#endif 
 	{
 		int irq = plic_claim();
@@ -217,14 +219,26 @@ int devintr(void) {
 		w_sip(r_sip() & ~2);    // clear pending bit
 		sbi_set_mie();
 		#endif 
-
-		return 1;
 	}
-	else if (0x8000000000000005L == scause) {
+	else if (CAUSE_INT_TIMER == scause) {
 		timer_tick();
-		return 2;
 	}
-	else { return 0;}
+	else if (CAUSE_INT_SOFT == scause) {
+
+	}
+	else {
+		return -1;
+	}
+	return 0;
+}
+
+int handle_excp(uint64 scause)
+{
+  // Later implement may handle more cases, such as lazy allocation, mmap
+  if (scause == CAUSE_EXC_STRPG) {
+    return handle_store_page_fault_cow(r_stval());
+  }
+	return -1;
 }
 
 void trapframedump(struct trapframe *tf)

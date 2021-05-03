@@ -12,6 +12,7 @@
 #include "include/pm.h"
 #include "include/string.h"
 #include "include/printf.h"
+#include "include/debug.h"
 
 static void
 freerange(void *pa_start, void *pa_end)
@@ -41,10 +42,7 @@ kpminit()
   kmem.freelist = 0;
   kmem.npage = 0;
   freerange(kernel_end, (void*)PHYSTOP);
-  #ifdef DEBUG
-  printf("kernel_end: %p, phystop: %p\n", kernel_end, (void*)PHYSTOP);
-  printf("kpminit\n");
-  #endif
+  __debug_info("kpminit", "kernel_end: %p, phystop: %p, npage %d\n", kernel_end, (void*)PHYSTOP, kmem.npage);
 }
 
 // Free the page of physical memory pointed at by v,

@@ -197,15 +197,15 @@ proc_pagetable(struct proc *p)
   // only the supervisor uses it, on the way
   // to/from user space, so not PTE_U.
   if(mappages(pagetable, TRAMPOLINE, PGSIZE,
-              (uint64)trampoline, PTE_R | PTE_X) < 0){
+              (uint64)trampoline, PTE_R | PTE_X, 0) < 0){
     uvmfree(pagetable, 0);
     return NULL;
   }
 
   // map the trapframe just below TRAMPOLINE, for trampoline.S.
   if(mappages(pagetable, TRAPFRAME, PGSIZE,
-              (uint64)(p->trapframe), PTE_R | PTE_W) < 0){
-    vmunmap(pagetable, TRAMPOLINE, 1, 0);
+              (uint64)(p->trapframe), PTE_R | PTE_W, 0) < 0){
+    unmappages(pagetable, TRAMPOLINE, 1, 0, 0);
     uvmfree(pagetable, 0);
     return NULL;
   }
@@ -218,9 +218,14 @@ proc_pagetable(struct proc *p)
 void
 proc_freepagetable(pagetable_t pagetable, uint64 sz)
 {
-  vmunmap(pagetable, TRAMPOLINE, 1, 0);
-  vmunmap(pagetable, TRAPFRAME, 1, 0);
+  unmappages(pagetable, TRAMPOLINE, 1, 0, 0);
+  unmappages(pagetable, TRAPFRAME, 1, 0, 0);
   uvmfree(pagetable, sz);
+}
+
+pagetable_t proc_kpagetable(void)
+{
+  return kvmcreate();
 }
 
 // a user program that calls exec("/init")
@@ -333,6 +338,54 @@ fork(void)
 
   // Copy user memory from parent to child.
   if(uvmcopy(p->pagetable, np->pagetable, np->kpagetable, p->sz) < 0){
+    freeproc(np);
+    release(&np->lock);
+    return -1;
+  }
+  np->sz = p->sz;
+
+  np->parent = p;
+
+  // copy tracing mask from parent.
+  np->tmask = p->tmask;
+
+  // copy saved user registers.
+  *(np->trapframe) = *(p->trapframe);
+
+  // Cause fork to return 0 in the child.
+  np->trapframe->a0 = 0;
+
+  // increment reference counts on open file descriptors.
+  for(i = 0; i < NOFILE; i++)
+    if(p->ofile[i])
+      np->ofile[i] = filedup(p->ofile[i]);
+  np->cwd = edup(p->cwd);
+
+  safestrcpy(np->name, p->name, sizeof(p->name));
+
+  pid = np->pid;
+
+  np->state = RUNNABLE;
+
+  release(&np->lock);
+
+  return pid;
+}
+
+int fork_cow(void)
+{
+  int i, pid;
+  struct proc *np;
+  struct proc *p = myproc();
+
+  // Allocate process.
+  if((np = allocproc()) == NULL){
+    return -1;
+  }
+
+  // Copy user memory from parent to child.
+  if (uvmcopy_cow(p->pagetable, p->kpagetable, 
+                  np->pagetable, np->kpagetable, p->sz) < 0) {
     freeproc(np);
     release(&np->lock);
     return -1;

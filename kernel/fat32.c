@@ -10,6 +10,7 @@
 #include "include/kmalloc.h"
 #include "include/string.h"
 #include "include/printf.h"
+#include "include/debug.h"
 
 /* fields that start with "_" are something we don't use */
 
@@ -73,12 +74,13 @@ static struct dirent root;
  */
 int fat32_init()
 {
-    #ifdef DEBUG
-    printf("[fat32_init] enter!\n");
-    #endif
+    __debug_info("fat32_init", "enter\n");
     struct buf *b = bread(0, 0);
     if (strncmp((char const*)(b->data + 82), "FAT32", 5))
-        panic("not FAT32 volume");
+        panic("fat32_init: not FAT32 volume");
+    if (sizeof(union dentry) != 32)
+        panic("fat32_init: size of on-disk-entry struct is unequal to 32");
+
     memmove(&fat.bpb.byts_per_sec, b->data + 11, 2);            // avoid misaligned load on k210
     fat.bpb.sec_per_clus = *(b->data + 13);
     fat.bpb.rsvd_sec_cnt = *(uint16 *)(b->data + 14);
@@ -93,14 +95,12 @@ int fat32_init()
     fat.byts_per_clus = fat.bpb.sec_per_clus * fat.bpb.byts_per_sec;
     brelse(b);
 
-    #ifdef DEBUG
-    printf("[FAT32 init]byts_per_sec: %d\n", fat.bpb.byts_per_sec);
-    printf("[FAT32 init]root_clus: %d\n", fat.bpb.root_clus);
-    printf("[FAT32 init]sec_per_clus: %d\n", fat.bpb.sec_per_clus);
-    printf("[FAT32 init]fat_cnt: %d\n", fat.bpb.fat_cnt);
-    printf("[FAT32 init]fat_sz: %d\n", fat.bpb.fat_sz);
-    printf("[FAT32 init]first_data_sec: %d\n", fat.first_data_sec);
-    #endif
+    __debug_info("FAT32 init", "byts_per_sec: %d\n", fat.bpb.byts_per_sec);
+    __debug_info("FAT32 init", "root_clus: %d\n", fat.bpb.root_clus);
+    __debug_info("FAT32 init", "sec_per_clus: %d\n", fat.bpb.sec_per_clus);
+    __debug_info("FAT32 init", "fat_cnt: %d\n", fat.bpb.fat_cnt);
+    __debug_info("FAT32 init", "fat_sz: %d\n", fat.bpb.fat_sz);
+    __debug_info("FAT32 init", "first_data_sec: %d\n", fat.first_data_sec);
 
     // make sure that byts_per_sec has the same value with BSIZE 
     if (BSIZE != fat.bpb.byts_per_sec) 
@@ -113,6 +113,12 @@ int fat32_init()
     root.first_clus = root.cur_clus = fat.bpb.root_clus;
     root.valid = 1;
     return 0;
+}
+
+static inline void __alert_fs_err(const char *func)
+{
+    printf("%s: alert! something wrong happened!\n");
+    printf("You might need to format your SD!\n");
 }
 
 /**
@@ -152,6 +158,8 @@ static uint32 read_fat(uint32 cluster)
         return cluster;
     }
     if (cluster > fat.data_clus_cnt + 1) {     // because cluster number starts at 2, not 0
+        printf("read_fat: cluster=%d exceed the sum=%d!\n", cluster, fat.data_clus_cnt);
+        __alert_fs_err("read_fat");
         return 0;
     }
     uint32 fat_sec = fat_sec_of_clus(cluster, 1);
@@ -170,6 +178,8 @@ static uint32 read_fat(uint32 cluster)
 static int write_fat(uint32 cluster, uint32 content)
 {
     if (cluster > fat.data_clus_cnt + 1) {
+        printf("write_fat: cluster=%d exceed the sum=%d!\n", cluster, fat.data_clus_cnt);
+        __alert_fs_err("write_fat");
         return -1;
     }
     uint32 fat_sec = fat_sec_of_clus(cluster, 1);
@@ -183,6 +193,10 @@ static int write_fat(uint32 cluster, uint32 content)
 
 static void zero_clus(uint32 cluster)
 {
+    if (cluster < 2 || cluster > fat.data_clus_cnt + 1) {
+        printf("zero_clus: cluster=%d exceed the sum=%d!\n", cluster, fat.data_clus_cnt);
+        __alert_fs_err("zero_clus");
+    }
     uint32 sec = first_sec_of_clus(cluster);
     struct buf *b;
     for (int i = 0; i < fat.bpb.sec_per_clus; i++) {
@@ -213,6 +227,7 @@ static uint32 alloc_clus(uint8 dev)
         }
         brelse(b);
     }
+    return 0;
     panic("no clusters");
 }
 
@@ -265,14 +280,14 @@ static int reloc_clus(struct dirent *entry, uint off, int alloc)
     while (clus_num > entry->clus_cnt) {
         int clus = read_fat(entry->cur_clus);
         if (clus >= FAT32_EOC) {
-            if (alloc) {
-                clus = alloc_clus(entry->dev);
-                write_fat(entry->cur_clus, clus);
-            } else {
-                entry->cur_clus = entry->first_clus;
-                entry->clus_cnt = 0;
-                return -1;
+            if (!alloc || (clus = alloc_clus(entry->dev)) == 0) {
+                goto fail;
             }
+            if (write_fat(entry->cur_clus, clus) < 0) {
+                goto fail;
+            }
+        } else if (clus < 2) {
+            goto fail;
         }
         entry->cur_clus = clus;
         entry->clus_cnt++;
@@ -289,6 +304,11 @@ static int reloc_clus(struct dirent *entry, uint off, int alloc)
         }
     }
     return off % fat.byts_per_clus;
+
+fail:
+    entry->cur_clus = entry->first_clus;
+    entry->clus_cnt = 0;
+    return -1;
 }
 
 /* like the original readi, but "reade" is odd, let alone "writee" */
@@ -303,8 +323,10 @@ int eread(struct dirent *entry, int user_dst, uint64 dst, uint off, uint n)
     }
 
     uint tot, m;
-    for (tot = 0; entry->cur_clus < FAT32_EOC && tot < n; tot += m, off += m, dst += m) {
-        reloc_clus(entry, off, 0);
+    for (tot = 0; tot < n; tot += m, off += m, dst += m) {
+        if (reloc_clus(entry, off, 0) < 0) {
+            break;
+        }
         m = fat.byts_per_clus - off % fat.byts_per_clus;
         if (n - tot < m) {
             m = n - tot;
@@ -324,13 +346,17 @@ int ewrite(struct dirent *entry, int user_src, uint64 src, uint off, uint n)
         return -1;
     }
     if (entry->first_clus == 0) {   // so file_size if 0 too, which requests off == 0
-        entry->cur_clus = entry->first_clus = alloc_clus(entry->dev);
+        if ((entry->cur_clus = entry->first_clus = alloc_clus(entry->dev)) == 0) {
+            return -1;
+        }
         entry->clus_cnt = 0;
         entry->dirty = 1;
     }
     uint tot, m;
     for (tot = 0; tot < n; tot += m, off += m, src += m) {
-        reloc_clus(entry, off, 1);
+        if (reloc_clus(entry, off, 1) < 0) {
+            break;
+        }
         m = fat.byts_per_clus - off % fat.byts_per_clus;
         if (n - tot < m) {
             m = n - tot;
@@ -339,11 +365,9 @@ int ewrite(struct dirent *entry, int user_src, uint64 src, uint off, uint n)
             break;
         }
     }
-    if(n > 0) {
-        if(off > entry->file_size) {
-            entry->file_size = off;
-            entry->dirty = 1;
-        }
+    if (n > 0 && off > entry->file_size) {
+        entry->file_size = off;
+        entry->dirty = 1;
     }
     return tot;
 }
@@ -475,12 +499,16 @@ uint8 cal_checksum(uchar* shortname)
  * @param   ep          entry to write on disk
  * @param   off         offset int the dp, should be calculated via dirlookup before calling this
  */
-void emake(struct dirent *dp, struct dirent *ep, uint off)
+int emake(struct dirent *dp, struct dirent *ep, uint off)
 {
     if (!(dp->attribute & ATTR_DIRECTORY))
         panic("emake: not dir");
-    if (off % sizeof(union dentry))
+    if (off % sizeof(union dentry)) {
+        __debug_error("emake", "off=%d\n", off);
+        printf("emake: off=%d\n", off);
+        return -1;
         panic("emake: not aligned");
+    }
     
     union dentry de;
     memset(&de, 0, sizeof(de));
@@ -519,8 +547,9 @@ void emake(struct dirent *dp, struct dirent *ep, uint off)
                     case 11:    w = (uint8 *)de.lne.name3; break;
                 }
             }
-            uint off2 = reloc_clus(dp, off, 1);
-            rw_clus(dp->cur_clus, 1, 0, (uint64)&de, off2, sizeof(de));
+            int off2 = reloc_clus(dp, off, 1);
+            if (off2 < 0 || rw_clus(dp->cur_clus, 1, 0, (uint64)&de, off2, sizeof(de)) != sizeof(de))
+                return -1;
             off += sizeof(de);
         }
         memset(&de, 0, sizeof(de));
@@ -530,8 +559,10 @@ void emake(struct dirent *dp, struct dirent *ep, uint off)
     de.sne.fst_clus_hi = (uint16)(ep->first_clus >> 16);      // first clus high 16 bits
     de.sne.fst_clus_lo = (uint16)(ep->first_clus & 0xffff);     // low 16 bits
     de.sne.file_size = ep->file_size;                         // filesize is updated in eupdate()
-    off = reloc_clus(dp, off, 1);
-    rw_clus(dp->cur_clus, 1, 0, (uint64)&de, off, sizeof(de));
+    int off2 = reloc_clus(dp, off, 1);
+    if (off2 < 0 || rw_clus(dp->cur_clus, 1, 0, (uint64)&de, off2, sizeof(de)) != sizeof(de))
+        return -1;
+    return 0;
 }
 
 /**
@@ -559,19 +590,28 @@ struct dirent *ealloc(struct dirent *dp, char *name, int attr)
     ep->clus_cnt = 0;
     ep->cur_clus = 0;
     ep->off = off;
-    ep->parent = edup(dp);
     safestrcpy(ep->filename, name, FAT32_MAX_FILENAME);
     if (attr == ATTR_DIRECTORY) {    // generate "." and ".." for ep
         ep->attribute |= ATTR_DIRECTORY;
-        ep->cur_clus = ep->first_clus = alloc_clus(dp->dev);
-        emake(ep, ep, 0);
-        emake(ep, dp, 32);
+        if ((ep->cur_clus = ep->first_clus = alloc_clus(dp->dev)) < 0
+            || emake(ep, ep, 0) < 0
+            || emake(ep, dp, 32) < 0)
+        {
+            goto fail;
+        }
     } else {
         ep->attribute |= ATTR_ARCHIVE;
     }
-    emake(dp, ep, off);
+    if (emake(dp, ep, off) < 0)
+        goto fail;
+    ep->parent = edup(dp);
     eavail(ep);
     return ep;
+fail:
+    __alert_fs_err("ealloc");
+    eput(ep);
+    return NULL;
+
 }
 
 struct dirent *edup(struct dirent *entry)
@@ -588,17 +628,24 @@ void eupdate(struct dirent *entry)
 {
     if (!entry->dirty || entry->valid != 1) { return; }
     uint entcnt = 0;
-    uint32 off = reloc_clus(entry->parent, entry->off, 0);
-    rw_clus(entry->parent->cur_clus, 0, 0, (uint64) &entcnt, off, 1);
+    struct dirent *parent = entry->parent;
+    int off = reloc_clus(entry->parent, entry->off, 0);
+    if (off < 0 || rw_clus(parent->cur_clus, 0, 0, (uint64) &entcnt, off, 1) != 1)
+        goto fail;
     entcnt &= ~LAST_LONG_ENTRY;
-    off = reloc_clus(entry->parent, entry->off + (entcnt << 5), 0);
     union dentry de;
-    rw_clus(entry->parent->cur_clus, 0, 0, (uint64)&de, off, sizeof(de));
+    off = reloc_clus(parent, entry->off + (entcnt << 5), 0);
+    if (off < 0 || rw_clus(parent->cur_clus, 0, 0, (uint64)&de, off, sizeof(de)) != sizeof(de))
+        goto fail;
     de.sne.fst_clus_hi = (uint16)(entry->first_clus >> 16);
     de.sne.fst_clus_lo = (uint16)(entry->first_clus & 0xffff);
     de.sne.file_size = entry->file_size;
-    rw_clus(entry->parent->cur_clus, 1, 0, (uint64)&de, off, sizeof(de));
+    if (rw_clus(parent->cur_clus, 1, 0, (uint64)&de, off, sizeof(de)) != sizeof(de))
+        goto fail;
     entry->dirty = 0;
+    return;
+fail:
+    __alert_fs_err("eupdate");
 }
 
 // caller must hold entry->lock
@@ -608,16 +655,18 @@ void eremove(struct dirent *entry)
 {
     if (entry->valid != 1) { return; }
     uint entcnt = 0;
-    uint32 off = entry->off;
-    uint32 off2 = reloc_clus(entry->parent, off, 0);
     struct dirent *parent = entry->parent;
-    rw_clus(parent->cur_clus, 0, 0, (uint64) &entcnt, off2, 1);
+    uint32 off = entry->off;
+    int off2 = reloc_clus(entry->parent, off, 0);
+    if (off2 < 0 || rw_clus(parent->cur_clus, 0, 0, (uint64) &entcnt, off2, 1) != 1)
+        goto fail;
     entcnt &= ~LAST_LONG_ENTRY;
     uint8 flag = EMPTY_ENTRY;
     for (int i = 0; i <= entcnt; i++) {
-        rw_clus(parent->cur_clus, 1, 0, (uint64) &flag, off2, 1);
-        off += 32;
         off2 = reloc_clus(parent, off, 0);
+        if (off2 < 0 || rw_clus(parent->cur_clus, 1, 0, (uint64) &flag, off2, 1) != 1)
+            goto fail;
+        off += 32;
     }
     struct dirent **epp;
     acquire(&ecachelock);
@@ -629,6 +678,9 @@ void eremove(struct dirent *entry)
     }
     entry->valid = -1;
     release(&ecachelock);
+    return;
+fail:
+    __alert_fs_err("eremove");
 }
 
 // truncate a file
@@ -637,6 +689,10 @@ void etrunc(struct dirent *entry)
 {
     for (uint32 clus = entry->first_clus; clus >= 2 && clus < FAT32_EOC; ) {
         uint32 next = read_fat(clus);
+        if (next < 2) {
+            __alert_fs_err("etrunc");
+            return;
+        }
         free_clus(clus);
         clus = next;
     }

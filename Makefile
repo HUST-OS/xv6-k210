@@ -1,7 +1,7 @@
-#platform	:= k210
-platform	:= qemu
-mode := debug
-#mode := release
+platform	:= k210
+# platform	:= qemu
+# mode := debug
+mode := release
 K=kernel
 U=xv6-user
 T=target
@@ -209,6 +209,7 @@ UPROGS=\
 	$U/_grind\
 	$U/_forktest\
 	$U/_stressfs\
+	$U/_cowtest\
 
 userprogs: $(UPROGS)
 

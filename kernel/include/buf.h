@@ -12,7 +12,7 @@ struct buf {
   uint sectorno;	// sector number 
   struct sleeplock lock;
   uint refcnt;
-  // struct buf *prev;
+  struct buf *prev;
   struct buf *next;
   uchar data[BSIZE];
 };
@@ -21,6 +21,5 @@ void            binit(void);
 struct buf*     bread(uint, uint);
 void            brelse(struct buf*);
 void            bwrite(struct buf*);
-void            bprint();
 
 #endif
