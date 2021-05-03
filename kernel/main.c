@@ -56,7 +56,7 @@ main(unsigned long hartid, unsigned long dtb_pa)
     #endif 
     disk_init();
     binit();         // buffer cache
-    fileinit();      // file table
+    // fileinit();      // file table
     userinit();      // first user process
     printf("hart 0 init done\n");
 

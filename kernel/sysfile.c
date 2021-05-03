@@ -453,33 +453,31 @@ sys_rename(void)
         goto fail;
       }
       elock(pdst);
+      eremove(dst);
+      eunlock(dst);
+      eput(dst);
     } else {                    // src is not a dir || dst exists and is not an dir
       goto fail;
     }
   }
 
-  if (dst) {
-    eremove(dst);
-    eunlock(dst);
-  }
+  struct dirent *psrc = src->parent;  // src must not be root, or it won't pass the for-loop test
   memmove(src->filename, name, FAT32_MAX_FILENAME);
   emake(pdst, src, off);
-  if (src->parent != pdst) {
-    eunlock(pdst);
-    elock(src->parent);
+  if (psrc != pdst) {
+    elock(psrc);
   }
   eremove(src);
-  eunlock(src->parent);
-  struct dirent *psrc = src->parent;  // src must not be root, or it won't pass the for-loop test
-  src->parent = edup(pdst);
+  ereparent(pdst, src);
   src->off = off;
   src->valid = 1;
+  if (psrc != pdst) {
+    eunlock(psrc);
+  }
+  eunlock(pdst);
   eunlock(src);
 
-  eput(psrc);
-  if (dst) {
-    eput(dst);
-  }
+  eput(psrc);   // because src no longer points to psrc
   eput(pdst);
   eput(src);
 

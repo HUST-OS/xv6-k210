@@ -57,7 +57,7 @@ freepage(void *pa)
   struct run *r;
   
   if(((uint64)pa % PGSIZE) != 0 || (char*)pa < kernel_end || (uint64)pa >= PHYSTOP)
-    panic("kfree");
+    panic("freepage");
 
   // Fill with junk to catch dangling refs.
   memset(pa, 1, PGSIZE);

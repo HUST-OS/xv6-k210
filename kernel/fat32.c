@@ -7,6 +7,7 @@
 #include "include/proc.h"
 #include "include/stat.h"
 #include "include/fat32.h"
+#include "include/kmalloc.h"
 #include "include/string.h"
 #include "include/printf.h"
 
@@ -62,11 +63,7 @@ static struct {
 
 } fat;
 
-static struct entry_cache {
-    struct spinlock lock;
-    struct dirent entries[ENTRY_CACHE_NUM];
-} ecache;
-
+struct spinlock ecachelock;
 static struct dirent root;
 
 /**
@@ -82,7 +79,6 @@ int fat32_init()
     struct buf *b = bread(0, 0);
     if (strncmp((char const*)(b->data + 82), "FAT32", 5))
         panic("not FAT32 volume");
-    // fat.bpb.byts_per_sec = *(uint16 *)(b->data + 11);
     memmove(&fat.bpb.byts_per_sec, b->data + 11, 2);            // avoid misaligned load on k210
     fat.bpb.sec_per_clus = *(b->data + 13);
     fat.bpb.rsvd_sec_cnt = *(uint16 *)(b->data + 14);
@@ -109,26 +105,13 @@ int fat32_init()
     // make sure that byts_per_sec has the same value with BSIZE 
     if (BSIZE != fat.bpb.byts_per_sec) 
         panic("byts_per_sec != BSIZE");
-    initlock(&ecache.lock, "ecache");
+    initlock(&ecachelock, "ecache");
     memset(&root, 0, sizeof(root));
     initsleeplock(&root.lock, "entry");
+    root.filename[0] = '/';
     root.attribute = (ATTR_DIRECTORY | ATTR_SYSTEM);
     root.first_clus = root.cur_clus = fat.bpb.root_clus;
     root.valid = 1;
-    root.prev = &root;
-    root.next = &root;
-    for(struct dirent *de = ecache.entries; de < ecache.entries + ENTRY_CACHE_NUM; de++) {
-        de->dev = 0;
-        de->valid = 0;
-        de->ref = 0;
-        de->dirty = 0;
-        de->parent = 0;
-        de->next = root.next;
-        de->prev = &root;
-        initsleeplock(&de->lock, "entry");
-        root.next->prev = de;
-        root.next = de;
-    }
     return 0;
 }
 
@@ -373,33 +356,46 @@ int ewrite(struct dirent *entry, int user_src, uint64 src, uint off, uint n)
 static struct dirent *eget(struct dirent *parent, char *name)
 {
     struct dirent *ep;
-    acquire(&ecache.lock);
     if (name) {
-        for (ep = root.next; ep != &root; ep = ep->next) {          // LRU algo
-            if (ep->valid == 1 && ep->parent == parent
-                && strncmp(ep->filename, name, FAT32_MAX_FILENAME) == 0) {
+        acquire(&ecachelock);
+        struct dirent **epp;
+        for (epp = &parent->child; *epp != NULL; epp = &ep->next) {          // LRU algo
+            ep = *epp;
+            if (ep->valid == 1 && strncmp(ep->filename, name, FAT32_MAX_FILENAME) == 0) {
                 if (ep->ref++ == 0) {
-                    ep->parent->ref++;
+                    parent->ref++;
                 }
-                release(&ecache.lock);
-                // edup(ep->parent);
+                *epp = ep->next;
+                ep->next = parent->child;
+                parent->child = ep;
+                release(&ecachelock);
                 return ep;
             }
         }
+	    release(&ecachelock);
     }
-    for (ep = root.prev; ep != &root; ep = ep->prev) {              // LRU algo
-        if (ep->ref == 0) {
-            ep->ref = 1;
-            ep->dev = parent->dev;
-            ep->off = 0;
-            ep->valid = 0;
-            ep->dirty = 0;
-            release(&ecache.lock);
-            return ep;
-        }
+	if ((ep = (struct dirent*)kmalloc(sizeof(struct dirent))) == NULL) {
+		return NULL;
+	}
+    ep->ref = 1;
+    ep->dev = parent->dev;
+    ep->valid = 0;
+    ep->dirty = 0;
+    return ep;
+}
+
+static void eavail(struct dirent *ep)
+{
+    if (ep->valid == 1 || ep->ref != 1) {
+        panic("eavail");
     }
-    panic("eget: insufficient ecache");
-    return 0;
+    ep->valid = 1;
+	initsleeplock(&ep->lock, "entry");
+    acquire(&ecachelock);
+    ep->next = ep->parent->child;
+    ep->parent->child = ep;
+    ep->child = NULL;
+    release(&ecachelock);
 }
 
 // trim ' ' in the head and tail, '.' in head, and test legality
@@ -474,7 +470,7 @@ uint8 cal_checksum(uchar* shortname)
 }
 
 /**
- * Generate an on disk format entry and write to the disk. Caller must hold dp->lock
+ * Generate an on disk format entry and write to the disk. Caller must hold dp->lock unless in ealloc.
  * @param   dp          the directory
  * @param   ep          entry to write on disk
  * @param   off         offset int the dp, should be calculated via dirlookup before calling this
@@ -488,18 +484,12 @@ void emake(struct dirent *dp, struct dirent *ep, uint off)
     
     union dentry de;
     memset(&de, 0, sizeof(de));
-    if (off <= 32) {
+    if (off <= 32 && dp != &root) {
         if (off == 0) {
             strncpy(de.sne.name, ".          ", sizeof(de.sne.name));
         } else {
             strncpy(de.sne.name, "..         ", sizeof(de.sne.name));
         }
-        de.sne.attr = ATTR_DIRECTORY;
-        de.sne.fst_clus_hi = (uint16)(ep->first_clus >> 16);        // first clus high 16 bits
-        de.sne.fst_clus_lo = (uint16)(ep->first_clus & 0xffff);       // low 16 bits
-        de.sne.file_size = 0;                                       // filesize is updated in eupdate()
-        off = reloc_clus(dp, off, 1);
-        rw_clus(dp->cur_clus, 1, 0, (uint64)&de, off, sizeof(de));
     } else {
         int entcnt = (strlen(ep->filename) + CHAR_LONG_NAME - 1) / CHAR_LONG_NAME;   // count of l-n-entries, rounds up
         char shortname[CHAR_SHORT_NAME + 1];
@@ -535,13 +525,13 @@ void emake(struct dirent *dp, struct dirent *ep, uint off)
         }
         memset(&de, 0, sizeof(de));
         strncpy(de.sne.name, shortname, sizeof(de.sne.name));
-        de.sne.attr = ep->attribute;
-        de.sne.fst_clus_hi = (uint16)(ep->first_clus >> 16);      // first clus high 16 bits
-        de.sne.fst_clus_lo = (uint16)(ep->first_clus & 0xffff);     // low 16 bits
-        de.sne.file_size = ep->file_size;                         // filesize is updated in eupdate()
-        off = reloc_clus(dp, off, 1);
-        rw_clus(dp->cur_clus, 1, 0, (uint64)&de, off, sizeof(de));
     }
+    de.sne.attr = ep->attribute;
+    de.sne.fst_clus_hi = (uint16)(ep->first_clus >> 16);      // first clus high 16 bits
+    de.sne.fst_clus_lo = (uint16)(ep->first_clus & 0xffff);     // low 16 bits
+    de.sne.file_size = ep->file_size;                         // filesize is updated in eupdate()
+    off = reloc_clus(dp, off, 1);
+    rw_clus(dp->cur_clus, 1, 0, (uint64)&de, off, sizeof(de));
 }
 
 /**
@@ -557,19 +547,19 @@ struct dirent *ealloc(struct dirent *dp, char *name, int attr)
     }
     struct dirent *ep;
     uint off = 0;
-    if ((ep = dirlookup(dp, name, &off)) != 0) {      // entry exists
+    if ((ep = dirlookup(dp, name, &off)) != NULL) {      // entry exists
         return ep;
     }
-    ep = eget(dp, name);
-    elock(ep);
+    if ((ep = eget(dp, name)) == NULL) {
+        return NULL;
+    }
     ep->attribute = attr;
     ep->file_size = 0;
     ep->first_clus = 0;
-    ep->parent = edup(dp);
-    ep->off = off;
     ep->clus_cnt = 0;
     ep->cur_clus = 0;
-    ep->dirty = 0;
+    ep->off = off;
+    ep->parent = edup(dp);
     safestrcpy(ep->filename, name, FAT32_MAX_FILENAME);
     if (attr == ATTR_DIRECTORY) {    // generate "." and ".." for ep
         ep->attribute |= ATTR_DIRECTORY;
@@ -580,16 +570,15 @@ struct dirent *ealloc(struct dirent *dp, char *name, int attr)
         ep->attribute |= ATTR_ARCHIVE;
     }
     emake(dp, ep, off);
-    ep->valid = 1;
-    eunlock(ep);
+    eavail(ep);
     return ep;
 }
 
 struct dirent *edup(struct dirent *entry)
 {
-    acquire(&ecache.lock);
+    acquire(&ecachelock);
     entry->ref++;
-    release(&ecache.lock);
+    release(&ecachelock);
     return entry;
 }
 
@@ -621,15 +610,25 @@ void eremove(struct dirent *entry)
     uint entcnt = 0;
     uint32 off = entry->off;
     uint32 off2 = reloc_clus(entry->parent, off, 0);
-    rw_clus(entry->parent->cur_clus, 0, 0, (uint64) &entcnt, off2, 1);
+    struct dirent *parent = entry->parent;
+    rw_clus(parent->cur_clus, 0, 0, (uint64) &entcnt, off2, 1);
     entcnt &= ~LAST_LONG_ENTRY;
     uint8 flag = EMPTY_ENTRY;
     for (int i = 0; i <= entcnt; i++) {
-        rw_clus(entry->parent->cur_clus, 1, 0, (uint64) &flag, off2, 1);
+        rw_clus(parent->cur_clus, 1, 0, (uint64) &flag, off2, 1);
         off += 32;
-        off2 = reloc_clus(entry->parent, off, 0);
+        off2 = reloc_clus(parent, off, 0);
+    }
+    struct dirent **epp;
+    acquire(&ecachelock);
+    for (epp = &parent->child; *epp != NULL; epp = &(*epp)->next) {
+        if (*epp == entry) {
+            *epp = entry->next;
+            break;
+        }
     }
     entry->valid = -1;
+    release(&ecachelock);
 }
 
 // truncate a file
@@ -662,40 +661,40 @@ void eunlock(struct dirent *entry)
 
 void eput(struct dirent *entry)
 {
-    acquire(&ecache.lock);
-    if (entry != &root && entry->valid != 0 && entry->ref == 1) {
+    if (entry->valid == 0) {
+		kfree(entry);
+        return;
+	}
+    acquire(&ecachelock);
+	if (entry->ref-- == 1 && entry != &root) {
         // ref == 1 means no other process can have entry locked,
         // so this acquiresleep() won't block (or deadlock).
         acquiresleep(&entry->lock);
-        entry->next->prev = entry->prev;
-        entry->prev->next = entry->next;
-        entry->next = root.next;
-        entry->prev = &root;
-        root.next->prev = entry;
-        root.next = entry;
-        release(&ecache.lock);
+        release(&ecachelock);
+        struct dirent *parent = entry->parent;
         if (entry->valid == -1) {       // this means some one has called eremove()
             etrunc(entry);
+            kfree(entry);
         } else {
-            elock(entry->parent);
+            elock(parent);
             eupdate(entry);
-            eunlock(entry->parent);
+            eunlock(parent);
+            releasesleep(&entry->lock);
         }
-        releasesleep(&entry->lock);
-
-        // Once entry->ref decreases down to 0, we can't guarantee the entry->parent field remains unchanged.
-        // Because eget() may take the entry away and write it.
-        struct dirent *eparent = entry->parent;
-        acquire(&ecache.lock);
-        entry->ref--;
-        release(&ecache.lock);
-        if (entry->ref == 0) {
-            eput(eparent);
-        }
+        eput(parent);
         return;
     }
-    entry->ref--;
-    release(&ecache.lock);
+    release(&ecachelock);
+}
+
+void ereparent(struct dirent *pdst, struct dirent *src)
+{
+    acquire(&ecachelock);
+    src->parent = pdst;
+    pdst->ref++;
+    src->next = pdst->child;
+    pdst->child = src;
+    release(&ecachelock);
 }
 
 void estat(struct dirent *de, struct stat *st)
@@ -822,15 +821,13 @@ struct dirent *dirlookup(struct dirent *dp, char *filename, uint *poff)
     if (strncmp(filename, ".", FAT32_MAX_FILENAME) == 0) {
         return edup(dp);
     } else if (strncmp(filename, "..", FAT32_MAX_FILENAME) == 0) {
-        if (dp == &root) {
+        if (dp == &root)
             return edup(&root);
-        }
         return edup(dp->parent);
     }
-    if (dp->valid != 1) {
-        return NULL;
-    }
+    if (dp->valid != 1) { return NULL; }
     struct dirent *ep = eget(dp, filename);
+    if (ep == NULL) { return NULL; }
     if (ep->valid == 1) { return ep; }                               // ecache hits
 
     int len = strlen(filename);
@@ -843,12 +840,12 @@ struct dirent *dirlookup(struct dirent *dp, char *filename, uint *poff)
         if (type == 0) {
             if (poff && count >= entcnt) {
                 *poff = off;
-                poff = 0;
+                poff = NULL;
             }
         } else if (strncmp(filename, ep->filename, FAT32_MAX_FILENAME) == 0) {
             ep->parent = edup(dp);
             ep->off = off;
-            ep->valid = 1;
+            eavail(ep);
             return ep;
         }
         off += count << 5;
@@ -929,4 +926,25 @@ struct dirent *ename(char *path)
 struct dirent *enameparent(char *path, char *name)
 {
     return lookup_path(path, 1, name);
+}
+
+void do_eprint(struct dirent *ep, int level)
+{
+    for (int i = 0; i < level; i++) {
+        printf("\t");
+    }
+    printf("[%d] %s\n", ep->ref, ep->filename);
+    struct dirent *child;
+    for (child = ep->child; child != NULL; child = child->next) {
+        do_eprint(child, level + 1);
+    }
+}
+
+
+void eprint()
+{
+    printf("\nfile tree:\n");
+    acquire(&ecachelock);
+    do_eprint(&root, 0);
+    release(&ecachelock);
 }

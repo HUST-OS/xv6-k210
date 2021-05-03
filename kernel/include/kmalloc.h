@@ -18,6 +18,8 @@ void*           kmalloc(uint size);
  */
 void            kfree(void *addr);
 
+void 			kmview(void);
+
 #ifdef __DEBUG_kmalloc 
 	void kmtest(void);
 	#define __debug_kmtest() \

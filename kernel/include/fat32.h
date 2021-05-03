@@ -45,8 +45,8 @@ struct dirent {
     int     ref;
     uint32  off;            // offset in the parent dir entry, for writing convenience
     struct dirent *parent;  // because FAT32 doesn't have such thing like inum, use this for cache trick
-    struct dirent *next;
-    struct dirent *prev;
+    struct dirent *next;    // next sibling
+    struct dirent *child;   // first child
     struct sleeplock    lock;
 };
 
@@ -60,6 +60,7 @@ void            eupdate(struct dirent *entry);
 void            etrunc(struct dirent *entry);
 void            eremove(struct dirent *entry);
 void            eput(struct dirent *entry);
+void            ereparent(struct dirent *pdst, struct dirent *src);
 void            estat(struct dirent *ep, struct stat *st);
 void            elock(struct dirent *entry);
 void            eunlock(struct dirent *entry);
@@ -68,5 +69,6 @@ struct dirent*  ename(char *path);
 struct dirent*  enameparent(char *path, char *name);
 int             eread(struct dirent *entry, int user_dst, uint64 dst, uint off, uint n);
 int             ewrite(struct dirent *entry, int user_src, uint64 src, uint off, uint n);
+void            eprint();
 
 #endif

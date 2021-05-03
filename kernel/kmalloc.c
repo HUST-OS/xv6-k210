@@ -293,7 +293,7 @@ static void km_view_allocator(struct kmem_allocator *alloc) {
 }
 
 // for debugging 
-static void kmview(void)
+void kmview(void)
 {
 	// display all the content in kmem_table
 
