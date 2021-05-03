@@ -10,6 +10,7 @@
 #include "include/spinlock.h"
 #include "include/console.h"
 #include "include/printf.h"
+#include "include/debug.h"
 
 volatile int panicked = 0;
 
@@ -121,7 +122,7 @@ printf(char *fmt, ...)
 void
 panic(char *s)
 {
-  printf("panic: ");
+  printf(__ERROR("panic")": ");
   printf(s);
   printf("\n");
   backtrace();

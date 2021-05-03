@@ -2,6 +2,7 @@
 platform	:= qemu
 mode := debug
 #mode := release
+
 K=kernel
 U=xv6-user
 T=target
@@ -83,6 +84,7 @@ CFLAGS += $(shell $(CC) -fno-stack-protector -E -x c /dev/null >/dev/null 2>&1 &
 
 ifeq ($(mode), debug) 
 CFLAGS += -DDEBUG 
+CFLAGS += $(addprefix "-D__DEBUG_",$(module))
 endif 
 
 ifeq ($(platform), qemu)
