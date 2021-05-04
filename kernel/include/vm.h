@@ -4,18 +4,36 @@
 #include "types.h"
 #include "riscv.h"
 
+static inline void permit_usr_mem()
+{
+  #ifndef QEMU
+  w_sstatus(r_sstatus() & ~SSTATUS_PUM);
+  #else
+  w_sstatus(r_sstatus() | SSTATUS_SUM);
+  #endif
+}
+
+static inline void protect_usr_mem()
+{
+  #ifndef QEMU
+  w_sstatus(r_sstatus() | SSTATUS_PUM);
+  #else
+  w_sstatus(r_sstatus() & ~SSTATUS_SUM);
+  #endif
+}
+
 void            kvminit(void);
 void            kvminithart(void);
 void            kvmmap(uint64 va, uint64 pa, uint64 sz, int perm);
 pagetable_t     kvmcreate(void);
 void            kvmfree(pagetable_t kpt, int stack_free);
 
-void            uvminit(pagetable_t, pagetable_t, uchar *, uint);
+void            uvminit(pagetable_t, uchar *, uint);
 pagetable_t     uvmcreate(void);
 int             uvmcopy(pagetable_t, pagetable_t, pagetable_t, uint64);
-int             uvmcopy_cow(pagetable_t old, pagetable_t kold, pagetable_t new, pagetable_t knew, uint64 sz);
-uint64          uvmalloc(pagetable_t, pagetable_t, uint64, uint64);
-uint64          uvmdealloc(pagetable_t, pagetable_t, uint64, uint64);
+int             uvmcopy_cow(pagetable_t old, pagetable_t new, uint64 start, uint64 end);
+uint64          uvmalloc(pagetable_t, uint64, uint64);
+uint64          uvmdealloc(pagetable_t, uint64, uint64);
 void            uvmclear(pagetable_t, uint64);
 void            uvmfree(pagetable_t pt, uint64 sz);
 
@@ -34,6 +52,6 @@ int             copyin2(char *dst, uint64 srcva, uint64 len);
 int             copyinstr2(char *dst, uint64 srcva, uint64 max);
 void            vmprint(pagetable_t pagetable);
 
-int             handle_store_page_fault_cow(uint64 badaddr);
+int             handle_page_fault(int type, uint64 badaddr);
 
 #endif 

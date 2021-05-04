@@ -16,6 +16,8 @@
 
 #define MAX_PAGES_NUM 0x600
 
+#define PTE_COW PTE_RSW1  // Use it to mark a COW page
+
 /*
  * the kernel's page table.
  */
@@ -111,6 +113,7 @@ kvminithart()
 {
   w_satp(MAKE_SATP(kernel_pagetable));
   sfence_vma();
+  protect_usr_mem();
   #ifdef DEBUG
   printf("kvminithart\n");
   #endif
@@ -136,7 +139,7 @@ static inline int pageref(uint64 pa)
   acquire(&page_ref_lock);
   int ref = page_ref_table[__hash_page_idx(pa)];
   release(&page_ref_lock);
-  __debug_info("pageref", "page=%p, ref=%d\n", pa, ref);
+  // __debug_info("pageref", "page=%p, ref=%d\n", pa, ref);
 	return ref;
 }
 
@@ -145,7 +148,7 @@ static inline int pagedup(uint64 pa)
   acquire(&page_ref_lock);
   int ref = ++page_ref_table[__hash_page_idx(pa)];
   release(&page_ref_lock);
-  __debug_info("pagedup", "page=%p, ref=%d\n", pa, ref);
+  // __debug_info("pagedup", "page=%p, ref=%d\n", pa, ref);
 	return ref;
 }
 
@@ -154,7 +157,7 @@ static inline int pageput(uint64 pa)
   acquire(&page_ref_lock);
   int ref = --page_ref_table[__hash_page_idx(pa)];
   release(&page_ref_lock);
-  __debug_info("pageput", "page=%p, ref=%d\n", pa, ref);
+  // __debug_info("pageput", "page=%p, ref=%d\n", pa, ref);
 	return ref;
 }
 
@@ -325,7 +328,7 @@ uvmcreate()
 // for the very first process.
 // sz must be less than a page.
 void
-uvminit(pagetable_t pagetable, pagetable_t kpagetable, uchar *src, uint sz)
+uvminit(pagetable_t pagetable, uchar *src, uint sz)
 {
   char *mem;
 
@@ -335,18 +338,19 @@ uvminit(pagetable_t pagetable, pagetable_t kpagetable, uchar *src, uint sz)
   memset(mem, 0, PGSIZE);
 	pagereg((uint64)mem, 0);	// mappages will increase it
   mappages(pagetable, 0, PGSIZE, (uint64)mem, PTE_W|PTE_R|PTE_X|PTE_U, 1);
-  mappages(kpagetable, 0, PGSIZE, (uint64)mem, PTE_W|PTE_R|PTE_X, 0);
   memmove(mem, src, sz);
 }
 
 // Allocate PTEs and physical memory to grow process from oldsz to
 // newsz, which need not be page aligned.  Returns new size or 0 on error.
 uint64
-uvmalloc(pagetable_t pagetable, pagetable_t kpagetable, uint64 oldsz, uint64 newsz)
+uvmalloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz)
 {
   char *mem;
   uint64 a;
 
+  if (newsz > MAXUVA)
+    return 0;
   if(newsz < oldsz)
     return oldsz;
 
@@ -354,20 +358,14 @@ uvmalloc(pagetable_t pagetable, pagetable_t kpagetable, uint64 oldsz, uint64 new
   for(a = oldsz; a < newsz; a += PGSIZE){
     mem = allocpage();
     if(mem == NULL){
-      uvmdealloc(pagetable, kpagetable, a, oldsz);
+      uvmdealloc(pagetable, a, oldsz);
       return 0;
     }
     memset(mem, 0, PGSIZE);
 		pagereg((uint64)mem, 0);
     if (mappages(pagetable, a, PGSIZE, (uint64)mem, PTE_W|PTE_X|PTE_R|PTE_U, 1) != 0) {
       freepage(mem);
-      uvmdealloc(pagetable, kpagetable, a, oldsz);
-      return 0;
-    }
-    if (mappages(kpagetable, a, PGSIZE, (uint64)mem, PTE_W|PTE_X|PTE_R, 0) != 0){
-      int npages = (a - oldsz) / PGSIZE;
-      unmappages(pagetable, oldsz, npages + 1, 1, 1);   // plus the page allocated above.
-      unmappages(kpagetable, oldsz, npages, 0, 0);
+      uvmdealloc(pagetable, a, oldsz);
       return 0;
     }
   }
@@ -379,14 +377,13 @@ uvmalloc(pagetable_t pagetable, pagetable_t kpagetable, uint64 oldsz, uint64 new
 // need to be less than oldsz.  oldsz can be larger than the actual
 // process size.  Returns the new process size.
 uint64
-uvmdealloc(pagetable_t pagetable, pagetable_t kpagetable, uint64 oldsz, uint64 newsz)
+uvmdealloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz)
 {
   if(newsz >= oldsz)
     return oldsz;
 
   if(PGROUNDUP(newsz) < PGROUNDUP(oldsz)){
     int npages = (PGROUNDUP(oldsz) - PGROUNDUP(newsz)) / PGSIZE;
-    unmappages(kpagetable, PGROUNDUP(newsz), npages, 0, 0);
     unmappages(pagetable, PGROUNDUP(newsz), npages, 1, 1);
   }
 
@@ -420,7 +417,15 @@ uvmfree(pagetable_t pagetable, uint64 sz)
 {
   if(sz > 0)
     unmappages(pagetable, 0, PGROUNDUP(sz)/PGSIZE, 1, 1);
-  freewalk(pagetable);
+
+  pte_t pte;
+  for (int i = 0; i < PX(2, MAXUVA); i++) {
+    pte = pagetable[i];
+    if ((pte & PTE_V) && (pte & (PTE_R|PTE_W|PTE_X)) == 0) {
+      freewalk((pagetable_t) PTE2PA(pte));
+      pagetable[i] = 0;
+    }
+  }
 }
 
 // Given a parent process's page table, copy
@@ -453,7 +458,7 @@ uvmcopy(pagetable_t old, pagetable_t new, pagetable_t knew, uint64 sz)
       goto err;
     }
     i += PGSIZE;
-    if(mappages(knew, ki, PGSIZE, (uint64)mem, flags & ~PTE_U, 0) != 0){
+    if(mappages(knew, ki, PGSIZE, (uint64)mem, flags/* & ~PTE_U*/, 0) != 0){
       goto err;
     }
     ki += PGSIZE;
@@ -466,37 +471,35 @@ uvmcopy(pagetable_t old, pagetable_t new, pagetable_t knew, uint64 sz)
   return -1;
 }
 
-int uvmcopy_cow(pagetable_t old, pagetable_t kold, pagetable_t new, pagetable_t knew, uint64 sz)
+int uvmcopy_cow(pagetable_t old, pagetable_t new, uint64 start, uint64 end)
 {
   pte_t *pte;
-  uint64 pa, i = 0, ki = 0;
+  uint64 pa, i;
   uint flags;
 
-  while (i < sz){
+  for (i = start; i < end; i += PGSIZE){
     if((pte = walk(old, i, 0)) == NULL)
       panic("uvmcopy: pte should exist");
     if((*pte & PTE_V) == 0)
       panic("uvmcopy: page not present");
     pa = PTE2PA(*pte);
     flags = PTE_FLAGS(*pte);
-    if(mappages(new, i, PGSIZE, pa, flags & ~PTE_W, 1) != 0) {           // cancel 'W'
+		if (flags & PTE_W) {
+			flags = (flags|PTE_COW) & ~PTE_W;
+		}
+    if(mappages(new, i, PGSIZE, pa, flags, 1) != 0) {  // cancel 'W', and mark COW
       goto err;
     }
-    i += PGSIZE;
-    if(mappages(knew, ki, PGSIZE, pa, flags & ~(PTE_U|PTE_W), 0) != 0){  // cancel 'W' and 'U' for kernel
-      goto err;
-    }
-    ki += PGSIZE;
   }
 
 	// Copy successfully, now cancel 'W' for parent.
-	for (i = 0; i < sz; i += PGSIZE) {
+	for (i = start; i < end; i += PGSIZE) {
 		if ((pte = walk(old, i, 0)) == NULL)
 			panic("uvmcopy: pte should exist 2");
-		*pte &= ~PTE_W;
-		if ((pte = walk(kold, i, 0)) == NULL)
-			panic("uvmcopy: pte should exist 3");
-		*pte &= ~PTE_W;
+		if (PTE_FLAGS(*pte) & PTE_W) {
+			*pte &= ~PTE_W;
+			*pte |= PTE_COW;
+		}
 	}
 	// Should we perform an sfence.vma?
 	// sfence_vma();
@@ -504,8 +507,7 @@ int uvmcopy_cow(pagetable_t old, pagetable_t kold, pagetable_t new, pagetable_t 
   return 0;
 
  err:
-  unmappages(knew, 0, ki / PGSIZE, 0, 0);
-  unmappages(new, 0, i / PGSIZE, 1, 1);
+  unmappages(new, start, i / PGSIZE, 1, 1);
   return -1;
 }
 
@@ -554,7 +556,9 @@ copyout2(uint64 dstva, char *src, uint64 len)
   if (dstva + len > sz || dstva >= sz) {
     return -1;
   }
+  permit_usr_mem();
   memmove((void *)dstva, src, len);
+  protect_usr_mem();
   return 0;
 }
 
@@ -590,7 +594,9 @@ copyin2(char *dst, uint64 srcva, uint64 len)
   if (srcva + len > sz || srcva >= sz) {
     return -1;
   }
+  permit_usr_mem();
   memmove(dst, (void *)srcva, len);
+  protect_usr_mem();
   return 0;
 }
 
@@ -643,6 +649,7 @@ copyinstr2(char *dst, uint64 srcva, uint64 max)
   char *old = dst;
   int got_null = 0;
   uint64 sz = myproc()->sz;
+  permit_usr_mem();
   while(srcva < sz && max > 0){
     char *p = (char *)srcva;
     if(*p == '\0'){
@@ -656,6 +663,7 @@ copyinstr2(char *dst, uint64 srcva, uint64 max)
     srcva++;
     dst++;
   }
+  protect_usr_mem();
   if(got_null){
     return dst - old;
   } else {
@@ -664,71 +672,72 @@ copyinstr2(char *dst, uint64 srcva, uint64 max)
 }
 
 // only free page table, not physical pages
-void
-kfreewalk(pagetable_t kpt)
-{
-  for (int i = 0; i < 512; i++) {
-    pte_t pte = kpt[i];
-    if ((pte & PTE_V) && (pte & (PTE_R|PTE_W|PTE_X)) == 0) {
-      kfreewalk((pagetable_t) PTE2PA(pte));
-      kpt[i] = 0;
-    } else if (pte & PTE_V) {
-      break;
-    }
-  }
-  freepage((void *) kpt);
-}
+// void
+// kfreewalk(pagetable_t kpt)
+// {
+//   for (int i = 0; i < 512; i++) {
+//     pte_t pte = kpt[i];
+//     if ((pte & PTE_V) && (pte & (PTE_R|PTE_W|PTE_X)) == 0) {
+//       kfreewalk((pagetable_t) PTE2PA(pte));
+//       kpt[i] = 0;
+//     } else if (pte & PTE_V) {
+//       break;
+//     }
+//   }
+//   freepage((void *) kpt);
+// }
 
 // initialize kernel pagetable for each process.
 pagetable_t
 kvmcreate()
 {
-  pagetable_t kpt;
+  pagetable_t pagetable;
   char *pstack;
-  if ((kpt = allocpage()) == NULL || (pstack = allocpage()) == NULL) {
-		if (kpt)
-			freepage(kpt);
+  if ((pagetable = allocpage()) == NULL || (pstack = allocpage()) == NULL) {
+		if (pagetable)
+			freepage(pagetable);
     return NULL;
 	}
 
-	memmove(kpt, kernel_pagetable, PGSIZE);
-	if (mappages(kpt, VKSTACK, PGSIZE, (uint64)pstack, PTE_R | PTE_W, 0) != 0) {
-		pte_t pte = kpt[PX(2, VKSTACK)];
+	memmove(pagetable, kernel_pagetable, PGSIZE);
+	if (mappages(pagetable, VKSTACK, PGSIZE, (uint64)pstack, PTE_R | PTE_W, 0) != 0) {
+		pte_t pte = pagetable[PX(2, VKSTACK)];
 		if (pte & PTE_V) {
-			kfreewalk((pagetable_t) PTE2PA(pte));
+			freewalk((pagetable_t) PTE2PA(pte));
 		}
 		freepage(pstack);
-		freepage(kpt);
+		freepage(pagetable);
 		return NULL;
 	}
-  return kpt;
+  return pagetable;
 }
 
-void
-kvmfreeusr(pagetable_t kpt)
-{
-  pte_t pte;
-  for (int i = 0; i < PX(2, MAXUVA); i++) {
-    pte = kpt[i];
-    if ((pte & PTE_V) && (pte & (PTE_R|PTE_W|PTE_X)) == 0) {
-      kfreewalk((pagetable_t) PTE2PA(pte));
-      kpt[i] = 0;
-    }
-  }
-}
+// void
+// kvmfreeusr(pagetable_t kpt)
+// {
+//   pte_t pte;
+//   for (int i = 0; i < PX(2, MAXUVA); i++) {
+//     pte = kpt[i];
+//     if ((pte & PTE_V) && (pte & (PTE_R|PTE_W|PTE_X)) == 0) {
+//       kfreewalk((pagetable_t) PTE2PA(pte));
+//       kpt[i] = 0;
+//     }
+//   }
+// }
 
+// Should be called after uvmfree if the pagetable contains user spase!
+// And after trapframe free
 void
-kvmfree(pagetable_t kpt, int stack_free)
+kvmfree(pagetable_t pagetable, int stack_free)
 {
   if (stack_free) {
-    unmappages(kpt, VKSTACK, 1, 1, 0);
-    pte_t pte = kpt[PX(2, VKSTACK)];
+    unmappages(pagetable, VKSTACK, 1, 1, 0);
+    pte_t pte = pagetable[PX(2, VKSTACK)];
     if (pte & PTE_V) {
-      kfreewalk((pagetable_t) PTE2PA(pte));
+      freewalk((pagetable_t) PTE2PA(pte));
     }
   }
-  kvmfreeusr(kpt);
-  freepage(kpt);
+  freepage(pagetable);
 }
 
 void vmprint(pagetable_t pagetable)
@@ -757,21 +766,13 @@ void vmprint(pagetable_t pagetable)
   return;
 }
 
-int handle_store_page_fault_cow(uint64 badaddr)
+static int handle_store_page_fault_cow(pte_t *ptep)
 {
-	struct proc *p = myproc();
-	if (badaddr >= p->sz)
-		return -1;
+	pte_t pte = *ptep;
+	uint64 pa = PTE2PA(pte);
 
-	pte_t *pte = walk(p->pagetable, badaddr, 0);
-	pte_t *kpte = walk(p->kpagetable, badaddr, 0);
-	if (pte == NULL || kpte == NULL)
-		panic("handle_store_page_fault_cow: should have been mapped");
-
-	uint64 pa = PTE2PA(*pte);
 	if (pageref(pa) == 1) {    // Only this process holds this page.
-		*pte |= PTE_W;
-		*kpte |= PTE_W;
+		pte |= PTE_W;
 	} else {
 		char *copy = (char *)allocpage();
 		if (copy == NULL)
@@ -779,10 +780,41 @@ int handle_store_page_fault_cow(uint64 badaddr)
 		memmove(copy, (char *)pa, PGSIZE);
 		pagereg((uint64)copy, 1);
 		pageput(pa);
-		*pte = PA2PTE(copy) | PTE_FLAGS(*pte) | PTE_W;
-		*kpte = PA2PTE(copy) | PTE_FLAGS(*kpte) | PTE_W;
+		pte = PA2PTE(copy) | PTE_FLAGS(pte) | PTE_W;
 	}
+
+	pte &= ~PTE_COW;	// cancel COW mark
+	*ptep = pte;
 	sfence_vma();
 
 	return 0;
+}
+
+static int handle_page_fault_lazy(uint64 badaddr)
+{
+  return -1;
+}
+
+/**
+ * @param   type      load-0 | store-1 | access-2
+ * @param   badaddr   the stval
+ */
+int handle_page_fault(int type, uint64 badaddr)
+{
+	struct proc *p = myproc();
+	// In later implement, we will handle badaddr at heap, mmap zoom and wherever a COW page
+	// int section; // Get from new module that is being written
+	if (badaddr >= p->sz)
+		return -1;
+
+	// __debug_info("handle_store_page_fault", "badaddr=%p\n", badaddr);
+	pte_t *pte = walk(p->pagetable, badaddr, 0);
+	if (pte == NULL) { // not mapped, might be a lazy-alloction
+		return handle_page_fault_lazy(badaddr);
+	}
+	else if (type == 1 && (*pte & PTE_COW)) { // mapped and store-type, might be a COW fault
+		return handle_store_page_fault_cow(pte);
+	}
+
+	return -1;
 }

@@ -138,8 +138,7 @@ found:
 
   // An empty user page table.
   // And an identical kernel page table for this proc.
-  if ((p->pagetable = proc_pagetable(p)) == NULL ||
-      (p->kpagetable = proc_kpagetable()) == NULL) {
+  if ((p->pagetable = proc_pagetable(p)) == NULL) {
     freeproc(p);
     release(&p->lock);
     return NULL;
@@ -167,10 +166,6 @@ freeproc(struct proc *p)
   if(p->trapframe)
     freepage((void*)p->trapframe);
   p->trapframe = 0;
-  if (p->kpagetable) {
-    kvmfree(p->kpagetable, 1);
-  }
-  p->kpagetable = 0;
   if(p->pagetable)
     proc_freepagetable(p->pagetable, p->sz);
   p->pagetable = 0;
@@ -192,7 +187,7 @@ proc_pagetable(struct proc *p)
   pagetable_t pagetable;
 
   // An empty page table.
-  pagetable = uvmcreate();
+  pagetable = kvmcreate();
   if(pagetable == 0)
     return NULL;
 
@@ -200,17 +195,16 @@ proc_pagetable(struct proc *p)
   // at the highest user virtual address.
   // only the supervisor uses it, on the way
   // to/from user space, so not PTE_U.
-  if(mappages(pagetable, TRAMPOLINE, PGSIZE,
-              (uint64)trampoline, PTE_R | PTE_X, 0) < 0){
-    uvmfree(pagetable, 0);
-    return NULL;
-  }
+  // if(mappages(pagetable, TRAMPOLINE, PGSIZE,
+  //             (uint64)trampoline, PTE_R | PTE_X, 0) < 0){
+  //   uvmfree(pagetable, 0);
+  //   return NULL;
+  // }
 
   // map the trapframe just below TRAMPOLINE, for trampoline.S.
   if(mappages(pagetable, TRAPFRAME, PGSIZE,
-              (uint64)(p->trapframe), PTE_R | PTE_W, 0) < 0){
-    unmappages(pagetable, TRAMPOLINE, 1, 0, 0);
-    uvmfree(pagetable, 0);
+            (uint64)(p->trapframe), PTE_R | PTE_W, 0) < 0){
+    kvmfree(pagetable, 1);
     return NULL;
   }
 
@@ -222,15 +216,27 @@ proc_pagetable(struct proc *p)
 void
 proc_freepagetable(pagetable_t pagetable, uint64 sz)
 {
-  unmappages(pagetable, TRAMPOLINE, 1, 0, 0);
+  // unmappages(pagetable, TRAMPOLINE, 1, 0, 0);
   unmappages(pagetable, TRAPFRAME, 1, 0, 0);
   uvmfree(pagetable, sz);
+  kvmfree(pagetable, 1);
 }
 
-pagetable_t proc_kpagetable(void)
-{
-  return kvmcreate();
-}
+// pagetable_t proc_kpagetable(struct proc *p)
+// {
+//   pagetable_t pagetable;
+
+//   if((pagetable = kvmcreate()) == NULL)
+//     return NULL;
+
+//   if(mappages(pagetable, TRAPFRAME, PGSIZE,
+//             (uint64)(p->trapframe), PTE_R | PTE_W, 0) < 0){
+//     kvmfree(pagetable, 1);
+//     return NULL;
+//   }
+
+//   return pagetable;
+// }
 
 // a user program that calls exec("/init")
 // od -t xC initcode
@@ -287,7 +293,7 @@ userinit(void)
   
   // allocate one user page and copy init's instructions
   // and data into it.
-  uvminit(p->pagetable , p->kpagetable, initcode, sizeof(initcode));
+  uvminit(p->pagetable, initcode, sizeof(initcode));
   p->sz = PGSIZE;
 
   // prepare for the very first "return" from kernel to user.
@@ -316,11 +322,11 @@ growproc(int n)
 
   sz = p->sz;
   if(n > 0){
-    if((sz = uvmalloc(p->pagetable, p->kpagetable, sz, sz + n)) == 0) {
+    if((sz = uvmalloc(p->pagetable, sz, sz + n)) == 0) {
       return -1;
     }
   } else if(n < 0){
-    sz = uvmdealloc(p->pagetable, p->kpagetable, sz, sz + n);
+    sz = uvmdealloc(p->pagetable, sz, sz + n);
   }
   p->sz = sz;
   return 0;
@@ -328,53 +334,53 @@ growproc(int n)
 
 // Create a new process, copying the parent.
 // Sets up child kernel stack to return as if from fork() system call.
-int
-fork(void)
-{
-  int i, pid;
-  struct proc *np;
-  struct proc *p = myproc();
+// int
+// fork(void)
+// {
+//   int i, pid;
+//   struct proc *np;
+//   struct proc *p = myproc();
 
-  // Allocate process.
-  if((np = allocproc()) == NULL){
-    return -1;
-  }
+//   // Allocate process.
+//   if((np = allocproc()) == NULL){
+//     return -1;
+//   }
 
-  // Copy user memory from parent to child.
-  if(uvmcopy(p->pagetable, np->pagetable, np->kpagetable, p->sz) < 0){
-    freeproc(np);
-    release(&np->lock);
-    return -1;
-  }
-  np->sz = p->sz;
+//   // Copy user memory from parent to child.
+//   if(uvmcopy(p->pagetable, np->pagetable, np->kpagetable, p->sz) < 0){
+//     freeproc(np);
+//     release(&np->lock);
+//     return -1;
+//   }
+//   np->sz = p->sz;
 
-  np->parent = p;
+//   np->parent = p;
 
-  // copy tracing mask from parent.
-  np->tmask = p->tmask;
+//   // copy tracing mask from parent.
+//   np->tmask = p->tmask;
 
-  // copy saved user registers.
-  *(np->trapframe) = *(p->trapframe);
+//   // copy saved user registers.
+//   *(np->trapframe) = *(p->trapframe);
 
-  // Cause fork to return 0 in the child.
-  np->trapframe->a0 = 0;
+//   // Cause fork to return 0 in the child.
+//   np->trapframe->a0 = 0;
 
-  // increment reference counts on open file descriptors.
-  for(i = 0; i < NOFILE; i++)
-    if(p->ofile[i])
-      np->ofile[i] = filedup(p->ofile[i]);
-  np->cwd = edup(p->cwd);
+//   // increment reference counts on open file descriptors.
+//   for(i = 0; i < NOFILE; i++)
+//     if(p->ofile[i])
+//       np->ofile[i] = filedup(p->ofile[i]);
+//   np->cwd = edup(p->cwd);
 
-  safestrcpy(np->name, p->name, sizeof(p->name));
+//   safestrcpy(np->name, p->name, sizeof(p->name));
 
-  pid = np->pid;
+//   pid = np->pid;
 
-  np->state = RUNNABLE;
+//   np->state = RUNNABLE;
 
-  release(&np->lock);
+//   release(&np->lock);
 
-  return pid;
-}
+//   return pid;
+// }
 
 int fork_cow(void)
 {
@@ -388,8 +394,7 @@ int fork_cow(void)
   }
 
   // Copy user memory from parent to child.
-  if (uvmcopy_cow(p->pagetable, p->kpagetable, 
-                  np->pagetable, np->kpagetable, p->sz) < 0) {
+  if (uvmcopy_cow(p->pagetable, np->pagetable, 0, p->sz) < 0) {
     freeproc(np);
     release(&np->lock);
     return -1;
@@ -596,7 +601,7 @@ scheduler(void)
         // printf("[scheduler]found runnable proc with pid: %d\n", p->pid);
         p->state = RUNNING;
         c->proc = p;
-        w_satp(MAKE_SATP(p->kpagetable));
+        w_satp(MAKE_SATP(p->pagetable));
         sfence_vma();
         swtch(&c->context, &p->context);
         w_satp(MAKE_SATP(kernel_pagetable));

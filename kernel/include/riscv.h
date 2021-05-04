@@ -48,6 +48,11 @@ w_mepc(uint64 x)
 #define SSTATUS_UPIE (1L << 4) // User Previous Interrupt Enable
 #define SSTATUS_SIE (1L << 1)  // Supervisor Interrupt Enable
 #define SSTATUS_UIE (1L << 0)  // User Interrupt Enable
+#ifndef QEMU
+#define SSTATUS_PUM (1L << 18)
+#else
+#define SSTATUS_SUM (1L << 18)
+#endif
 
 static inline uint64
 r_sstatus()
@@ -345,6 +350,8 @@ sfence_vma()
 #define PTE_W (1L << 2)
 #define PTE_X (1L << 3)
 #define PTE_U (1L << 4) // 1 -> user can access
+#define PTE_RSW1 (1L << 8)  // reserved for supervisor software 1
+#define PTE_RSW2 (1L << 9)  // 2
 
 // shift a physical address to the right place for a PTE.
 #define PA2PTE(pa) ((((uint64)pa) >> 12) << 10)

@@ -84,7 +84,7 @@ int execve(char *path, char **argv, char **envp)
 {
   struct dirent *ep = NULL;
   pagetable_t pagetable = NULL;
-  pagetable_t kpagetable = NULL;
+  uint64 sz = 0;
   struct proc *p = myproc();
 
   if ((ep = ename(path)) == NULL)
@@ -96,17 +96,17 @@ int execve(char *path, char **argv, char **envp)
   if (eread(ep, 0, (uint64) &elf, 0, sizeof(elf)) != sizeof(elf) || elf.magic != ELF_MAGIC)
     goto bad;
 
-  // Make a copy of p->kpt without old user space, 
+  // Make a copy of p->pagetable without old user space, 
   // but with the same kstack we are using now, which can't be changed.
-  // Load program into memory.
-  uint64 sz = 0;
-  if ((pagetable = proc_pagetable(p)) == NULL ||
-      (kpagetable = (pagetable_t)allocpage()) == NULL)
+  if ((pagetable = (pagetable_t)allocpage()) == NULL)
     goto bad;
-  memmove(kpagetable, p->kpagetable, PGSIZE);
+  memmove(pagetable, p->pagetable, PGSIZE);
+  // Remove old u-map from the new pt, but don't free since later op might fail.
   for (int i = 0; i < PX(2, MAXUVA); i++) {
-    kpagetable[i] = 0;
+    pagetable[i] = 0;
   }
+
+  // Load program into memory.
   struct proghdr ph;
   for (int i = 0, off = elf.phoff; i < elf.phnum; i++, off += sizeof(ph)) {
     if (eread(ep, 0, (uint64)&ph, off, sizeof(ph)) != sizeof(ph))
@@ -116,7 +116,7 @@ int execve(char *path, char **argv, char **envp)
     if (ph.memsz < ph.filesz || ph.vaddr + ph.memsz < ph.vaddr)
       goto bad;
     uint64 sz1;
-    if ((sz1 = uvmalloc(pagetable, kpagetable, sz, ph.vaddr + ph.memsz)) == 0)
+    if ((sz1 = uvmalloc(pagetable, sz, ph.vaddr + ph.memsz)) == 0)
       goto bad;
     sz = sz1;
     if (ph.vaddr % PGSIZE != 0)
@@ -132,17 +132,19 @@ int execve(char *path, char **argv, char **envp)
 
   // Allocate two pages at the next page boundary.
   // Use the second as the user stack.
+  // Clear the PTE_U mark of the first page under the stack as a protection.
   sz = PGROUNDUP(sz);
   uint64 sz1;
-  if ((sz1 = uvmalloc(pagetable, kpagetable, sz, sz + 2 * PGSIZE)) == 0)
+  if ((sz1 = uvmalloc(pagetable, sz, sz + 2 * PGSIZE)) == 0)
     goto bad;
   sz = sz1;
   uvmclear(pagetable, sz - 2 * PGSIZE);
   uint64 sp = sz;
   uint64 stackbase = sp - PGSIZE;
   sp -= sizeof(uint64);
-  sp -= sp % 16;
-  if (copyout(pagetable, sp, (char *)&ep, sizeof(uint64)) < 0)  // *ep is 0 now, borrow it
+  sp -= sp % 16;        // on risc-v, sp should be 16-byte aligned
+  // Place a null at the bottom of user stack, ep is 0 now, borrow it.
+  if (copyout(pagetable, sp, (char *)&ep, sizeof(uint64)) < 0)
     goto bad;
 
   // arguments to user main(argc, argv, envp)
@@ -170,27 +172,25 @@ int execve(char *path, char **argv, char **envp)
 
   // Commit to the user image.
   pagetable_t oldpagetable = p->pagetable;
-  pagetable_t oldkpagetable = p->kpagetable;
   uint64 oldsz = p->sz;
   p->pagetable = pagetable;
-  p->kpagetable = kpagetable;
   p->sz = sz;
   p->trapframe->epc = elf.entry;  // initial program counter = main
   p->trapframe->sp = sp; // initial stack pointer
 
   __debug_info("execve", "sp=%p, stackbase=%p\n", sp, stackbase);
-  w_satp(MAKE_SATP(p->kpagetable));
+  w_satp(MAKE_SATP(p->pagetable));
   sfence_vma();
-  proc_freepagetable(oldpagetable, oldsz);
-  kvmfree(oldkpagetable, 0);
+  uvmfree(oldpagetable, oldsz);
+  freepage(oldpagetable);
 
   return argc; // this ends up in a0, the first argument to main(argc, argv)
 
  bad:
-  if (pagetable)
-    proc_freepagetable(pagetable, sz);
-  if (kpagetable)
-    kvmfree(kpagetable, 0);
+  if (pagetable) {
+    uvmfree(pagetable, sz);
+    freepage(pagetable);
+  }
   if (ep) {
     eunlock(ep);
     eput(ep);
