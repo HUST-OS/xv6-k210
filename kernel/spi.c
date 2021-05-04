@@ -8,6 +8,7 @@
 #include "include/sysctl.h"
 #include "include/pm.h"
 #include "include/string.h"
+#include "include/printf.h"
 
 volatile spi_t *const spi[4] =
     {
@@ -15,6 +16,11 @@ volatile spi_t *const spi[4] =
         (volatile spi_t *)SPI1_V,
         (volatile spi_t *)SPI_SLAVE_V,
         (volatile spi_t *)SPI2_V};
+
+/* Since sdcard module keeps a lock, we don't need to keep another one at present. */
+#define SPI_BUF_SIZE (2048)
+static uint8 __attribute__ ((aligned (sizeof(uint32)))) __spi_buf[SPI_BUF_SIZE];
+static void *spi_buf = (void*)__spi_buf;
 
 void spi_init(spi_device_num_t spi_num, spi_work_mode_t work_mode, spi_frame_format_t frame_format,
               uint64 data_bit_length, uint32 endian)
@@ -198,7 +204,9 @@ void spi_send_data_standard(spi_device_num_t spi_num, spi_chip_select_t chip_sel
 {
     // configASSERT(spi_num < SPI_DEVICE_MAX && spi_num != 2);
     // uint8 *v_buf = malloc(cmd_len + tx_len);
-    uint8 *v_buf = allocpage();
+    if (SPI_BUF_SIZE < cmd_len + tx_len)
+        panic("spi: spi_buf too small");
+    uint8 *v_buf = spi_buf;
     uint64 i;
     for(i = 0; i < cmd_len; i++)
         v_buf[i] = cmd_buff[i];
@@ -207,7 +215,7 @@ void spi_send_data_standard(spi_device_num_t spi_num, spi_chip_select_t chip_sel
 
     spi_send_data_normal(spi_num, chip_select, v_buf, cmd_len + tx_len);
     // free((void *)v_buf);
-    freepage((void *)v_buf);
+    // freepage((void *)v_buf);
 }
 
 void spi_receive_data_standard(spi_device_num_t spi_num, spi_chip_select_t chip_select, const uint8 *cmd_buff,
@@ -366,6 +374,8 @@ void spi_send_data_normal_dma(dmac_channel_number_t channel_num, spi_device_num_
                               spi_chip_select_t chip_select,
                               const void *tx_buff, uint64 tx_len, spi_transfer_width_t spi_transfer_width)
 {
+    if (SPI_BUF_SIZE < tx_len * sizeof(uint32))
+        panic("spi: spi_buf too small");
     // configASSERT(spi_num < SPI_DEVICE_MAX && spi_num != 2);
     spi_set_tmod(spi_num, SPI_TMOD_TRANS);
     volatile spi_t *spi_handle = spi[spi_num];
@@ -375,7 +385,7 @@ void spi_send_data_normal_dma(dmac_channel_number_t channel_num, spi_device_num_
     {
         case SPI_TRANS_SHORT:
             // buf = malloc((tx_len) * sizeof(uint32));
-            buf = allocpage();
+            buf = spi_buf;
             for(i = 0; i < tx_len; i++)
                 buf[i] = ((uint16 *)tx_buff)[i];
             break;
@@ -384,7 +394,7 @@ void spi_send_data_normal_dma(dmac_channel_number_t channel_num, spi_device_num_
             break;
         case SPI_TRANS_CHAR:
         default:
-            buf = allocpage();
+            buf = spi_buf;
             for(i = 0; i < tx_len; i++)
                 buf[i] = ((uint8 *)tx_buff)[i];
             break;
@@ -397,8 +407,8 @@ void spi_send_data_normal_dma(dmac_channel_number_t channel_num, spi_device_num_
                          DMAC_MSIZE_4, DMAC_TRANS_WIDTH_32, tx_len);
     spi_handle->ser = 1U << chip_select;
     dmac_wait_done(channel_num);
-    if(spi_transfer_width != SPI_TRANS_INT)
-        freepage((void *)buf);
+    // if(spi_transfer_width != SPI_TRANS_INT)
+    //     freepage((void *)buf);
 
     while((spi_handle->sr & 0x05) != 0x04)
         ;
@@ -441,7 +451,9 @@ void spi_receive_data_standard_dma(dmac_channel_number_t dma_send_channel_num,
     switch(frame_width)
     {
         case SPI_TRANS_INT:
-            write_cmd = allocpage();
+            if (SPI_BUF_SIZE < cmd_len + rx_len)
+                panic("spi: spi_buf too small");
+            write_cmd = spi_buf;
             for(i = 0; i < cmd_len / 4; i++)
                 write_cmd[i] = ((uint32 *)cmd_buff)[i];
             read_buf = &write_cmd[i];
@@ -449,7 +461,9 @@ void spi_receive_data_standard_dma(dmac_channel_number_t dma_send_channel_num,
             v_cmd_len = cmd_len / 4;
             break;
         case SPI_TRANS_SHORT:
-            write_cmd = allocpage();
+            if (SPI_BUF_SIZE < (cmd_len + rx_len) / 2 * sizeof(uint32))
+                panic("spi: spi_buf too small");
+            write_cmd = spi_buf;
             for(i = 0; i < cmd_len / 2; i++)
                 write_cmd[i] = ((uint16 *)cmd_buff)[i];
             read_buf = &write_cmd[i];
@@ -457,7 +471,9 @@ void spi_receive_data_standard_dma(dmac_channel_number_t dma_send_channel_num,
             v_cmd_len = cmd_len / 2;
             break;
         default:
-            write_cmd = allocpage();
+            if (SPI_BUF_SIZE < (cmd_len + rx_len) * sizeof(uint32))
+                panic("spi: spi_buf too small");
+            write_cmd = spi_buf;
             for(i = 0; i < cmd_len; i++)
                 write_cmd[i] = cmd_buff[i];
             read_buf = &write_cmd[i];
@@ -484,7 +500,7 @@ void spi_receive_data_standard_dma(dmac_channel_number_t dma_send_channel_num,
             break;
     }
 
-    freepage(write_cmd);
+    // freepage(write_cmd);
 }
 
 void spi_send_data_standard_dma(dmac_channel_number_t channel_num, spi_device_num_t spi_num,
@@ -519,7 +535,9 @@ void spi_send_data_standard_dma(dmac_channel_number_t channel_num, spi_device_nu
     switch(frame_width)
     {
         case SPI_TRANS_INT:
-            buf = allocpage();
+            if (SPI_BUF_SIZE < cmd_len + tx_len)
+                panic("spi: spi_buf too small");
+            buf = spi_buf;
             for(i = 0; i < cmd_len / 4; i++)
                 buf[i] = ((uint32 *)cmd_buff)[i];
             for(i = 0; i < tx_len / 4; i++)
@@ -527,7 +545,9 @@ void spi_send_data_standard_dma(dmac_channel_number_t channel_num, spi_device_nu
             v_send_len = (cmd_len + tx_len) / 4;
             break;
         case SPI_TRANS_SHORT:
-            buf = allocpage();
+            if (SPI_BUF_SIZE < (cmd_len + tx_len) / 2 * sizeof(uint32))
+                panic("spi: spi_buf too small");
+            buf = spi_buf;
             for(i = 0; i < cmd_len / 2; i++)
                 buf[i] = ((uint16 *)cmd_buff)[i];
             for(i = 0; i < tx_len / 2; i++)
@@ -535,7 +555,9 @@ void spi_send_data_standard_dma(dmac_channel_number_t channel_num, spi_device_nu
             v_send_len = (cmd_len + tx_len) / 2;
             break;
         default:
-            buf = allocpage();
+            if (SPI_BUF_SIZE < (cmd_len + tx_len) * sizeof(uint32))
+                panic("spi: spi_buf too small");
+            buf = spi_buf;
             for(i = 0; i < cmd_len; i++)
                 buf[i] = cmd_buff[i];
             for(i = 0; i < tx_len; i++)
@@ -546,5 +568,5 @@ void spi_send_data_standard_dma(dmac_channel_number_t channel_num, spi_device_nu
 
     spi_send_data_normal_dma(channel_num, spi_num, chip_select, buf, v_send_len, SPI_TRANS_INT);
 
-    freepage((void *)buf);
+    // freepage((void *)buf);
 }

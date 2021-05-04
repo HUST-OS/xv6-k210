@@ -1,3 +1,6 @@
+#ifndef __DEBUG_exec
+#undef  DEBUG
+#endif
 
 #include "include/types.h"
 #include "include/param.h"
@@ -11,6 +14,7 @@
 #include "include/printf.h"
 #include "include/string.h"
 #include "include/syscall.h"
+#include "include/debug.h"
 
 // Load a program segment into pagetable at virtual address va.
 // va must be page-aligned
@@ -137,6 +141,7 @@ int execve(char *path, char **argv, char **envp)
   uint64 sp = sz;
   uint64 stackbase = sp - PGSIZE;
   sp -= sizeof(uint64);
+  sp -= sp % 16;
   if (copyout(pagetable, sp, (char *)&ep, sizeof(uint64)) < 0)  // *ep is 0 now, borrow it
     goto bad;
 
@@ -149,8 +154,10 @@ int execve(char *path, char **argv, char **envp)
       (argc = pushstack(pagetable, uargv, argv, MAXARG, &sp)) < 0)
     goto bad;
   sp -= (envc + 1) * sizeof(uint64);
+  sp -= sp % 16;
   uint64 a2 = sp;
   sp -= (argc + 1) * sizeof(uint64);
+  sp -= sp % 16;
   if (sp < stackbase || 
       copyout(pagetable, a2, (char *)uenvp, (envc + 1) * sizeof(uint64)) < 0 ||
       copyout(pagetable, sp, (char *)uargv, (argc + 1) * sizeof(uint64)) < 0)
@@ -170,9 +177,11 @@ int execve(char *path, char **argv, char **envp)
   p->sz = sz;
   p->trapframe->epc = elf.entry;  // initial program counter = main
   p->trapframe->sp = sp; // initial stack pointer
-  proc_freepagetable(oldpagetable, oldsz);
+
+  __debug_info("execve", "sp=%p, stackbase=%p\n", sp, stackbase);
   w_satp(MAKE_SATP(p->kpagetable));
   sfence_vma();
+  proc_freepagetable(oldpagetable, oldsz);
   kvmfree(oldkpagetable, 0);
 
   return argc; // this ends up in a0, the first argument to main(argc, argv)
