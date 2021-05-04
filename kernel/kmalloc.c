@@ -4,6 +4,10 @@
  * effect of the hardware-cache by excluding the CPU struct in the kmem_cache.
  */
 
+#ifndef __DEBUG_kmalloc
+#undef DEBUG 
+#endif 
+
 #include "include/types.h"
 #include "include/riscv.h"
 #include "include/pm.h"

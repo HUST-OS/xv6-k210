@@ -1,3 +1,7 @@
+#ifndef __DEBUG_fat32 
+#undef DEBUG 
+#endif 
+
 #include "include/param.h"
 #include "include/types.h"
 #include "include/riscv.h"
@@ -984,7 +988,7 @@ struct dirent *enameparent(char *path, char *name)
     return lookup_path(path, 1, name);
 }
 
-void do_eprint(struct dirent *ep, int level)
+static void do_eprint(struct dirent *ep, int level)
 {
     for (int i = 0; i < level; i++) {
         printf("\t");

@@ -27,14 +27,4 @@
 #define __debug_error(mod, ...) \
 	__debug_msg(__ERROR(mod)": "__VA_ARGS__)
 
-// use this to add want-to-test functions 
-// to anywhere you like!
-#ifdef DEBUG 
-#define __test_module(test_func) \
-	do {(test_func)();} while (0)
-#else 
-#define __test_module(test_func) \
-	do {} while (0) 
-#endif 
-
 #endif 

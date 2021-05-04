@@ -1,3 +1,7 @@
+#ifndef __DEBUG_proc 
+#undef DEBUG 
+#endif 
+
 #include "include/types.h"
 #include "include/param.h"
 #include "include/memlayout.h"

@@ -1,3 +1,7 @@
+#ifndef __DEBUG_vm
+#undef DEBUG
+#endif
+
 #include "include/param.h"
 #include "include/types.h"
 #include "include/memlayout.h"
@@ -17,6 +21,7 @@
  */
 pagetable_t kernel_pagetable;
 static uint64 firstpage;
+static struct spinlock page_ref_lock;
 static uint8 page_ref_table[MAX_PAGES_NUM];  // user pages ref, for COW fork mechanism
 
 extern char etext[];  // kernel.ld sets this to end of kernel code.
@@ -30,6 +35,8 @@ kvminit()
 {
   if (idlepages() > MAX_PAGES_NUM)
     panic("kvminit: page_ref_table[] not enough");
+
+  initlock(&page_ref_lock, "page_ref_lock");
 	firstpage = PGROUNDUP((uint64)kernel_end);
 	memset(page_ref_table, 0, sizeof(page_ref_table));
 
@@ -119,22 +126,36 @@ static int __hash_page_idx(uint64 pa)
 // Register a page for user, init it for later dup
 static inline void pagereg(uint64 pa, uint8 init)
 {
+  acquire(&page_ref_lock);
 	page_ref_table[__hash_page_idx(pa)] = init;
+  release(&page_ref_lock);
 }
 
 static inline int pageref(uint64 pa)
 {
-	return page_ref_table[__hash_page_idx(pa)];
+  acquire(&page_ref_lock);
+  int ref = page_ref_table[__hash_page_idx(pa)];
+  release(&page_ref_lock);
+  __debug_info("pageref", "page=%p, ref=%d\n", pa, ref);
+	return ref;
 }
 
 static inline int pagedup(uint64 pa)
 {
-	return ++page_ref_table[__hash_page_idx(pa)];
+  acquire(&page_ref_lock);
+  int ref = ++page_ref_table[__hash_page_idx(pa)];
+  release(&page_ref_lock);
+  __debug_info("pagedup", "page=%p, ref=%d\n", pa, ref);
+	return ref;
 }
 
 static inline int pageput(uint64 pa)
 {
-	return --page_ref_table[__hash_page_idx(pa)];
+  acquire(&page_ref_lock);
+  int ref = --page_ref_table[__hash_page_idx(pa)];
+  release(&page_ref_lock);
+  __debug_info("pageput", "page=%p, ref=%d\n", pa, ref);
+	return ref;
 }
 
 // Return the address of the PTE in page table pagetable
