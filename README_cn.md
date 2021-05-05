@@ -117,5 +117,5 @@ Shell 命令其实也是用户程序。这些程序应当放置在 SD 卡或 `fs
 - [X] 稳定的键盘输入（k210）
 
 ## TODO
-解决用户态导致 RUSTSBI 报 panic 的 bug 
+详见 Issues 栏目。
 

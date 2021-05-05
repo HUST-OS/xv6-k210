@@ -62,7 +62,9 @@ sys_getpid(void)
 uint64
 sys_fork(void)
 {
-  return fork();
+  extern int fork_cow();
+  return fork_cow();
+  // return fork();
 }
 
 uint64
@@ -88,41 +90,57 @@ sys_wait(void)
 uint64
 sys_sbrk(void)
 {
-  int addr;
   int n;
-
   if(argint(0, &n) < 0)
     return -1;
-  addr = myproc()->sz;
-  if(growproc(n) < 0)
-    return -1;
+  
+  struct proc *p = myproc();
+  uint64 addr = p->sz;
+  if (n < 0) {
+    if (growproc(n) < 0)  // growproc takes care of p->sz
+      return -1;
+  } else {                // lazy page allocation
+    uint64 newsz = addr + n;
+    if (newsz > MAXUVA) {
+      return -1;
+    }
+    p->sz = newsz;
+  }
   return addr;
 }
 
 uint64
 sys_sleep(void)
 {
-  int n;
+  int n, ret = 0;
   uint ticks0;
 
   if(argint(0, &n) < 0)
     return -1;
   struct proc *p = myproc();
+  int mask = p->tmask & (1 << (SYS_sleep - 1));
+  if (mask) {
+    printf(") ...\n");
+  }
   // acquire(&tickslock);
   acquire(&p->lock);
   ticks0 = ticks;
   while(ticks - ticks0 < n){
     if(p->killed){
       // release(&tickslock);
-      release(&p->lock);
-      return -1;
+      ret = -1;
+      break;
     }
     // sleep(&ticks, &tickslock);
     sleep(&ticks, &p->lock);
   }
   // release(&tickslock);
   release(&p->lock);
-  return 0;
+
+  if (mask) {
+    printf("pid %d: return from sleep(%d", p->pid, n);
+  }
+  return ret;
 }
 
 uint64

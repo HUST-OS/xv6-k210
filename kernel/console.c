@@ -142,9 +142,6 @@ consoleintr(int c)
   case C('E'):  // Print file-entry list.
     eprint();
     break;
-  case C('B'):  // Print buffer list.
-    bprint();
-    break;
   // case C('M'):  // Print mem-alloc list.
   //   kmview();
   //   break;

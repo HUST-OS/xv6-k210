@@ -1,3 +1,7 @@
+#ifndef __DEBUG_trap
+#undef  DEBUG
+#endif
+
 #include "include/types.h"
 #include "include/param.h"
 #include "include/memlayout.h"
@@ -12,22 +16,29 @@
 #include "include/console.h"
 #include "include/timer.h"
 #include "include/disk.h"
+#include "include/vm.h"
+#include "include/debug.h"
+
+// Interrupt flag: set 1 in the Xlen - 1 bit
+#define INTERRUPT_FLAG    0x8000000000000000L
+
+// Supervisor interrupt number
+#define INTR_SOFTWARE    (0x1 | INTERRUPT_FLAG)
+#define INTR_TIMER       (0x5 | INTERRUPT_FLAG)
+#define INTR_EXTERNAL    (0x9 | INTERRUPT_FLAG)
+
+// Supervisor exception number
+#define EXCP_LOAD_ACCESS  0x5
+#define EXCP_STORE_ACCESS 0x7
+#define EXCP_ENV_CALL     0x8
+#define EXCP_LOAD_PAGE    0xd // 13
+#define EXCP_STORE_PAGE   0xf // 15
 
 extern char trampoline[], uservec[], userret[];
-
-// in kernelvec.S, calls kerneltrap().
-extern void kernelvec();
-
-int devintr();
-
-// void
-// trapinit(void)
-// {
-//   initlock(&tickslock, "time");
-//   #ifdef DEBUG
-//   printf("trapinit\n");
-//   #endif
-// }
+extern void kernelvec(); // in kernelvec.S, calls kerneltrap().
+int handle_intr(uint64 scause);
+int handle_excp(uint64 scause);
+static inline int is_page_fault(uint64 scause);
 
 // set up to take exceptions and traps while in the kernel.
 void
@@ -38,6 +49,7 @@ trapinithart(void)
   // enable supervisor-mode timer interrupts.
   w_sie(r_sie() | SIE_SEIE | SIE_SSIE | SIE_STIE);
   set_next_timeout();
+  __debug_info("trap", "safe_escape=%p\n", kern_pgfault_escape());
   #ifdef DEBUG
   printf("trapinithart\n");
   #endif
@@ -51,7 +63,6 @@ void
 usertrap(void)
 {
   // printf("run in usertrap\n");
-  int which_dev = 0;
 
   if((r_sstatus() & SSTATUS_SPP) != 0)
     panic("usertrap: not from user mode");
@@ -60,12 +71,15 @@ usertrap(void)
   // since we're now in the kernel.
   w_stvec((uint64)kernelvec);
 
+  protect_usr_mem();  // since we turned on this when leaving S-mode
+
   struct proc *p = myproc();
   
   // save user program counter.
   p->trapframe->epc = r_sepc();
   
-  if(r_scause() == 8){
+  uint64 cause = r_scause();
+  if(cause == EXCP_ENV_CALL){
     // system call
     if(p->killed)
       exit(-1);
@@ -77,21 +91,21 @@ usertrap(void)
     intr_on();
     syscall();
   } 
-  else if((which_dev = devintr()) != 0){
+  else if (handle_intr(cause) >= 0) {
     // ok
   } 
-  else {
-    printf("\nusertrap(): unexpected scause %p pid=%d %s\n", r_scause(), p->pid, p->name);
-    printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
-    // trapframedump(p->trapframe);
-    p->killed = 1;
+  else if (handle_excp(cause) < 0) {
+		printf("\nusertrap(): unexpected scause %p pid=%d %s\n", cause, p->pid, p->name);
+		printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
+		// trapframedump(p->trapframe);
+		p->killed = 1;
   }
 
   if(p->killed)
     exit(-1);
 
   // give up the CPU if this is a timer interrupt.
-  if(which_dev == 2)
+  if(cause == INTR_TIMER)
     yield();
 
   usertrapret();
@@ -136,6 +150,8 @@ usertrapret(void)
   // printf("[usertrapret]p->pagetable: %p\n", p->pagetable);
   uint64 satp = MAKE_SATP(p->pagetable);
 
+  permit_usr_mem(); // it's odd that without this the hart will stuck in u-mode on k210
+
   // jump to trampoline.S at the top of memory, which 
   // switches to the user page table, restores user registers,
   // and switches to user mode with sret.
@@ -147,30 +163,46 @@ usertrapret(void)
 // on whatever the current kernel stack is.
 void 
 kerneltrap() {
-  int which_dev = 0;
   uint64 sepc = r_sepc();
   uint64 sstatus = r_sstatus();
   uint64 scause = r_scause();
-  
+
+  // the kernel might be accessing user space when this trap was happening
+  // the pre-state is stored in the var 'sstatus' as above, which will be restored before leaving
+  protect_usr_mem();
+
   if((sstatus & SSTATUS_SPP) == 0)
     panic("kerneltrap: not from supervisor mode");
   if(intr_get() != 0)
     panic("kerneltrap: interrupts enabled");
 
-  if((which_dev = devintr()) == 0){
-    printf("\nscause %p\n", scause);
-    printf("sepc=%p stval=%p hart=%d\n", r_sepc(), r_stval(), r_tp());
+  if (handle_intr(scause) >= 0) {
+		// ok
+	}
+	else if (handle_excp(scause) < 0) {
     struct proc *p = myproc();
-    if (p != 0) {
-      printf("pid: %d, name: %s\n", p->pid, p->name);
+    // This case may happen when kernel is accessing user's lazy-allocated page.
+    // The handler should allocate a real one, but failed for lack of memory.
+    if (p != NULL && is_page_fault(scause)) {
+      p->killed = 1;
+      sepc = kern_pgfault_escape();
+      __debug_error("kerneltrap", "sepc=%p stval=%p escape=%p pid=%d\n", r_sepc(), r_stval(), sepc, p->pid);
     }
-    panic("kerneltrap");
+    else {
+      printf("\nscause %p\n", scause);
+      printf("sepc=%p stval=%p hart=%d\n", r_sepc(), r_stval(), r_tp());
+      if (p != NULL) {
+        printf("pid: %d, name: %s\n", p->pid, p->name);
+      }
+      panic("kerneltrap");
+    }
   }
-  // printf("which_dev: %d\n", which_dev);
   
   // give up the CPU if this is a timer interrupt.
-  if(which_dev == 2 && myproc() != 0 && myproc()->state == RUNNING) {
-    yield();
+  if(scause == INTR_TIMER) {
+		struct proc *p = myproc();
+		if (p != NULL && p->state == RUNNING)
+    	yield();
   }
   // the yield() may have caused some traps to occur,
   // so restore trap registers for use by kernelvec.S's sepc instruction.
@@ -178,22 +210,18 @@ kerneltrap() {
   w_sstatus(sstatus);
 }
 
-// Check if it's an external/software interrupt, 
-// and handle it. 
-// returns  2 if timer interrupt, 
-//          1 if other device, 
-//          0 if not recognized. 
-int devintr(void) {
-	uint64 scause = r_scause();
-
+// Check if it's an interrupt and handle it. 
+// returns  0 if it is
+//          -1 if not
+int handle_intr(uint64 scause) {
 	#ifdef QEMU 
 	// handle external interrupt 
-	if ((0x8000000000000000L & scause) && 9 == (scause & 0xff)) 
+	if (scause == INTR_EXTERNAL) 
 	#else 
 	// on k210, supervisor software interrupt is used 
 	// in alternative to supervisor external interrupt, 
 	// which is not available on k210. 
-	if (0x8000000000000001L == scause && 9 == r_stval()) 
+	if (INTR_SOFTWARE == scause && 9 == r_stval()) 
 	#endif 
 	{
 		int irq = plic_claim();
@@ -217,14 +245,50 @@ int devintr(void) {
 		w_sip(r_sip() & ~2);    // clear pending bit
 		sbi_set_mie();
 		#endif 
-
-		return 1;
 	}
-	else if (0x8000000000000005L == scause) {
+	else if (INTR_TIMER == scause) {
 		timer_tick();
-		return 2;
 	}
-	else { return 0;}
+	else if (INTR_SOFTWARE == scause) {
+		return -1;
+	}
+	else {
+		return -1;
+	}
+	return 0;
+}
+
+int handle_excp(uint64 scause)
+{
+  // Later implement may handle more cases, such as lazy allocation, mmap
+  switch (scause) {
+    case EXCP_STORE_PAGE:
+  #ifndef QEMU
+    case EXCP_STORE_ACCESS: // on K210 (risc-v 1.9.1), page fault is the same as access fault
+  #endif
+      return handle_page_fault(1, r_stval());
+    case EXCP_LOAD_PAGE:
+  #ifndef QEMU
+    case EXCP_LOAD_ACCESS:
+  #endif
+      return handle_page_fault(0, r_stval());
+  }
+	return -1;
+}
+
+static inline int is_page_fault(uint64 scause)
+{
+  switch (scause) {
+    #ifndef QEMU
+      case EXCP_LOAD_ACCESS:
+      case EXCP_STORE_ACCESS:
+    #else
+      case EXCP_LOAD_PAGE:
+      case EXCP_STORE_PAGE:
+    #endif
+        return 1;
+  }
+  return 0;
 }
 
 void trapframedump(struct trapframe *tf)

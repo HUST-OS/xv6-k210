@@ -1,9 +1,14 @@
+#ifndef __DEBUG_sdcard
+#undef DEBUG
+#endif
+
 #include "include/printf.h"
 #include "include/types.h"
 #include "include/riscv.h"
 #include "include/gpiohs.h"
 #include "include/buf.h"
 #include "include/spinlock.h"
+#include "include/debug.h"
 
 #include "include/dmac.h"
 #include "include/spi.h"
@@ -333,9 +338,7 @@ void sdcard_read_sector(uint8 *buf, int sectorno) {
 	uint32 address;
 	uint8 dummy_crc[2];
 
-	#ifdef DEBUG
-	printf("sdcard_read_sector()\n");
-	#endif
+	__debug_info("sdcard_read_sector", "sector num: %d\n", sectorno);
 
 	if (is_standard_sd) {
 		address = sectorno << 9;
@@ -377,9 +380,7 @@ void sdcard_write_sector(uint8 *buf, int sectorno) {
 	static uint8 const START_BLOCK_TOKEN = 0xfe;
 	uint8 dummy_crc[2] = {0xff, 0xff};
 
-	#ifdef DEBUG
-	printf("sdcard_write_sector()\n");
-	#endif
+	__debug_info("sdcard_write_sector", "sector num: %d\n", sectorno);
 
 	if (is_standard_sd) {
 		address = sectorno << 9;

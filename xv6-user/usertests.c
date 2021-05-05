@@ -1989,6 +1989,13 @@ sbrkbasic(char *s)
     exit(1);
   }
 
+  // We implement both COW and lazy, this op will lead to a write on a COW page,
+  // so a real page will be allocated. If we don't do so, the child will eat up all
+  // memory, which causes the failure of wait(&xstatus), since there is no page for
+  // a COW allocation.
+  //      --AtomHeartCoder
+  xstatus = pid;
+
   wait(&xstatus);
   if(xstatus == 1){
     printf("%s: too much memory allocated!\n", s);
@@ -2000,7 +2007,7 @@ sbrkbasic(char *s)
   for(i = 0; i < 5000; i++){
     b = sbrk(1);
     if(b != a){
-      printf("%s: sbrk test failed %d %x %x\n", i, a, b);
+      printf("%s: sbrk test failed %d %x %x\n", s, i, a, b);
       exit(1);
     }
     *b = 1;
@@ -2152,6 +2159,7 @@ sbrkfail(char *s)
 
   // test running fork with the above allocated page 
   pid = fork();
+  xstatus = pid; // nonsense, just to cause a page fault to get a COW page
   if(pid < 0){
     printf("%s: fork failed\n", s);
     exit(1);
