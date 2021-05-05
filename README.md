@@ -123,5 +123,5 @@ In addition, `shell` supports some shortcut keys as below:
 - [X] Steady keyboard input(k210)
 
 ## TODO
-Fix the bugs of U-mode exception caught by RUSTSBI.
+Fix the bugs of U-mode exception on k210.
 
