@@ -211,6 +211,7 @@ UPROGS=\
 	$U/_forktest\
 	$U/_stressfs\
 	$U/_cowtest\
+	$U/_lazytests\
 
 userprogs: $(UPROGS)
 

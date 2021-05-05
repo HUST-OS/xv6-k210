@@ -60,8 +60,10 @@ static int pushstack(pagetable_t pt, uint64 table[], char **utable, int maxc, ui
     if (argp == 0)
       break;
     int arglen = fetchstr(argp, buf, PGSIZE);   // '\0' included in PGSIZE, but not in envlen
-    if (arglen++ < 0)                                 // including '\0'
+    if (arglen++ < 0) {                               // including '\0'
+      // __debug_error("pushstack", "didn't get null\n");
       goto bad;
+    }
     sp -= arglen;
     sp -= sp % 16;
     if (sp < stackbase || copyout(pt, sp, buf, arglen) < 0)
@@ -87,8 +89,10 @@ int execve(char *path, char **argv, char **envp)
   uint64 sz = 0;
   struct proc *p = myproc();
 
-  if ((ep = ename(path)) == NULL)
+  if ((ep = ename(path)) == NULL) {
+    __debug_error("exec", "can't open %s\n", path);
     goto bad;
+  }
   elock(ep);
 
   // Check ELF header
@@ -153,8 +157,10 @@ int execve(char *path, char **argv, char **envp)
   int argc, envc;
   uint64 uargv[MAXARG + 1], uenvp[MAXENV + 1];
   if ((envc = pushstack(pagetable, uenvp, envp, MAXENV, &sp)) < 0 ||
-      (argc = pushstack(pagetable, uargv, argv, MAXARG, &sp)) < 0)
+      (argc = pushstack(pagetable, uargv, argv, MAXARG, &sp)) < 0) {
+    // __debug_error("exec", "fail to push argv or envp into user stack\n");
     goto bad;
+  }
   sp -= (envc + 1) * sizeof(uint64);
   sp -= sp % 16;
   uint64 a2 = sp;

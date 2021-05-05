@@ -38,6 +38,7 @@ extern char trampoline[], uservec[], userret[];
 extern void kernelvec(); // in kernelvec.S, calls kerneltrap().
 int handle_intr(uint64 scause);
 int handle_excp(uint64 scause);
+static inline int is_page_fault(uint64 scause);
 
 // set up to take exceptions and traps while in the kernel.
 void
@@ -48,6 +49,7 @@ trapinithart(void)
   // enable supervisor-mode timer interrupts.
   w_sie(r_sie() | SIE_SEIE | SIE_SSIE | SIE_STIE);
   set_next_timeout();
+  __debug_info("trap", "safe_escape=%p\n", kern_pgfault_escape());
   #ifdef DEBUG
   printf("trapinithart\n");
   #endif
@@ -178,13 +180,22 @@ kerneltrap() {
 		// ok
 	}
 	else if (handle_excp(scause) < 0) {
-    printf("\nscause %p\n", scause);
-    printf("sepc=%p stval=%p hart=%d\n", r_sepc(), r_stval(), r_tp());
     struct proc *p = myproc();
-    if (p != NULL) {
-      printf("pid: %d, name: %s\n", p->pid, p->name);
+    // This case may happen when kernel is accessing user's lazy-allocated page.
+    // The handler should allocate a real one, but failed for lack of memory.
+    if (p != NULL && is_page_fault(scause)) {
+      p->killed = 1;
+      sepc = kern_pgfault_escape();
+      __debug_error("kerneltrap", "sepc=%p stval=%p escape=%p pid=%d\n", r_sepc(), r_stval(), sepc, p->pid);
     }
-    panic("kerneltrap");
+    else {
+      printf("\nscause %p\n", scause);
+      printf("sepc=%p stval=%p hart=%d\n", r_sepc(), r_stval(), r_tp());
+      if (p != NULL) {
+        printf("pid: %d, name: %s\n", p->pid, p->name);
+      }
+      panic("kerneltrap");
+    }
   }
   
   // give up the CPU if this is a timer interrupt.
@@ -236,14 +247,6 @@ int handle_intr(uint64 scause) {
 		#endif 
 	}
 	else if (INTR_TIMER == scause) {
-    // struct proc *p = myproc();
-    // if (p && ticks < 10) {
-    //   uint32 ins;
-    //   uint64 epc = p->trapframe->epc;
-    //   copyin2((char*)&ins, epc, sizeof(ins));
-    //   __debug_info("timer", "hart %d\n", r_tp());
-    //   __debug_info("timer", "p=\"%s\", epc=%p, sp=%p, ins=%p\n", p->name, epc, p->trapframe->sp, ins);
-    // }
 		timer_tick();
 	}
 	else if (INTR_SOFTWARE == scause) {
@@ -260,13 +263,32 @@ int handle_excp(uint64 scause)
   // Later implement may handle more cases, such as lazy allocation, mmap
   switch (scause) {
     case EXCP_STORE_PAGE:
+  #ifndef QEMU
     case EXCP_STORE_ACCESS: // on K210 (risc-v 1.9.1), page fault is the same as access fault
+  #endif
       return handle_page_fault(1, r_stval());
     case EXCP_LOAD_PAGE:
+  #ifndef QEMU
     case EXCP_LOAD_ACCESS:
+  #endif
       return handle_page_fault(0, r_stval());
   }
 	return -1;
+}
+
+static inline int is_page_fault(uint64 scause)
+{
+  switch (scause) {
+    #ifndef QEMU
+      case EXCP_LOAD_ACCESS:
+      case EXCP_STORE_ACCESS:
+    #else
+      case EXCP_LOAD_PAGE:
+      case EXCP_STORE_PAGE:
+    #endif
+        return 1;
+  }
+  return 0;
 }
 
 void trapframedump(struct trapframe *tf)

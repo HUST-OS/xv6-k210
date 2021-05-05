@@ -296,11 +296,11 @@ unmappages(pagetable_t pagetable, uint64 va, uint64 npages, int do_free, int usr
   if((va % PGSIZE) != 0)
     panic("unmappages: not aligned");
 
-  for(a = va; a < va + npages*PGSIZE; a += PGSIZE){
-    if((pte = walk(pagetable, a, 0)) == 0)
-      panic("unmappages: walk");
-    if((*pte & PTE_V) == 0)
-      panic("unmappages: not mapped");
+	uint64 end = va + npages * PGSIZE;
+  for (a = va; a < end; a += PGSIZE) {
+    if ((pte = walk(pagetable, a, 0)) == NULL || !(*pte & PTE_V)) {
+			continue;  // it might be a lazy-allocated page which is not really allocated, but how could we verify that?
+		}
     if(PTE_FLAGS(*pte) == PTE_V)
       panic("unmappages: not a leaf");
 		uint64 pa = PTE2PA(*pte);
@@ -478,24 +478,23 @@ int uvmcopy_cow(pagetable_t old, pagetable_t new, uint64 start, uint64 end)
   uint flags;
 
   for (i = start; i < end; i += PGSIZE){
-    if((pte = walk(old, i, 0)) == NULL)
-      panic("uvmcopy: pte should exist");
-    if((*pte & PTE_V) == 0)
-      panic("uvmcopy: page not present");
-    pa = PTE2PA(*pte);
+    if((pte = walk(old, i, 0)) == NULL || !(*pte & PTE_V)) {
+			continue;  // a lazy-allocation page, just ignore it, page-fault handler will handle it
+		}
+		pa = PTE2PA(*pte);
     flags = PTE_FLAGS(*pte);
 		if (flags & PTE_W) {
-			flags = (flags|PTE_COW) & ~PTE_W;
+			flags = (flags|PTE_COW) & ~PTE_W;  // cancel 'W', and mark COW
 		}
-    if(mappages(new, i, PGSIZE, pa, flags, 1) != 0) {  // cancel 'W', and mark COW
+    if(mappages(new, i, PGSIZE, pa, flags, 1) != 0) {
       goto err;
     }
   }
 
 	// Copy successfully, now cancel 'W' for parent.
 	for (i = start; i < end; i += PGSIZE) {
-		if ((pte = walk(old, i, 0)) == NULL)
-			panic("uvmcopy: pte should exist 2");
+		if ((pte = walk(old, i, 0)) == NULL || !(*pte & PTE_V))
+			continue;
 		if (PTE_FLAGS(*pte) & PTE_W) {
 			*pte &= ~PTE_W;
 			*pte |= PTE_COW;
@@ -522,6 +521,117 @@ uvmclear(pagetable_t pagetable, uint64 va)
   if(pte == NULL)
     panic("uvmclear");
   *pte &= ~PTE_U;
+}
+
+// initialize kernel pagetable for each process.
+pagetable_t
+kvmcreate()
+{
+  pagetable_t pagetable;
+  char *pstack;
+  if ((pagetable = allocpage()) == NULL || (pstack = allocpage()) == NULL) {
+		if (pagetable)
+			freepage(pagetable);
+    return NULL;
+	}
+
+	memmove(pagetable, kernel_pagetable, PGSIZE);
+	if (mappages(pagetable, VKSTACK, PGSIZE, (uint64)pstack, PTE_R | PTE_W, 0) != 0) {
+		pte_t pte = pagetable[PX(2, VKSTACK)];
+		if (pte & PTE_V) {
+			freewalk((pagetable_t) PTE2PA(pte));
+		}
+		freepage(pstack);
+		freepage(pagetable);
+		return NULL;
+	}
+  return pagetable;
+}
+
+// Should be called after uvmfree if the pagetable contains user spase!
+// And after trapframe unmapped, otherwise freewalk will panic.
+void
+kvmfree(pagetable_t pagetable, int stack_free)
+{
+  if (stack_free) {
+    unmappages(pagetable, VKSTACK, 1, 1, 0);
+    pte_t pte = pagetable[PX(2, VKSTACK)];
+    if (pte & PTE_V) {
+      freewalk((pagetable_t) PTE2PA(pte));
+    }
+  }
+  freepage(pagetable);
+}
+
+/**
+ * Safe memmove applied when copying memory between kernel and user.
+ * 
+ * With copy-on-write and lazy-allocation, when kernal calls to copyin(out|instr)2,
+ * a page fault may happen.
+ * 
+ * When user causes a page fault, the hart will trap via usertrap(). If the page
+ * fault can not be handled (when lacking of memory or the address is illegal), we
+ * can just kill the process by exit() without any bad effect on kernel.
+ * 
+ * But if it is the kernel that causes the page fault, things might be a little bit
+ * different, since some locks are likely to be acquired. We must figure out how to
+ * break the memory moving operation and return a failure, mark the process killed
+ * but not directly call exit(). Then let kernel return from syscall() and make the
+ * process exit() in usertrap().
+ */
+
+// back to this point when fail to handle a page fault
+static uint64 save_point = 0;
+static uint8 safe_state[NCPU];
+
+// a page fault failed to handle, kerneltrap() called for help
+uint64 kern_pgfault_escape()
+{
+	safe_state[r_tp()] = 0; // set unsafe for tht current hart
+	return save_point;
+}
+
+static void set_safe_state(void)
+{
+	safe_state[r_tp()] = 1;
+}
+
+static int get_safe_state(void)
+{
+	return safe_state[r_tp()];
+}
+
+static int safememmove(void *dst, const void *src, uint len)
+{
+	char *dst_s = (char *)dst;
+	char *src_s = (char *)src;
+	int ret = 0;
+
+	set_safe_state();
+
+	// kerneltrap() in trap.c can look up for this safe escape.
+	uint64 safe_pc;
+	asm volatile("auipc %0, 0x0" : "=r" (safe_pc));
+	if (!save_point) {
+		__debug_info("safememmove", "save point=%p\n", safe_pc);
+		save_point = safe_pc;
+	}
+
+	if (get_safe_state() == 1) {
+		permit_usr_mem();
+		while (len--) {         // There is no overlap between user and kernel space
+			*dst_s++ = *src_s++;  // this is possible to raise a page fault
+		}
+		ret = 1;
+	}
+
+	ret--;
+	protect_usr_mem();
+
+	if (ret) {
+		__debug_error("safememmove", "fail to move\n");
+	}
+	return ret;
 }
 
 // Copy from kernel to user.
@@ -556,10 +666,7 @@ copyout2(uint64 dstva, char *src, uint64 len)
   if (dstva + len > sz || dstva >= sz) {
     return -1;
   }
-  permit_usr_mem();
-  memmove((void *)dstva, src, len);
-  protect_usr_mem();
-  return 0;
+  return safememmove((void *)dstva, src, len);
 }
 
 // Copy from user to kernel.
@@ -594,10 +701,7 @@ copyin2(char *dst, uint64 srcva, uint64 len)
   if (srcva + len > sz || srcva >= sz) {
     return -1;
   }
-  permit_usr_mem();
-  memmove(dst, (void *)srcva, len);
-  protect_usr_mem();
-  return 0;
+  return safememmove(dst, (void *)srcva, len);
 }
 
 // Copy a null-terminated string from user to kernel.
@@ -646,98 +750,31 @@ copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max)
 int
 copyinstr2(char *dst, uint64 srcva, uint64 max)
 {
+	uint64 sz = myproc()->sz;
+	if (srcva >= sz)
+		return -1;
+  
+	// max is given by kernel, we should also check the max of user
+	uint64 umax = sz - srcva;
+	max = (max <= umax) ? max : umax;
+	if (copyin2(dst, srcva, max) < 0) {
+		return -1;
+	}
+
   char *old = dst;
   int got_null = 0;
-  uint64 sz = myproc()->sz;
-  permit_usr_mem();
-  while(srcva < sz && max > 0){
-    char *p = (char *)srcva;
-    if(*p == '\0'){
-      *dst = '\0';
-      got_null = 1;
-      break;
-    } else {
-      *dst = *p;
-    }
-    --max;
-    srcva++;
-    dst++;
-  }
-  protect_usr_mem();
+	while (max--) {
+		if (*dst == '\0') {
+			got_null = 1;
+			break;
+		}
+		dst++;
+	}
   if(got_null){
     return dst - old;
   } else {
     return -1;
   }
-}
-
-// only free page table, not physical pages
-// void
-// kfreewalk(pagetable_t kpt)
-// {
-//   for (int i = 0; i < 512; i++) {
-//     pte_t pte = kpt[i];
-//     if ((pte & PTE_V) && (pte & (PTE_R|PTE_W|PTE_X)) == 0) {
-//       kfreewalk((pagetable_t) PTE2PA(pte));
-//       kpt[i] = 0;
-//     } else if (pte & PTE_V) {
-//       break;
-//     }
-//   }
-//   freepage((void *) kpt);
-// }
-
-// initialize kernel pagetable for each process.
-pagetable_t
-kvmcreate()
-{
-  pagetable_t pagetable;
-  char *pstack;
-  if ((pagetable = allocpage()) == NULL || (pstack = allocpage()) == NULL) {
-		if (pagetable)
-			freepage(pagetable);
-    return NULL;
-	}
-
-	memmove(pagetable, kernel_pagetable, PGSIZE);
-	if (mappages(pagetable, VKSTACK, PGSIZE, (uint64)pstack, PTE_R | PTE_W, 0) != 0) {
-		pte_t pte = pagetable[PX(2, VKSTACK)];
-		if (pte & PTE_V) {
-			freewalk((pagetable_t) PTE2PA(pte));
-		}
-		freepage(pstack);
-		freepage(pagetable);
-		return NULL;
-	}
-  return pagetable;
-}
-
-// void
-// kvmfreeusr(pagetable_t kpt)
-// {
-//   pte_t pte;
-//   for (int i = 0; i < PX(2, MAXUVA); i++) {
-//     pte = kpt[i];
-//     if ((pte & PTE_V) && (pte & (PTE_R|PTE_W|PTE_X)) == 0) {
-//       kfreewalk((pagetable_t) PTE2PA(pte));
-//       kpt[i] = 0;
-//     }
-//   }
-// }
-
-// Should be called after uvmfree if the pagetable contains user spase!
-// And after trapframe free
-void
-kvmfree(pagetable_t pagetable, int stack_free)
-{
-  if (stack_free) {
-    unmappages(pagetable, VKSTACK, 1, 1, 0);
-    pte_t pte = pagetable[PX(2, VKSTACK)];
-    if (pte & PTE_V) {
-      freewalk((pagetable_t) PTE2PA(pte));
-    }
-  }
-  freepage(pagetable);
 }
 
 void vmprint(pagetable_t pagetable)
@@ -792,7 +829,17 @@ static int handle_store_page_fault_cow(pte_t *ptep)
 
 static int handle_page_fault_lazy(uint64 badaddr)
 {
-  return -1;
+	// __debug_info("handle_page_fault_lazy", "badaddr=%p\n", badaddr);
+	struct proc *p = myproc();
+	if (badaddr >= p->sz)
+		return -1;
+
+	uint64 pa = PGROUNDDOWN(badaddr);  // in uvmalloc(), oldsz will round up
+	if (uvmalloc(p->pagetable, pa, pa + PGSIZE) == 0)
+  	return -1;
+
+	sfence_vma();
+	return 0;
 }
 
 /**
@@ -807,12 +854,18 @@ int handle_page_fault(int type, uint64 badaddr)
 	if (badaddr >= p->sz)
 		return -1;
 
-	// __debug_info("handle_store_page_fault", "badaddr=%p\n", badaddr);
 	pte_t *pte = walk(p->pagetable, badaddr, 0);
-	if (pte == NULL) { // not mapped, might be a lazy-alloction
+	// __debug_info("handle_store_page_fault", 
+	// 			"\nbadaddr=%p, pte=%p, *pte=%p\n", badaddr, pte, pte == NULL ? 0 : *pte);
+
+	if (pte == NULL || !(*pte & PTE_V)) {     // not mapped, might be a lazy-alloction
 		return handle_page_fault_lazy(badaddr);
 	}
 	else if (type == 1 && (*pte & PTE_COW)) { // mapped and store-type, might be a COW fault
+		#ifndef QEMU
+		// on k210, access/page fault are the same, so u-stack overflows also comes to here 
+		if (!(*pte & PTE_U)) return -1;
+		#endif
 		return handle_store_page_fault_cow(pte);
 	}
 

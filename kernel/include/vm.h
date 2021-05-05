@@ -53,5 +53,6 @@ int             copyinstr2(char *dst, uint64 srcva, uint64 max);
 void            vmprint(pagetable_t pagetable);
 
 int             handle_page_fault(int type, uint64 badaddr);
+uint64          kern_pgfault_escape(void);
 
 #endif 
