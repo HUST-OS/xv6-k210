@@ -11,6 +11,7 @@
 #include "include/fat32.h"
 #include "include/pm.h"
 #include "include/vm.h"
+#include "include/usrmm.h"
 #include "include/printf.h"
 #include "include/string.h"
 #include "include/syscall.h"
@@ -117,14 +118,30 @@ int execve(char *path, char **argv, char **envp)
       goto bad;
     if (ph.type != ELF_PROG_LOAD)
       continue;
-    if (ph.memsz < ph.filesz || ph.vaddr + ph.memsz < ph.vaddr)
+    if (ph.vaddr % PGSIZE != 0 || ph.memsz < ph.filesz || ph.vaddr + ph.memsz < ph.vaddr)
       goto bad;
-    uint64 sz1;
-    if ((sz1 = uvmalloc(pagetable, sz, ph.vaddr + ph.memsz, PTE_W|PTE_X|PTE_R)) == 0)
-      goto bad;
-    sz = sz1;
-    if (ph.vaddr % PGSIZE != 0)
-      goto bad;
+    
+    /*---------------------------*/
+    TODO:
+    Call to usrmm to get a segment struct and allocate some pages
+    How to allocate the first struct seg? Do we need a sentry?
+    
+    Arguments that may be used:
+
+    pagetable
+    ph.vaddr
+    ph.memsz
+    ph.flags    // define in elf.h: R|W|E(X) ==(translate to)==> PTE_R|PTE_W|PTE_X
+    
+    
+    // Original Code:
+    // uint64 sz1;
+    // if ((sz1 = uvmalloc(pagetable, sz, ph.vaddr + ph.memsz, PTE_W|PTE_X|PTE_R)) == 0)
+    //   goto bad;
+    // sz = sz1;
+    
+    /*---------------------------*/
+    
     if (loadseg(pagetable, ph.vaddr, ep, ph.off, ph.filesz) < 0)
       goto bad;
   }
@@ -134,17 +151,34 @@ int execve(char *path, char **argv, char **envp)
   eput(ep);
   ep = 0;
 
-  // Allocate two pages at the next page boundary.
-  // Use the second as the user stack.
-  // Clear the PTE_U mark of the first page under the stack as a protection.
-  sz = PGROUNDUP(sz);
-  uint64 sz1;
-  if ((sz1 = uvmalloc(pagetable, sz, sz + 2 * PGSIZE, PTE_W|PTE_R|PTE_X)) == 0)
-    goto bad;
-  sz = sz1;
-  uvmclear(pagetable, sz - 2 * PGSIZE);
-  uint64 sp = sz;
-  uint64 stackbase = sp - PGSIZE;
+
+
+  /*---------------------------*/
+  TODO:
+  Call to usrmm to get a STACK segment struct and allocate pages
+  The problem is how to locate the stack, may we can place it near MAXUVA
+
+
+
+
+  // Original Code:
+  // // Allocate two pages at the next page boundary.
+  // // Use the second as the user stack.
+  // // Clear the PTE_U mark of the first page under the stack as a protection.
+  // sz = PGROUNDUP(sz);
+  // uint64 sz1;
+  // if ((sz1 = uvmalloc(pagetable, sz, sz + 2 * PGSIZE, PTE_W|PTE_R|PTE_X)) == 0)
+  //   goto bad;
+  // sz = sz1;
+  // uvmclear(pagetable, sz - 2 * PGSIZE);
+
+  If the stack is located, we can assign sp  
+  // uint64 sp = sz;
+  // uint64 stackbase = sp - PGSIZE;
+  
+  /*---------------------------*/
+
+
   sp -= sizeof(uint64);
   sp -= sp % 16;        // on risc-v, sp should be 16-byte aligned
   // Place a null at the bottom of user stack, ep is 0 now, borrow it.
@@ -187,7 +221,21 @@ int execve(char *path, char **argv, char **envp)
   __debug_info("execve", "sp=%p, stackbase=%p\n", sp, stackbase);
   w_satp(MAKE_SATP(p->pagetable));
   sfence_vma();
-  uvmfree(oldpagetable, oldsz);
+
+  /*---------------------------*/
+  TODO:
+  Free user space in the old pagetable, should call to usrmm.
+  I guess we can call to uvmdealloc() for every struct seg
+
+
+  // New interface ignores sz, because usrmm should handle that
+  uvmfree(oldpagetable);
+
+  // Original code:
+  // uvmfree(oldpagetable, oldsz);
+
+  /*---------------------------*/
+
   freepage(oldpagetable);
 
   return argc; // this ends up in a0, the first argument to main(argc, argv)

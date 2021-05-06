@@ -3,6 +3,12 @@
 
 #include "types.h"
 #include "riscv.h"
+#include "usrmm.h"
+
+// Flags of unmappages()
+#define VM_FREE (1 << 0)  // free the pages when unmapping
+#define VM_USER (1 << 1)  // are the pages belong to user?
+#define VM_HOLE (1 << 2)  // whether allow unmapped or invalid hole in the pages range
 
 static inline void permit_usr_mem()
 {
@@ -31,18 +37,18 @@ void            kvmfree(pagetable_t kpt, int stack_free);
 void            uvminit(pagetable_t, uchar *, uint);
 pagetable_t     uvmcreate(void);
 int             uvmcopy(pagetable_t, pagetable_t, pagetable_t, uint64);
-int             uvmcopy_cow(pagetable_t old, pagetable_t new, uint64 start, uint64 end);
-uint64          uvmalloc(pagetable_t, uint64, uint64, int flag);
-uint64          uvmdealloc(pagetable_t, uint64, uint64);
+int             uvmcopy_cow(pagetable_t old, pagetable_t new, uint64 start, uint64 end, enum segtype);
+uint64          uvmalloc(pagetable_t, uint64 start, uint64 end, int perm);
+uint64          uvmdealloc(pagetable_t, uint64, uint64, enum segtype);
 void            uvmclear(pagetable_t, uint64);
-void            uvmfree(pagetable_t pt, uint64 sz);
+void            uvmfree(pagetable_t pt);
 
 uint64          walkaddr(pagetable_t, uint64);
 uint64          kwalkaddr(pagetable_t pagetable, uint64 va);
 uint64          kvmpa(uint64);
 
-int             mappages(pagetable_t pt, uint64 va, uint64 size, uint64 pa, int perm, int usr);
-void            unmappages(pagetable_t pt, uint64 va, uint64 npages, int do_free, int usr);
+int             mappages(pagetable_t pt, uint64 va, uint64 size, uint64 pa, int perm);
+void            unmappages(pagetable_t pt, uint64 va, uint64 npages, int flag);
 
 int             copyout(pagetable_t, uint64, char *, uint64);
 int             copyin(pagetable_t, char *, uint64, uint64);

@@ -203,7 +203,7 @@ proc_pagetable(struct proc *p)
 
   // map the trapframe just below TRAMPOLINE, for trampoline.S.
   if(mappages(pagetable, TRAPFRAME, PGSIZE,
-            (uint64)(p->trapframe), PTE_R | PTE_W, 0) < 0){
+            (uint64)(p->trapframe), PTE_R | PTE_W) < 0){
     kvmfree(pagetable, 1);
     return NULL;
   }
@@ -217,7 +217,7 @@ void
 proc_freepagetable(pagetable_t pagetable, uint64 sz)
 {
   // unmappages(pagetable, TRAMPOLINE, 1, 0, 0);
-  unmappages(pagetable, TRAPFRAME, 1, 0, 0);
+  unmappages(pagetable, TRAPFRAME, 1, 0);
   uvmfree(pagetable, sz);
   kvmfree(pagetable, 1);
 }

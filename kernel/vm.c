@@ -9,6 +9,7 @@
 #include "include/riscv.h"
 #include "include/vm.h"
 #include "include/pm.h"
+#include "include/usrmm.h"
 #include "include/proc.h"
 #include "include/printf.h"
 #include "include/string.h"
@@ -22,7 +23,6 @@
  * the kernel's page table.
  */
 pagetable_t kernel_pagetable;
-static uint64 firstpage;
 static struct spinlock page_ref_lock;
 static uint8 page_ref_table[MAX_PAGES_NUM];  // user pages ref, for COW fork mechanism
 
@@ -39,7 +39,6 @@ kvminit()
     panic("kvminit: page_ref_table[] not enough");
 
   initlock(&page_ref_lock, "page_ref_lock");
-	firstpage = PGROUNDUP((uint64)kernel_end);
 	memset(page_ref_table, 0, sizeof(page_ref_table));
 
   kernel_pagetable = (pagetable_t) allocpage();
@@ -121,9 +120,9 @@ kvminithart()
 
 static int __hash_page_idx(uint64 pa)
 {
-	if (pa % PGSIZE || pa < firstpage || pa >= PHYSTOP)
+	if (pa % PGSIZE || pa < PGROUNDUP((uint64)kernel_end) || pa >= PHYSTOP)
 		panic("__hash_page");
-	return (pa - firstpage) >> PGSHIFT;
+	return (pa - PGROUNDUP((uint64)kernel_end)) >> PGSHIFT;
 }
 
 // Register a page for user, init it for later dup
@@ -134,13 +133,23 @@ static inline void pagereg(uint64 pa, uint8 init)
   release(&page_ref_lock);
 }
 
-static inline int pageref(uint64 pa)
+// This is used in page fault handler. If two process write the same page
+// in the same time, let the process who gets the lock monopolize the page.
+static int monopolizepage(uint64 pa)
 {
   acquire(&page_ref_lock);
-  int ref = page_ref_table[__hash_page_idx(pa)];
-  release(&page_ref_lock);
-  // __debug_info("pageref", "page=%p, ref=%d\n", pa, ref);
-	return ref;
+	int idx = __hash_page_idx(pa);
+	if (page_ref_table[idx] == 1) {
+  	release(&page_ref_lock);
+		return 1;
+	}
+	page_ref_table[idx]--; // should hold the lock until copying done
+	return 0;
+}
+
+static inline void pagecopydone(void)
+{
+	release(&page_ref_lock);
 }
 
 static inline int pagedup(uint64 pa)
@@ -223,7 +232,7 @@ walkaddr(pagetable_t pagetable, uint64 va)
 void
 kvmmap(uint64 va, uint64 pa, uint64 sz, int perm)
 {
-  if(mappages(kernel_pagetable, va, sz, pa, perm, 0) != 0)
+  if(mappages(kernel_pagetable, va, sz, pa, perm) != 0)
     panic("kvmmap");
 }
 
@@ -260,14 +269,15 @@ kwalkaddr(pagetable_t kpt, uint64 va)
 // be page-aligned. Returns 0 on success, -1 if walk() couldn't
 // allocate a needed page-table page.
 int
-mappages(pagetable_t pagetable, uint64 va, uint64 size, uint64 pa, int perm, int usr)
+mappages(pagetable_t pagetable, uint64 va, uint64 size, uint64 pa, int perm)
 {
   uint64 a, last;
   pte_t *pte;
 
   a = PGROUNDDOWN(va);
   last = PGROUNDDOWN(va + size - 1);
-  
+
+	int usr = perm & PTE_U;
   for(;;){
     if((pte = walk(pagetable, a, 1)) == NULL)
       return -1;
@@ -287,8 +297,11 @@ mappages(pagetable_t pagetable, uint64 va, uint64 size, uint64 pa, int perm, int
 // Remove npages of mappings starting from va. va must be
 // page-aligned. The mappings must exist.
 // Optionally free the physical memory.
+/**
+ * @param     flag  see include/vm.h
+ */
 void
-unmappages(pagetable_t pagetable, uint64 va, uint64 npages, int do_free, int usr)
+unmappages(pagetable_t pagetable, uint64 va, uint64 npages, int flag)
 {
   uint64 a;
   pte_t *pte;
@@ -296,10 +309,15 @@ unmappages(pagetable_t pagetable, uint64 va, uint64 npages, int do_free, int usr
   if((va % PGSIZE) != 0)
     panic("unmappages: not aligned");
 
+	int do_free = flag & VM_FREE;
+	int usr = flag & VM_USER;
+	int allowhole = flag & VM_HOLE;
+
 	uint64 end = va + npages * PGSIZE;
   for (a = va; a < end; a += PGSIZE) {
     if ((pte = walk(pagetable, a, 0)) == NULL || !(*pte & PTE_V)) {
-			continue;  // it might be a lazy-allocated page which is not really allocated, but how could we verify that?
+			if (allowhole) continue;  // it might be a lazy-allocated page which is not really allocated, but how could we verify that?
+			panic("unmappages: unmapped pte");
 		}
     if(PTE_FLAGS(*pte) == PTE_V)
       panic("unmappages: not a leaf");
@@ -313,6 +331,10 @@ unmappages(pagetable_t pagetable, uint64 va, uint64 npages, int do_free, int usr
 
 // create an empty user page table.
 // returns 0 if out of memory.
+/**
+ * With one page shared by kernel and user proc,
+ * this func is unused, use kvmcreate instead.
+ */
 pagetable_t
 uvmcreate()
 {
@@ -337,57 +359,71 @@ uvminit(pagetable_t pagetable, uchar *src, uint sz)
   mem = allocpage();
   memset(mem, 0, PGSIZE);
 	pagereg((uint64)mem, 0);	// mappages will increase it
-  mappages(pagetable, 0, PGSIZE, (uint64)mem, PTE_W|PTE_R|PTE_X|PTE_U, 1);
+  mappages(pagetable, 0, PGSIZE, (uint64)mem, PTE_W|PTE_R|PTE_X|PTE_U);
   memmove(mem, src, sz);
 }
 
 // Allocate PTEs and physical memory to grow process from oldsz to
 // newsz, which need not be page aligned.  Returns new size or 0 on error.
+/**
+ * @param   start   user virtual addr that start to be allocated
+ * @param   end     the ending user virtual addr of the alloction
+ * @param   perm    permission flags, PTE_W|R|X (PTE_U is a default flag)
+ * @return          param end if successful else 0
+ */
 uint64
-uvmalloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz, int flag)
+uvmalloc(pagetable_t pagetable, uint64 start, uint64 end, int perm)
 {
   char *mem;
   uint64 a;
 
-  if (newsz > MAXUVA)
+  if (end > MAXUVA)
     return 0;
-  if(newsz < oldsz)
-    return oldsz;
+  if(end < start)
+    return start;
 
-  oldsz = PGROUNDUP(oldsz);
-  for(a = oldsz; a < newsz; a += PGSIZE){
+  for(a = PGROUNDUP(start); a < end; a += PGSIZE){
     mem = allocpage();
-    if(mem == NULL){
-      uvmdealloc(pagetable, a, oldsz);
+    if (mem == NULL) {
+      uvmdealloc(pagetable, start, a, NONE);
       return 0;
     }
     memset(mem, 0, PGSIZE);
 		pagereg((uint64)mem, 0);
-    if (mappages(pagetable, a, PGSIZE, (uint64)mem, flag|PTE_U, 1) != 0) {
+    if (mappages(pagetable, a, PGSIZE, (uint64)mem, perm|PTE_U) != 0) {
       freepage(mem);
-      uvmdealloc(pagetable, a, oldsz);
+      uvmdealloc(pagetable, start, a, NONE);
       return 0;
     }
   }
-  return newsz;
+  return end;
 }
 
 // Deallocate user pages to bring the process size from oldsz to
 // newsz.  oldsz and newsz need not be page-aligned, nor does newsz
 // need to be less than oldsz.  oldsz can be larger than the actual
 // process size.  Returns the new process size.
+/**
+ * This function only delete physical pages but not pagetable
+ * 
+ * @param   start   user virtual addr that start to be deleted (low addr)
+ * @param   end     the ending user virtual addr of the deletion
+ * @param   segt    type of the segment where we perform the deletion
+ * @return          param start if successful else 0
+ */
 uint64
-uvmdealloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz)
+uvmdealloc(pagetable_t pagetable, uint64 start, uint64 end, enum segtype segt)
 {
-  if(newsz >= oldsz)
-    return oldsz;
+  if(start >= end)
+    return end;
 
-  if(PGROUNDUP(newsz) < PGROUNDUP(oldsz)){
-    int npages = (PGROUNDUP(oldsz) - PGROUNDUP(newsz)) / PGSIZE;
-    unmappages(pagetable, PGROUNDUP(newsz), npages, 1, 1);
+	int heapflag = segt == HEAP ? VM_HOLE : 0;
+  if (PGROUNDUP(start) < PGROUNDUP(end)) {
+    int npages = (PGROUNDUP(end) - PGROUNDUP(start)) / PGSIZE;
+    unmappages(pagetable, PGROUNDUP(start), npages, VM_FREE|VM_USER|heapflag);
   }
 
-  return newsz;
+  return start;
 }
 
 // Recursively free page-table pages.
@@ -410,18 +446,18 @@ freewalk(pagetable_t pagetable)
   freepage((void*)pagetable);
 }
 
-// Free user memory pages,
-// then free page-table pages.
+/**
+ * Use usrmm to free all segments then call this to free
+ * the user part of the pagetable. The kernel part is handled
+ * by kvmfree()
+ */
 void
-uvmfree(pagetable_t pagetable, uint64 sz)
+uvmfree(pagetable_t pagetable)
 {
-  if(sz > 0)
-    unmappages(pagetable, 0, PGROUNDUP(sz)/PGSIZE, 1, 1);
-
   pte_t pte;
   for (int i = 0; i < PX(2, MAXUVA); i++) {
     pte = pagetable[i];
-    if ((pte & PTE_V) && (pte & (PTE_R|PTE_W|PTE_X)) == 0) {
+    if (pte & PTE_V) {
       freewalk((pagetable_t) PTE2PA(pte));
       pagetable[i] = 0;
     }
@@ -434,84 +470,93 @@ uvmfree(pagetable_t pagetable, uint64 sz)
 // physical memory.
 // returns 0 on success, -1 on failure.
 // frees any allocated pages on failure.
-int
-uvmcopy(pagetable_t old, pagetable_t new, pagetable_t knew, uint64 sz)
-{
-  pte_t *pte;
-  uint64 pa, i = 0, ki = 0;
-  uint flags;
-  char *mem;
+// int
+// uvmcopy(pagetable_t old, pagetable_t new, pagetable_t knew, uint64 sz)
+// {
+//   pte_t *pte;
+//   uint64 pa, i = 0, ki = 0;
+//   uint flags;
+//   char *mem;
 
-  while (i < sz){
-    if((pte = walk(old, i, 0)) == NULL)
-      panic("uvmcopy: pte should exist");
-    if((*pte & PTE_V) == 0)
-      panic("uvmcopy: page not present");
-    pa = PTE2PA(*pte);
-    flags = PTE_FLAGS(*pte);
-    if((mem = allocpage()) == NULL)
-      goto err;
-    memmove(mem, (char*)pa, PGSIZE);
-		pagereg((uint64)mem, 0);
-    if(mappages(new, i, PGSIZE, (uint64)mem, flags, 1) != 0) {
-      freepage(mem);
-      goto err;
-    }
-    i += PGSIZE;
-    if(mappages(knew, ki, PGSIZE, (uint64)mem, flags/* & ~PTE_U*/, 0) != 0){
-      goto err;
-    }
-    ki += PGSIZE;
-  }
-  return 0;
+//   while (i < sz){
+//     if((pte = walk(old, i, 0)) == NULL)
+//       panic("uvmcopy: pte should exist");
+//     if((*pte & PTE_V) == 0)
+//       panic("uvmcopy: page not present");
+//     pa = PTE2PA(*pte);
+//     flags = PTE_FLAGS(*pte);
+//     if((mem = allocpage()) == NULL)
+//       goto err;
+//     memmove(mem, (char*)pa, PGSIZE);
+// 		pagereg((uint64)mem, 0);
+//     if(mappages(new, i, PGSIZE, (uint64)mem, flags, 1) != 0) {
+//       freepage(mem);
+//       goto err;
+//     }
+//     i += PGSIZE;
+//     if(mappages(knew, ki, PGSIZE, (uint64)mem, flags/* & ~PTE_U*/, 0) != 0){
+//       goto err;
+//     }
+//     ki += PGSIZE;
+//   }
+//   return 0;
 
- err:
-  unmappages(knew, 0, ki / PGSIZE, 0, 0);
-  unmappages(new, 0, i / PGSIZE, 1, 1);
-  return -1;
-}
+//  err:
+//   unmappages(knew, 0, ki / PGSIZE, 0, 0);
+//   unmappages(new, 0, i / PGSIZE, 1, 1);
+//   return -1;
+// }
 
-int uvmcopy_cow(pagetable_t old, pagetable_t new, uint64 start, uint64 end)
+/**
+ * @param     segt  segment type, the kernel won't panic 
+ *                  where pte == NULL or pte invalid if segt is HEAP
+ */
+int uvmcopy_cow(pagetable_t old, pagetable_t new, uint64 start, uint64 end,  enum segtype segt)
 {
   pte_t *pte;
   uint64 pa, i;
   uint flags;
 
-  for (i = start; i < end; i += PGSIZE){
-    if((pte = walk(old, i, 0)) == NULL || !(*pte & PTE_V)) {
-			continue;  // a lazy-allocation page, just ignore it, page-fault handler will handle it
-		}
+  int heapflag = segt == HEAP ? VM_HOLE : 0;
+  for (i = start; i < end; i += PGSIZE) {
+	  if((pte = walk(old, i, 0)) == NULL || !(*pte & PTE_V)) {
+			if (heapflag) continue;  // a lazy-allocation page, just ignore it, page-fault handler will handle it
+			panic("uvmcopy_cow: funny pte");	
+	  }
 		pa = PTE2PA(*pte);
-    flags = PTE_FLAGS(*pte);
-		if (flags & PTE_W) {
-			flags = (flags|PTE_COW) & ~PTE_W;  // cancel 'W', and mark COW
+		if (*pte & PTE_W) {
+			*pte = (*pte|PTE_COW) & ~PTE_W;  // cancel 'W', and mark COW
 		}
-    if(mappages(new, i, PGSIZE, pa, flags, 1) != 0) {
+    flags = PTE_FLAGS(*pte);
+    if(mappages(new, i, PGSIZE, pa, flags) != 0) {
       goto err;
     }
   }
 
 	// Copy successfully, now cancel 'W' for parent.
-	for (i = start; i < end; i += PGSIZE) {
-		if ((pte = walk(old, i, 0)) == NULL || !(*pte & PTE_V))
-			continue;
-		if (PTE_FLAGS(*pte) & PTE_W) {
-			*pte &= ~PTE_W;
-			*pte |= PTE_COW;
-		}
-	}
+	// In fact, it's OK to mark COW for parent's pagetable at previous step
+	// for (i = start; i < end; i += PGSIZE) {
+	// 	if ((pte = walk(old, i, 0)) == NULL || !(*pte & PTE_V))
+	// 		continue;
+	// 	if (PTE_FLAGS(*pte) & PTE_W) {
+	// 		*pte &= ~PTE_W;
+	// 		*pte |= PTE_COW;
+	// 	}
+	// }
 	// Should we perform an sfence.vma?
-	// sfence_vma();
-
+	sfence_vma();
   return 0;
 
  err:
-  unmappages(new, start, i / PGSIZE, 1, 1);
+  unmappages(new, start, i / PGSIZE, VM_FREE|VM_USER|heapflag);
   return -1;
 }
 
 // mark a PTE invalid for user access.
 // used by exec for the user stack guard page.
+/**
+ * With usrmm, this func may be abandoned.
+ */
 void
 uvmclear(pagetable_t pagetable, uint64 va)
 {
@@ -523,7 +568,9 @@ uvmclear(pagetable_t pagetable, uint64 va)
   *pte &= ~PTE_U;
 }
 
-// initialize kernel pagetable for each process.
+/**
+ * Initialize a kernel pagetable for each process with a kernel stack
+ */
 pagetable_t
 kvmcreate()
 {
@@ -536,7 +583,7 @@ kvmcreate()
 	}
 
 	memmove(pagetable, kernel_pagetable, PGSIZE);
-	if (mappages(pagetable, VKSTACK, PGSIZE, (uint64)pstack, PTE_R | PTE_W, 0) != 0) {
+	if (mappages(pagetable, VKSTACK, PGSIZE, (uint64)pstack, PTE_R | PTE_W) != 0) {
 		pte_t pte = pagetable[PX(2, VKSTACK)];
 		if (pte & PTE_V) {
 			freewalk((pagetable_t) PTE2PA(pte));
@@ -554,7 +601,7 @@ void
 kvmfree(pagetable_t pagetable, int stack_free)
 {
   if (stack_free) {
-    unmappages(pagetable, VKSTACK, 1, 1, 0);
+    unmappages(pagetable, VKSTACK, 1, VM_FREE);
     pte_t pte = pagetable[PX(2, VKSTACK)];
     if (pte & PTE_V) {
       freewalk((pagetable_t) PTE2PA(pte));
@@ -808,15 +855,17 @@ static int handle_store_page_fault_cow(pte_t *ptep)
 	pte_t pte = *ptep;
 	uint64 pa = PTE2PA(pte);
 
-	if (pageref(pa) == 1) {    // Only this process holds this page.
+	if (monopolizepage(pa)) {    // Only this process holds this page.
 		pte |= PTE_W;
 	} else {
 		char *copy = (char *)allocpage();
-		if (copy == NULL)
+		if (copy == NULL) {
+			pagecopydone();
 			return -1;
+		}
 		memmove(copy, (char *)pa, PGSIZE);
+		pagecopydone();
 		pagereg((uint64)copy, 1);
-		pageput(pa);
 		pte = PA2PTE(copy) | PTE_FLAGS(pte) | PTE_W;
 	}
 
@@ -831,8 +880,6 @@ static int handle_page_fault_lazy(uint64 badaddr)
 {
 	// __debug_info("handle_page_fault_lazy", "badaddr=%p\n", badaddr);
 	struct proc *p = myproc();
-	if (badaddr >= p->sz)
-		return -1;
 
 	uint64 pa = PGROUNDDOWN(badaddr);  // in uvmalloc(), oldsz will round up
 	if (uvmalloc(p->pagetable, pa, pa + PGSIZE, PTE_W|PTE_R|PTE_X) == 0)
@@ -851,21 +898,18 @@ int handle_page_fault(int type, uint64 badaddr)
 	struct proc *p = myproc();
 	// In later implement, we will handle badaddr at heap, mmap zoom and wherever a COW page
 	// int section; // Get from new module that is being written
-	if (badaddr >= p->sz)
+	enum segtype type = typeofseg(p->segment, badaddr);
+	if (type == NONE) {
 		return -1;
+	}
+	else if (type == HEAP) {     // a lazy-alloction
+		return handle_page_fault_lazy(badaddr);
+	}
 
 	pte_t *pte = walk(p->pagetable, badaddr, 0);
 	// __debug_info("handle_store_page_fault", 
 	// 			"\nbadaddr=%p, pte=%p, *pte=%p\n", badaddr, pte, pte == NULL ? 0 : *pte);
-
-	if (pte == NULL || !(*pte & PTE_V)) {     // not mapped, might be a lazy-alloction
-		return handle_page_fault_lazy(badaddr);
-	}
-	else if (type == 1 && (*pte & PTE_COW)) { // mapped and store-type, might be a COW fault
-		#ifndef QEMU
-		// on k210, access/page fault are the same, so u-stack overflows also comes to here 
-		if (!(*pte & PTE_U)) return -1;
-		#endif
+	if (type == 1 && (*pte & PTE_COW)) { // mapped and store-type, might be a COW fault
 		return handle_store_page_fault_cow(pte);
 	}
 
