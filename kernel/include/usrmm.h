@@ -4,27 +4,55 @@
 #include "riscv.h"
 #include "types.h"
 
-enum segtype { CODE, DATA, HEAP, STACK };
+enum segtype { NONE, TEXT, DATA, BSS, HEAP, MMAP, STACK };
 
-struct mem{
+struct seg{
   enum segtype type;
-  pagetable_t pagetable;
+  uint64 addr;
   uint64 sz;
-  struct mem *next;
+  struct seg *next;
 };
 
-/*
- * create a new record, returning -1 at failure
+/**
+ * @brief create a new segment, returning -1 on failure
+ * 
+ * @param[in] pagetable the pagetable where the segment stays
+ * @param[in] head      the head pointer of the linked list
+ * @param[in] type      the type of the segment
+ * @param[in] offset    the offset of the segment
+ * @param[in] sz        the size of the segment
+ * @param[in] flag      flag to signal the mode of the segment (W? R? X?)
+ * 
+ * @return    0 on success, -1 on failure
  */
-int newrec(struct mem *head, enum segtype type);
+int newseg(pagetable_t pagetable, struct seg *head, enum segtype type, uint64 offset, uint64 sz,long flag);
 
-/*
- * free the pagetable in the record referenced by p
+/**
+ * @brief grasp the type of the segment to which a certain virtual address belongs
+ * 
+ * @param[in] head      the head pointer of the linked list
+ * @param[in] addr      the addr
+ * 
+ * @return    the type
  */
-void freerec(struct mem *p);
+enum segtype typeofseg(struct seg *head, uint64 addr);
 
-/*
- * delete the whole record referenced by pre->next
+/**
+ * @brief free the memory referenced by pre and set the sz to 0
+ * 
+ * @param[in] pagetable the pagetable where the segment stays
+ * @param[in] p         the pointer of the segment record
  */
-void delrec(struct mem *pre);
+void freeseg(pagetable_t pagetable, struct seg *p);
+
+/**
+ * @brief delete the segment referenced by pre->next if pre->next!=NULL otherwise pre
+ * 
+ * @param[in] pagetable the pagetable where the segment stays
+ * @param[in] pre       the prior pointer of the node intended to delete if not the head
+ * 
+ * @return pre if pre is not head, NULL if pre is head
+ */
+struct seg *delseg(pagetable_t pagetable_t, struct seg *pre);
+
 #endif
