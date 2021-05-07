@@ -122,7 +122,7 @@ int execve(char *path, char **argv, char **envp)
       goto bad;
     
     /*---------------------------*/
-    TODO:
+    /* TODO:
     Call to usrmm to get a segment struct and allocate some pages
     How to allocate the first struct seg? Do we need a sentry?
     
@@ -138,10 +138,22 @@ int execve(char *path, char **argv, char **envp)
     // uint64 sz1;
     // if ((sz1 = uvmalloc(pagetable, sz, ph.vaddr + ph.memsz, PTE_W|PTE_X|PTE_R)) == 0)
     //   goto bad;
-    // sz = sz1;
-    
+    // sz = sz1; 
+    */
     /*---------------------------*/
     
+    /*---------------------------*/
+    // temporary refinement
+    // turn ELF flags to PTE flags
+    long flags = 0;
+    flags |= (ph.flags & ELF_PROG_FLAG_EXEC) ? PTE_X : 0;
+    flags |= (ph.flags & ELF_PROG_FLAG_WRITE) ? PTE_W : 0;
+    flags |= (ph.flags & ELF_PROG_FLAG_READ) ? PTE_R : 0;
+
+    if(newseg(p->pagetable, p->segment, LOAD, ph.vaddr, sz, flags) == -1)
+      goto bad;
+    /*---------------------------*/
+
     if (loadseg(pagetable, ph.vaddr, ep, ph.off, ph.filesz) < 0)
       goto bad;
   }
@@ -154,7 +166,7 @@ int execve(char *path, char **argv, char **envp)
 
 
   /*---------------------------*/
-  TODO:
+  /* TODO:
   Call to usrmm to get a STACK segment struct and allocate pages
   The problem is how to locate the stack, may we can place it near MAXUVA
 
@@ -175,9 +187,8 @@ int execve(char *path, char **argv, char **envp)
   If the stack is located, we can assign sp  
   // uint64 sp = sz;
   // uint64 stackbase = sp - PGSIZE;
-  
+  */
   /*---------------------------*/
-
 
   sp -= sizeof(uint64);
   sp -= sp % 16;        // on risc-v, sp should be 16-byte aligned
@@ -223,7 +234,7 @@ int execve(char *path, char **argv, char **envp)
   sfence_vma();
 
   /*---------------------------*/
-  TODO:
+  /* TODO:
   Free user space in the old pagetable, should call to usrmm.
   I guess we can call to uvmdealloc() for every struct seg
 
@@ -233,7 +244,7 @@ int execve(char *path, char **argv, char **envp)
 
   // Original code:
   // uvmfree(oldpagetable, oldsz);
-
+  */
   /*---------------------------*/
 
   freepage(oldpagetable);

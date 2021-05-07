@@ -37,22 +37,18 @@ newseg(pagetable_t pagetable, struct seg *head, enum segtype type, uint64 offset
 	  return -1;
   }
 
-  /* TODO:  there are two ways of accomplish this, one is to alloc here then just 
-            add the sz when growing while the other way is to actually alloc each
-            time when growing */
   /* 
     如果是exec中载入LOAD型的段，则需要完全分配页；
     如果是堆增长，只修改堆对应的seg中的size即可（在sys_sbrk()中调用），页的分配由page fault处理
     如果是堆减小，则需要调用uvmdemalloc（也是sys_sbrk()中调用）
   */
-
-  /* TODO:  if the latter chosen, there is no need to distinguish STACK here */
   /*
       现在uvmalloc不需要段类型了，只需要给定权限即可
       注意，ELF中标记的权限和页表项的权限对应的宏应该不一样，需要转换
   */
-  if((sz = uvmalloc(pagetable, offset, offset + sz, flag)) == 0)
+  if((sz = uvmalloc(pagetable, nstart, nend, flag)) == 0)
   {
+    kfree(p);
     __debug_error("newseg", "fail to uvmalloc\n");
 	  return -1;
   }
@@ -92,10 +88,7 @@ typeofseg(struct seg *head, uint64 addr)
 void 
 freeseg(pagetable_t pagetable, struct seg *p)
 {
-  // TODO:  Whether to distinguish STACK ?
-          // 应该不要需要了，直接把段类型丢进去就行，uvmdemalloc自己判断（暂定吧）
-  // TODO:  Not sure about the interface of uvmdealloc.
-          // 已改
+  // 应该不要需要区分栈段，直接把段类型丢进去就行，uvmdemalloc自己判断（暂定）
   uvmdealloc(pagetable, p->addr, p->addr+p->sz, p->type);
   p->sz = 0;
 }

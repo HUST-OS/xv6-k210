@@ -4,7 +4,7 @@
 #include "riscv.h"
 #include "types.h"
 
-enum segtype { NONE, TEXT, DATA, BSS, HEAP, MMAP, STACK };
+enum segtype { NONE, LOAD, TEXT, DATA, BSS, HEAP, MMAP, STACK };
 
 struct seg{
   enum segtype type;
