@@ -8,25 +8,32 @@
 #include "include/vm.h"
 #include "include/debug.h"
 
-int
+struct seg*
 newseg(pagetable_t pagetable, struct seg *head, enum segtype type, uint64 offset, uint64 sz, long flag)
 {
   uint64 nstart, nend;
   nstart = type == STACK ? offset - sz : offset;
   nend = type == STACK ? offset : offset + sz;
-  while(head)
+
+  int h = 0;
+  struct seg *s = head;
+  while(s)
   {
     uint64 start, end;
-    start = head->type == STACK ? head->addr - head->sz : head->addr;
-    end = head->type == STACK ? head->addr : head->addr + head->sz;
+    start = s->type == STACK ? s->addr - s->sz : s->addr;
+    end = s->type == STACK ? s->addr : s->addr + s->sz;
     if(nstart < start && nend < end)
+    {
+      if(s == head)
+        h = 1;
       break;
+    }
     else if(nstart > start && nend > end)
-      head = head->next;
+      s = s->next;
     else
     {
       __debug_error("newseg", "segments overlap\n");
-	    return -1;
+	    return NULL;
     }
   }
 
@@ -34,7 +41,7 @@ newseg(pagetable_t pagetable, struct seg *head, enum segtype type, uint64 offset
   if((p = (struct seg *)kmalloc(sizeof(struct seg))) == NULL)
   {
     __debug_error("newseg", "fail to kmalloc\n");
-	  return -1;
+	  return NULL;
   }
 
   /* 
@@ -50,15 +57,23 @@ newseg(pagetable_t pagetable, struct seg *head, enum segtype type, uint64 offset
   {
     kfree(p);
     __debug_error("newseg", "fail to uvmalloc\n");
-	  return -1;
+	  return NULL;
   }
 
-  p->next = head->next;
-  head->next = p;
+  if((s == NULL) || h)
+  {
+    p->next = head;
+    head = p;
+  }
+  else
+  {
+    p->next = s->next;
+    s->next = p;
+  }
   p->addr = offset;
   p->sz = sz;
   p->type = type;
-  return 0;
+  return p;
 }
 
 enum segtype

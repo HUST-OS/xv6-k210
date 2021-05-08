@@ -23,9 +23,9 @@ struct seg{
  * @param[in] sz        the size of the segment
  * @param[in] flag      flag to signal the mode of the segment (W? R? X?)
  * 
- * @return    0 on success, -1 on failure
+ * @return    the pointer of the head on success, NULL on failure
  */
-int newseg(pagetable_t pagetable, struct seg *head, enum segtype type, uint64 offset, uint64 sz,long flag);
+struct seg* newseg(pagetable_t pagetable, struct seg *head, enum segtype type, uint64 offset, uint64 sz,long flag);
 
 /**
  * @brief grasp the type of the segment to which a certain virtual address belongs
