@@ -231,13 +231,14 @@ fs: $(UPROGS)
 		sudo cp $$file $(dst)/bin/$${file#$U/_}; done
 	@sudo umount $(dst)
 
-# Write sdcard
-sdcard: fs
-	@if [ "$(sd)" != "" ]; then \
-		echo "flashing into sd card..."; \
-		sudo dd if=fs.img of=$(sd); \
-	else \
-		echo "sd card not detected!"; fi
+# Write mounted sdcard
+sdcard: userprogs
+	@if [ ! -d "$(dst)/bin" ]; then sudo mkdir $(dst)/bin; fi
+	@for file in $$( ls $U/_* ); do \
+		sudo cp $$file $(dst)/bin/$${file#$U/_}; done
+	@sudo cp $U/_init $(dst)/init
+	@sudo cp $U/_sh $(dst)/sh
+	@sudo cp README $(dst)/README
 
 clean: 
 	rm -f *.tex *.dvi *.idx *.aux *.log *.ind *.ilg \

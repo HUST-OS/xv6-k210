@@ -24,30 +24,29 @@
 git clone https://github.com/HUST-OS/xv6-k210
 ```
 
-## 编译
+## <a id="title_k210">在 k210 开发板上运行</a>
 首先您需要连接 `k210` 开发板到电脑，然后检查 USB 端口：  
 ```bash
 ls /dev/ | grep USB
 ```
 在我的机器上的情况是将会显示 `ttyUSB0`，这就是 USB 端口。  
-然后运行以下命令：    
+然后运行以下命令，以编译内核和用户程序：    
 
 ```bash
 cd xv6-k210
 make build
 ```
 
-## <a id="title_k210">在 k210 开发板上运行</a>
-Xv6-k210 采用 FAT32 文件系统，而不是其原本的文件系统。您需要一张 FAT32 格式的 SD 卡才能运行。
-在编译项目后，您需要将 “/xv6-user” 目录下的 “_init” 和 “_sh” 重命名为 “init” 和 “sh”，并拷贝至 SD 卡的根目录下。您还可以拷贝其他编译好的程序(以“\_”开头的文件)。
-或者，您可以将 SD 卡连至主机（需要读卡器），再直接运行以下命令。
-
-警告：这会格式化您的 SD 卡并清除卡上的原有数据！
+Xv6-k210 采用 FAT32 文件系统，而不是其原本的文件系统。您需要一张 FAT32 格式的 SD 卡才能运行。并且 SD 卡上不能有分区表。  
+为了能启动 `shell` 和其他用户程序，您需要将它们拷贝至 SD 卡中。
+首先，需要将 SD 卡连至主机（需要读卡器）并进行挂载。
 ```bash
-make sdcard sd="your SD card device's path"
+ls /dev/ # 确认您的 SD 卡设备名
+mount <SD 卡设备名> <挂载点>
+make sdcard dst="挂载点"
+umount <挂载点>
 ```
-
-运行以下命令以在 `k210` 上运行：  
+然后，将 SD 卡接入 `k210` 并运行：  
 ```bash
 make run
 ```
@@ -117,5 +116,5 @@ Shell 命令其实也是用户程序。这些程序应当放置在 SD 卡或 `fs
 - [X] 稳定的键盘输入（k210）
 
 ## TODO
-解决用户态导致 RUSTSBI 报 panic 的 bug 
+解决用户态由于未知原因导致 panic 的 bug 
 
