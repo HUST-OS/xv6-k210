@@ -404,7 +404,7 @@ uvmalloc(pagetable_t pagetable, uint64 start, uint64 end, int perm)
 // need to be less than oldsz.  oldsz can be larger than the actual
 // process size.  Returns the new process size.
 /**
- * This function only delete physical pages but not pagetable
+ * This function only deletes physical pages but not pagetable
  * 
  * @param   start   user virtual addr that start to be deleted (low addr)
  * @param   end     the ending user virtual addr of the deletion
@@ -595,7 +595,7 @@ kvmcreate()
   return pagetable;
 }
 
-// Should be called after uvmfree if the pagetable contains user spase!
+// Should be called after uvmfree if the pagetable contains user space!
 // And after trapframe unmapped, otherwise freewalk will panic.
 void
 kvmfree(pagetable_t pagetable, int stack_free)
@@ -613,7 +613,7 @@ kvmfree(pagetable_t pagetable, int stack_free)
 /**
  * Safe memmove applied when copying memory between kernel and user.
  * 
- * With copy-on-write and lazy-allocation, when kernal calls to copyin(out|instr)2,
+ * With copy-on-write and lazy-allocation, when kernal calls to copy(in|out|instr)2,
  * a page fault may happen.
  * 
  * When user causes a page fault, the hart will trap via usertrap(). If the page

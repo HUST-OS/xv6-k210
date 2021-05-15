@@ -233,16 +233,8 @@ fs: $(UPROGS)
 	@sudo cp README $(dst)/README
 	@sudo umount $(dst)
 
-# Write sdcard
-sdcard: fs
-	@if [ "$(sd)" != "" ]; then \
-		echo "flashing into sd card..."; \
-		sudo dd if=fs.img of=$(sd); \
-	else \
-		echo "sd card not detected!"; fi
-
 # Write sdcard mounted at $dst
-mounted-sd: fs
+sdcard: userprogs
 	@if [ ! -d "$(dst)/bin" ]; then sudo mkdir $(dst)/bin; fi
 	@for file in $$( ls $U/_* ); do \
 		sudo cp $$file $(dst)/bin/$${file#$U/_}; done
