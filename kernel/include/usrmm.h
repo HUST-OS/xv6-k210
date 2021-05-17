@@ -53,6 +53,14 @@ void freeseg(pagetable_t pagetable, struct seg *p);
  * 
  * @return pre if pre is not head, NULL if pre is head
  */
-struct seg *delseg(pagetable_t pagetable_t, struct seg *pre);
+struct seg *delseg(pagetable_t pagetable, struct seg *pre);
+
+/**
+ * @brief delete all the segments referenced by the linked list head
+ * 
+ * @param[in] pagatable the pagetable where the segment stays
+ * @param[in] head      the head node of the linked list
+ */
+void delsegs(pagetable_t pagetable, struct seg *head);
 
 #endif

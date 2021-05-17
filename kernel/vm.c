@@ -893,7 +893,7 @@ static int handle_page_fault_lazy(uint64 badaddr)
  * @param   type      load-0 | store-1 | access-2
  * @param   badaddr   the stval
  */
-int handle_page_fault(int type, uint64 badaddr)
+int handle_page_fault(int kind, uint64 badaddr)
 {
 	struct proc *p = myproc();
 	// In later implement, we will handle badaddr at heap, mmap zoom and wherever a COW page
@@ -909,7 +909,7 @@ int handle_page_fault(int type, uint64 badaddr)
 	pte_t *pte = walk(p->pagetable, badaddr, 0);
 	// __debug_info("handle_store_page_fault", 
 	// 			"\nbadaddr=%p, pte=%p, *pte=%p\n", badaddr, pte, pte == NULL ? 0 : *pte);
-	if (type == 1 && (*pte & PTE_COW)) { // mapped and store-type, might be a COW fault
+	if (kind == 1 && (*pte & PTE_COW)) { // mapped and store-type, might be a COW fault
 		return handle_store_page_fault_cow(pte);
 	}
 

@@ -169,26 +169,26 @@ int execve(char *path, char **argv, char **envp)
   /* TODO:
   Call to usrmm to get a STACK segment struct and allocate pages
   The problem is how to locate the stack, may we can place it near MAXUVA
-
+  */
 
 
 
   // Original Code:
-  // // Allocate two pages at the next page boundary.
-  // // Use the second as the user stack.
-  // // Clear the PTE_U mark of the first page under the stack as a protection.
-  // sz = PGROUNDUP(sz);
-  // uint64 sz1;
+  // Allocate two pages at the next page boundary.
+  // Use the second as the user stack.
+  // Clear the PTE_U mark of the first page under the stack as a protection.
+  sz = PGROUNDUP(sz);
+  uint64 sz1;
+  long flags = PTE_R | PTE_W;
   // if ((sz1 = uvmalloc(pagetable, sz, sz + 2 * PGSIZE, PTE_W|PTE_R|PTE_X)) == 0)
-  //   goto bad;
-  // sz = sz1;
-  // uvmclear(pagetable, sz - 2 * PGSIZE);
+  if(newseg(p->pagetable, p->segment, STACK, MAXUVA, sz, flags) == -1)
+    goto bad;
+  sz = sz1;
+  uvmclear(pagetable, sz - 2 * PGSIZE);
 
-  If the stack is located, we can assign sp  
-  // uint64 sp = sz;
-  // uint64 stackbase = sp - PGSIZE;
-  */
-  /*---------------------------*/
+  /* If the stack is located, we can assign sp */
+  uint64 sp = sz;
+  uint64 stackbase = sp - PGSIZE;
 
   sp -= sizeof(uint64);
   sp -= sp % 16;        // on risc-v, sp should be 16-byte aligned
@@ -246,6 +246,9 @@ int execve(char *path, char **argv, char **envp)
   // uvmfree(oldpagetable, oldsz);
   */
   /*---------------------------*/
+  // temporary refinement
+  delsegs(p->pagetable, p->segment);
+  /*---------------------------*/
 
   freepage(oldpagetable);
 
@@ -253,7 +256,7 @@ int execve(char *path, char **argv, char **envp)
 
  bad:
   if (pagetable) {
-    uvmfree(pagetable, sz);
+    uvmfree(pagetable);
     freepage(pagetable);
   }
   if (ep) {
