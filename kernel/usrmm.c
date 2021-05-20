@@ -123,3 +123,13 @@ delseg(pagetable_t pagetable, struct seg *pre)
     return NULL;
   }
 }
+
+void
+delsegs(pagetable_t pagetable, struct seg *head){
+  struct seg *tmp;
+  while(head){
+    tmp = head->next;
+    delseg(pagetable, head);
+    head = tmp;
+  }
+}
