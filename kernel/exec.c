@@ -5,7 +5,7 @@
 #include "include/riscv.h"
 #include "include/proc.h"
 #include "include/elf.h"
-#include "include/fat32.h"
+#include "include/fs.h"
 #include "include/pm.h"
 #include "include/vm.h"
 #include "include/printf.h"
@@ -17,7 +17,7 @@
 // and the pages from va to va+sz must already be mapped.
 // Returns 0 on success, -1 on failure.
 static int
-loadseg(pagetable_t pagetable, uint64 va, struct dirent *ep, uint offset, uint sz)
+loadseg(pagetable_t pagetable, uint64 va, struct inode *ip, uint offset, uint sz)
 {
   uint i, n;
   uint64 pa;
@@ -32,7 +32,7 @@ loadseg(pagetable_t pagetable, uint64 va, struct dirent *ep, uint offset, uint s
       n = sz - i;
     else
       n = PGSIZE;
-    if(eread(ep, 0, (uint64)pa, offset+i, n) != n)
+    if(ip->fop->read(ip, 0, (uint64)pa, offset + i, n) != n)
       return -1;
   }
 
@@ -78,18 +78,18 @@ bad:
 // All argvs are pointers came from user space, and should be checked by sys_caller
 int execve(char *path, char **argv, char **envp)
 {
-  struct dirent *ep = NULL;
+  struct inode *ip = NULL;
   pagetable_t pagetable = NULL;
   pagetable_t kpagetable = NULL;
   struct proc *p = myproc();
 
-  if ((ep = ename(path)) == NULL)
+  if ((ip = namei(path)) == NULL)
     goto bad;
-  elock(ep);
+  ilock(ip);
 
   // Check ELF header
   struct elfhdr elf;
-  if (eread(ep, 0, (uint64) &elf, 0, sizeof(elf)) != sizeof(elf) || elf.magic != ELF_MAGIC)
+  if (ip->fop->read(ip, 0, (uint64) &elf, 0, sizeof(elf)) != sizeof(elf) || elf.magic != ELF_MAGIC)
     goto bad;
 
   // Make a copy of p->kpt without old user space, 
@@ -105,7 +105,7 @@ int execve(char *path, char **argv, char **envp)
   }
   struct proghdr ph;
   for (int i = 0, off = elf.phoff; i < elf.phnum; i++, off += sizeof(ph)) {
-    if (eread(ep, 0, (uint64)&ph, off, sizeof(ph)) != sizeof(ph))
+    if (ip->fop->read(ip, 0, (uint64)&ph, off, sizeof(ph)) != sizeof(ph))
       goto bad;
     if (ph.type != ELF_PROG_LOAD)
       continue;
@@ -117,14 +117,17 @@ int execve(char *path, char **argv, char **envp)
     sz = sz1;
     if (ph.vaddr % PGSIZE != 0)
       goto bad;
-    if (loadseg(pagetable, ph.vaddr, ep, ph.off, ph.filesz) < 0)
+    if (loadseg(pagetable, ph.vaddr, ip, ph.off, ph.filesz) < 0)
       goto bad;
   }
+
+  struct stat st;
+  ip->op->getattr(ip, &st);
   char pname[16];
-  safestrcpy(pname, ep->filename, sizeof(pname));
-  eunlock(ep);
-  eput(ep);
-  ep = 0;
+  safestrcpy(pname, st.name, sizeof(pname));
+  iunlock(ip);
+  iput(ip);
+  ip = 0;
 
   // Allocate two pages at the next page boundary.
   // Use the second as the user stack.
@@ -137,7 +140,7 @@ int execve(char *path, char **argv, char **envp)
   uint64 sp = sz;
   uint64 stackbase = sp - PGSIZE;
   sp -= sizeof(uint64);
-  if (copyout(pagetable, sp, (char *)&ep, sizeof(uint64)) < 0)  // *ep is 0 now, borrow it
+  if (copyout(pagetable, sp, (char *)&ip, sizeof(uint64)) < 0)  // *ep is 0 now, borrow it
     goto bad;
 
   // arguments to user main(argc, argv, envp)
@@ -182,9 +185,9 @@ int execve(char *path, char **argv, char **envp)
     proc_freepagetable(pagetable, sz);
   if (kpagetable)
     kvmfree(kpagetable, 0);
-  if (ep) {
-    eunlock(ep);
-    eput(ep);
+  if (ip) {
+    iunlock(ip);
+    iput(ip);
   }
   return -1;
 }

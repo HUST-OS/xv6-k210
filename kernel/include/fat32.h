@@ -3,7 +3,9 @@
 
 #include "sleeplock.h"
 #include "stat.h"
+#include "fs.h"
 
+// FAT32 file attribute
 #define ATTR_READ_ONLY      0x01
 #define ATTR_HIDDEN         0x02
 #define ATTR_SYSTEM         0x04
@@ -12,18 +14,28 @@
 #define ATTR_ARCHIVE        0x20
 #define ATTR_LONG_NAME      0x0F
 
-#define LAST_LONG_ENTRY     0x40
+// FAT32 flags
+// last fat chain flag
 #define FAT32_EOC           0x0ffffff8
+// last long entry flag
+#define LAST_LONG_ENTRY     0x40
 #define EMPTY_ENTRY         0xe5
-#define END_OF_ENTRY        0x00
+// end of dir
+#define END_OF_DIR          0x00
+// filename capacity each entry
 #define CHAR_LONG_NAME      13
 #define CHAR_SHORT_NAME     11
 
 #define FAT32_MAX_FILENAME  255
 #define FAT32_MAX_PATH      260
-#define ENTRY_CACHE_NUM     50
 
-struct dirent {
+
+/**
+ * Inode of FAT32 in-memory format
+ * 
+ * 
+ */
+struct fat32_entry {
     char  filename[FAT32_MAX_FILENAME + 1];
     uint8   attribute;
     // uint8   create_time_tenth;
@@ -35,40 +47,24 @@ struct dirent {
     // uint16  last_write_date;
     uint32  file_size;
 
+    uint    ent_cnt;
     uint32  cur_clus;
     uint    clus_cnt;
-
-    /* for OS */
-    uint8   dev;
-    uint8   dirty;
-    short   valid;
-    int     ref;
-    uint32  off;            // offset in the parent dir entry, for writing convenience
-    struct dirent *parent;  // because FAT32 doesn't have such thing like inum, use this for cache trick
-    struct dirent *next;    // next sibling
-    struct dirent *child;   // first child
-    struct sleeplock    lock;
 };
 
-int             fat32_init(void);
-struct dirent*  dirlookup(struct dirent *entry, char *filename, uint *poff);
-char*           formatname(char *name);
-void            emake(struct dirent *dp, struct dirent *ep, uint off);
-struct dirent*  ealloc(struct dirent *dp, char *name, int attr);
-struct dirent*  edup(struct dirent *entry);
-void            eupdate(struct dirent *entry);
-void            etrunc(struct dirent *entry);
-void            eremove(struct dirent *entry);
-void            eput(struct dirent *entry);
-void            ereparent(struct dirent *pdst, struct dirent *src);
-void            estat(struct dirent *ep, struct stat *st);
-void            elock(struct dirent *entry);
-void            eunlock(struct dirent *entry);
-int             enext(struct dirent *dp, struct dirent *ep, uint off, int *count);
-struct dirent*  ename(char *path);
-struct dirent*  enameparent(char *path, char *name);
-int             eread(struct dirent *entry, int user_dst, uint64 dst, uint off, uint n);
-int             ewrite(struct dirent *entry, int user_src, uint64 src, uint off, uint n);
-void            eprint();
+
+struct fat32_sb*    fat32_init(char *boot_sector);
+struct fat32_entry* fat32_root_init(struct superblock *sb);
+struct inode*       fat_lookup_dir(struct inode *dir, char *filename, uint *poff);
+struct inode*       fat_alloc_inode(struct superblock *sb);
+void                fat_destroy_inode(struct inode *ip);
+struct inode*       fat_alloc_entry(struct inode *dir, char *name, int mode);
+int                 fat_update_entry(struct inode *ip);
+int                 fat_remove_entry(struct inode *ip);
+int                 fat_truncate_file(struct inode *ip);
+int                 fat_stat_file(struct inode *ip, struct stat *st);
+int                 fat_read_dir(struct inode *dir, struct stat *st, uint off);
+int                 fat_read_file(struct inode *ip, int user_dst, uint64 dst, uint off, uint n);
+int                 fat_write_file(struct inode *ip, int user_src, uint64 src, uint off, uint n);
 
 #endif

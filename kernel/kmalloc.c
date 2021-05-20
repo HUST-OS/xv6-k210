@@ -42,8 +42,11 @@ struct kmem_node {
 struct kmem_allocator {
 	struct spinlock lock;		// the lock to protect this allocator 
 	uint obj_size;				// the obj size that allocator allocates 
+	uint16 npages;
+	uint16 nobjs;
 	struct kmem_node *list;		// point to first kmem_node 
 	struct kmem_allocator *next;	// point to next kmem_allocator 
+	
 };
 
 // the first allocator to allocate other allocators 
@@ -67,6 +70,8 @@ void kmallocinit(void) {
 	initlock(&(kmem_adam.lock), "kmem_adam");
 	kmem_adam.list = NULL;
 	kmem_adam.next = NULL;
+	kmem_adam.npages = 0;
+	kmem_adam.nobjs = 0;
 	kmem_adam.obj_size = 
 			ROUNDUP16(sizeof(struct kmem_allocator));
 
@@ -129,6 +134,8 @@ static struct kmem_allocator *get_allocator(uint64 raw_size) {
 		initlock(&(tmp->lock), "kmem_alloc");
 		tmp->list = NULL;
 		tmp->obj_size = roundup_size;
+		tmp->npages = 0;
+		tmp->nobjs = 0;
 		tmp->next = kmem_table[hash];
 		kmem_table[hash] = tmp;
 	}
@@ -163,6 +170,12 @@ void *kmalloc(uint size) {
 	// if no page available 
 	if (NULL == alloc->list) {
 		struct kmem_node *tmp = (struct kmem_node*)allocpage();
+		if (tmp == NULL) {
+			release(&(alloc->lock));
+			return NULL;
+		}
+		alloc->npages++;
+
 		uint roundup_size = ROUNDUP16(size);
 		uint8 capa = _calc_capa(roundup_size);
 
@@ -179,6 +192,8 @@ void *kmalloc(uint size) {
 
 		alloc->list = tmp;
 	}
+
+	alloc->nobjs++;
 
 	// now the allocator should be ready 
 	struct kmem_node *node = alloc->list;
@@ -211,6 +226,8 @@ void kfree(void *addr) {
 	__debug_info("kfree", "alloc: %p, addr: %p\n", alloc, addr);
 	// enter critical section `alloc`
 	acquire(&(alloc->lock));
+
+	alloc->nobjs--;
 
 	// if `node` used to be fully allocated, then re-link it to `alloc`
 	if (TABLE_END == node->avail) {
@@ -252,23 +269,22 @@ void kfree(void *addr) {
 		__debug_info("kfree", "tmp = %p\n", tmp);
 
 		freepage(node);
+		alloc->npages--;
 	}
 
 	release(&(alloc->lock));
 	// leave critical section `alloc`
 }
 
-#ifdef DEBUG 
-
 // display the content of kmem_allocator 
 static void km_view_allocator(struct kmem_allocator *alloc) {
 	// enter critical section 
 	acquire(&(alloc->lock));
 
-	/*printf(__INFO("kmem_allocator")": size %d, addr: %p\n", */
-			/*alloc->obj_size, alloc);*/
-	__debug_info("kmem_allocator", "size %d, addr: %p\n", 
-			alloc->obj_size, alloc);
+	printf("\n"__INFO("kmem_allocator")": size %d, addr: %p taken %d page(s), allocated %d obj(s)\n",
+			alloc->obj_size, alloc, alloc->npages, alloc->nobjs);
+	// __debug_info("kmem_allocator", "size %d, addr: %p\n", 
+	// 		alloc->obj_size, alloc);
 	for (struct kmem_node *node = alloc->list; NULL != node; node = node->next) {
 		printf(
 			"\t"__INFO("kmem_node")":\n"
@@ -313,7 +329,10 @@ void kmview(void)
 	// leave critical section 
 }
 
+#ifdef DEBUG 
+
 #include "include/proc.h"
+#include "include/fs.h"
 #include "include/fat32.h"
 #include "include/buf.h"
 #include "include/file.h"
@@ -328,10 +347,10 @@ void kmtest(void)
 	struct proc *p2 = kmalloc(sizeof(struct proc));
 	struct proc *p3 = kmalloc(sizeof(struct proc));
 
-	struct dirent *ep0 = kmalloc(sizeof(struct dirent));
-	struct dirent *ep1 = kmalloc(sizeof(struct dirent));
-	struct dirent *ep2 = kmalloc(sizeof(struct dirent));
-	struct dirent *ep3 = kmalloc(sizeof(struct dirent));
+	struct fat32_entry *ep0 = kmalloc(sizeof(struct fat32_entry));
+	struct fat32_entry *ep1 = kmalloc(sizeof(struct fat32_entry));
+	struct fat32_entry *ep2 = kmalloc(sizeof(struct fat32_entry));
+	struct fat32_entry *ep3 = kmalloc(sizeof(struct fat32_entry));
 
 	struct buf *b0 = kmalloc(sizeof(struct buf));
 	struct buf *b1 = kmalloc(sizeof(struct buf));

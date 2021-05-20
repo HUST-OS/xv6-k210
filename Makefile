@@ -1,7 +1,7 @@
-#platform	:= k210
-platform	:= qemu
-mode := debug
-#mode := release
+platform	:= k210
+# platform	:= qemu
+# mode := debug
+mode := release
 
 K=kernel
 U=xv6-user
@@ -31,6 +31,7 @@ OBJS += \
   $K/sysproc.o \
   $K/bio.o \
   $K/sleeplock.o \
+  $K/fs.o \
   $K/file.o \
   $K/pipe.o \
   $K/exec.o \
@@ -228,6 +229,7 @@ fs: $(UPROGS)
 		sudo cp $$file $(dst)/bin/$${file#$U/_}; done
 	@sudo cp $U/_init $(dst)/init
 	@sudo cp $U/_sh $(dst)/sh
+	@sudo cp $U/_echo $(dst)/echo
 	@sudo cp $U/shrc $(dst)/shrc
 	@sudo cp README $(dst)/README
 	@sudo umount $(dst)

@@ -16,10 +16,10 @@ extern int execve(char *path, char **argv, char **envp);
 uint64
 sys_exec(void)
 {
-  char path[FAT32_MAX_PATH];
+  char path[MAXPATH];
   uint64 argv;
 
-  if(argstr(0, path, FAT32_MAX_PATH) < 0 || argaddr(1, &argv) < 0){
+  if(argstr(0, path, MAXPATH) < 0 || argaddr(1, &argv) < 0){
     return -1;
   }
 
@@ -29,10 +29,10 @@ sys_exec(void)
 uint64
 sys_execve(void)
 {
-  char path[FAT32_MAX_PATH];
+  char path[MAXPATH];
   uint64 argv, envp;
 
-  if(argstr(0, path, FAT32_MAX_PATH) < 0 || argaddr(1, &argv) < 0 || argaddr(2, &envp)){
+  if(argstr(0, path, MAXPATH) < 0 || argaddr(1, &argv) < 0 || argaddr(2, &envp)){
     return -1;
   }
 

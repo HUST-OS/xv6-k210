@@ -24,36 +24,31 @@ Run xv6-riscv on k210 board
 git clone https://github.com/HUST-OS/xv6-k210
 ```
 
-## Build
+## Run on k210 board
 First you need to connect your k210 board to your PC.  
-And check the `USB serial port`:  
+And check the `USB serial port` (In my situation it will be `ttyUSB0`):  
 ```bash
 ls /dev/ | grep USB
 ```
-In my situation it will be `ttyUSB0`  
+Build the kernel and user program:
 
 ```bash
 cd xv6-k210
 make build
 ```
-
-## Run on k210 board
 Instead of the original file system, xv6-k210 runs with FAT32. You might need an SD card with FAT32 format.  
-To start `shell`, you need to rename the "_init" and "_sh" in the "/xv6-user" to "init" and "sh" after building, 
-then copy them to the root of your SD card.  
-Also, you can copy other programs start with "\_". 
-Or you can directly run the command as below with your SD card connected to your PC (SD card reader required).
-
-Warning: this will format your SD card and clean your original data!
+Your SD card should NOT keep a partition table. To start `shell` and other user programs, you need to copy them into your SD card.  
+First, connect and mount your SD card (SD card reader required).
 ```bash
-make sdcard sd="your SD card device's path"
+ls /dev/ # To check your SD device
+mount <your SD device name> <mount point>
+make sdcard dst="SD card mount point"
+umount <mount point>
 ```
-
-To run on k210:
+Then, insert the SD card to your k210 board and run:
 ```bash
 make run
 ```
-
 Sometimes you should change the `USB serial port`:  
 ```bash
 make run k210-serialport=`Your-USB-port`(default by ttyUSB0)
@@ -123,5 +118,5 @@ In addition, `shell` supports some shortcut keys as below:
 - [X] Steady keyboard input(k210)
 
 ## TODO
-Fix the bugs of U-mode exception caught by RUSTSBI.
+Fix the bugs of U-mode exception on k210.
 
