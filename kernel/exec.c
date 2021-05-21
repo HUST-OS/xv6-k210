@@ -62,7 +62,7 @@ static int pushstack(pagetable_t pt, uint64 table[], char **utable, int maxc, ui
       break;
     int arglen = fetchstr(argp, buf, PGSIZE);   // '\0' included in PGSIZE, but not in envlen
     if (arglen++ < 0) {                               // including '\0'
-      // __debug_error("pushstack", "didn't get null\n");
+      // __debug_warn("pushstack", "didn't get null\n");
       goto bad;
     }
     sp -= arglen;
@@ -91,7 +91,7 @@ int execve(char *path, char **argv, char **envp)
   struct proc *p = myproc();
   __debug_info("execve", "in\n");
   if ((ep = ename(path)) == NULL) {
-    __debug_error("execve", "can't open %s\n", path);
+    __debug_warn("execve", "can't open %s\n", path);
     goto bad;
   }
   elock(ep);
@@ -115,20 +115,17 @@ int execve(char *path, char **argv, char **envp)
   struct proghdr ph;
   int flags;
   for (int i = 0, off = elf.phoff; i < elf.phnum; i++, off += sizeof(ph)) {
-    if (eread(ep, 0, (uint64)&ph, off, sizeof(ph)) != sizeof(ph))
+    if (eread(ep, 0, (uint64)&ph, off, sizeof(ph)) != sizeof(ph)) {
+      __debug_warn("execve", "fail to read ELF file\n");
       goto bad;
+    }
     if (ph.type != ELF_PROG_LOAD)
       continue;
-    if (ph.vaddr % PGSIZE != 0 || ph.memsz < ph.filesz || ph.vaddr + ph.memsz < ph.vaddr)
+    if (ph.vaddr % PGSIZE != 0 || ph.memsz < ph.filesz || ph.vaddr + ph.memsz < ph.vaddr) {
+      __debug_warn("execve", "funny ELF file: va=%p msz=0x%x fsz=0x%x\n", ph.vaddr, ph.memsz, ph.filesz);
       goto bad;
+    }
     
-    // Original Code:
-    // uint64 sz1;
-    // if ((sz1 = uvmalloc(pagetable, sz, ph.vaddr + ph.memsz, PTE_W|PTE_X|PTE_R)) == 0)
-    //   goto bad;
-    // sz = sz1; 
-
-    // temporary refinement
     // turn ELF flags to PTE flags
     flags = 0;
     flags |= (ph.flags & ELF_PROG_FLAG_EXEC) ? PTE_X : 0;
@@ -139,14 +136,15 @@ int execve(char *path, char **argv, char **envp)
     seg = newseg(pagetable, seghead, LOAD, ph.vaddr, ph.memsz, flags);
     __debug_info("execve", "newseg out\n");
     if(seg == NULL) {
-      __debug_error("execve", "newseg fail: vaddr=%p, memsz=%d\n", ph.vaddr, ph.memsz);
+      __debug_warn("execve", "newseg fail: vaddr=%p, memsz=%d\n", ph.vaddr, ph.memsz);
       goto bad;
     }
     seghead = seg;
-    /*---------------------------*/
 
-    if (loadseg(pagetable, ph.vaddr, ep, ph.off, ph.filesz) < 0)
+    if (loadseg(pagetable, ph.vaddr, ep, ph.off, ph.filesz) < 0) {
+      __debug_warn("execve", "load segment\n");
       goto bad;
+    }
   }
   char pname[16];
   safestrcpy(pname, ep->filename, sizeof(pname));
@@ -170,7 +168,7 @@ int execve(char *path, char **argv, char **envp)
     __debug_info("execve", "making heap, start=%p\n", PGROUNDUP(seg->addr + seg->sz));
   seg = newseg(pagetable, seghead, HEAP, PGROUNDUP(seg->addr + seg->sz), 0, flags);
   if(seg == NULL) {
-    __debug_error("execve", "new heap fail\n");
+    __debug_warn("execve", "new heap fail\n");
     goto bad;
   }
   seghead = seg;
@@ -179,7 +177,7 @@ int execve(char *path, char **argv, char **envp)
   // Stack
   seg = newseg(pagetable, seghead, STACK, VUSTACK - PGSIZE, PGSIZE, flags);
   if(seg == NULL) {
-    __debug_error("execve", "new stack fail\n");
+    __debug_warn("execve", "new stack fail\n");
     goto bad;
   }
   seghead = seg;
@@ -194,7 +192,7 @@ int execve(char *path, char **argv, char **envp)
   sp -= sp % 16;        // on risc-v, sp should be 16-byte aligned
   // Place a null at the bottom of user stack, ep is 0 now, borrow it.
   if (copyout(pagetable, sp, (char *)&ep, sizeof(uint64)) < 0) {
-    __debug_error("execve", "fail to push bottom NULL into user stack\n");
+    __debug_warn("execve", "fail to push bottom NULL into user stack\n");
     goto bad;
   }
 
@@ -206,7 +204,7 @@ int execve(char *path, char **argv, char **envp)
   uint64 uargv[MAXARG + 1], uenvp[MAXENV + 1];
   if ((envc = pushstack(pagetable, uenvp, envp, MAXENV, &sp)) < 0 ||
       (argc = pushstack(pagetable, uargv, argv, MAXARG, &sp)) < 0) {
-    __debug_error("execve", "fail to push argv or envp into user stack\n");
+    __debug_warn("execve", "fail to push argv or envp into user stack\n");
     goto bad;
   }
   sp -= (envc + 1) * sizeof(uint64);
@@ -219,7 +217,7 @@ int execve(char *path, char **argv, char **envp)
       copyout(pagetable, a2, (char *)uenvp, (envc + 1) * sizeof(uint64)) < 0 ||
       copyout(pagetable, sp, (char *)uargv, (argc + 1) * sizeof(uint64)) < 0)
   {
-    __debug_error("execve", "fail to copy argv/envp table into user stack\n");
+    __debug_warn("execve", "fail to copy argv/envp table into user stack\n");
     goto bad;
   }
   p->trapframe->a1 = sp;
@@ -240,30 +238,14 @@ int execve(char *path, char **argv, char **envp)
   w_satp(MAKE_SATP(p->pagetable));
   sfence_vma();
 
-  /*---------------------------*/
-  /* TODO:
-  Free user space in the old pagetable, should call to usrmm.
-  I guess we can call to uvmdealloc() for every struct seg
-
-
-  // New interface ignores sz, because usrmm should handle that
-  uvmfree(oldpagetable);
-
-  // Original code:
-  // uvmfree(oldpagetable, oldsz);
-  */
-  /*---------------------------*/
-  // temporary refinement
   delsegs(oldpagetable, seg);
-  /*---------------------------*/
-
   uvmfree(oldpagetable);
   freepage(oldpagetable);
 
   return argc; // this ends up in a0, the first argument to main(argc, argv)
 
  bad:
-  __debug_error("execve", "reach bad: seg=%p, pt=%p, ep=%p\n", seghead, pagetable, ep);
+  __debug_warn("execve", "reach bad: seg=%p, pt=%p, ep=%p\n", seghead, pagetable, ep);
   if (seghead) {
     delsegs(pagetable, seghead);
   }

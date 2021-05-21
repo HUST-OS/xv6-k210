@@ -11,8 +11,11 @@
 void
 simpletest()
 {
-  uint64 phys_size = PHYSTOP - KERNBASE;
-  int sz = (phys_size / 3) * 2;
+  // uint64 phys_size = PHYSTOP - KERNBASE;
+  struct sysinfo info;
+  sysinfo(&info);
+  
+  int sz = (info.freemem / 3) * 2;
 
   printf("simple: ");
   

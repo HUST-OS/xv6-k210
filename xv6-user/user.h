@@ -1,6 +1,7 @@
 #include "kernel/include/types.h"
 #include "kernel/include/stat.h"
 #include "kernel/include/fcntl.h"
+#include "kernel/include/sysinfo.h"
 
 struct stat;
 struct rtcdate;

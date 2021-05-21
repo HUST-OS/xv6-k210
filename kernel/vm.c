@@ -551,8 +551,7 @@ int uvmcopy_cow(pagetable_t old, pagetable_t new, uint64 start, uint64 end, enum
 	// 	}
 	// }
 	// Should we perform an sfence.vma?
-	// sfence_vma();
-  asm volatile(".word 0x10400073");
+	sfence_vma();
   return 0;
 
  err:
