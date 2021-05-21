@@ -110,9 +110,15 @@ kvminit()
 void
 kvminithart()
 {
-  w_satp(MAKE_SATP(kernel_pagetable));
-  sfence_vma();
+  // w_satp(MAKE_SATP(kernel_pagetable));
+  // sfence_vma();
+
+  // Must do this to trap into RustSBI.
+  uint64 stap = SATP_SV39 | (((uint64)kernel_pagetable) >> 12);
+  w_satp(stap);
+  asm volatile("sfence.vma");
   protect_usr_mem();
+
   #ifdef DEBUG
   printf("kvminithart\n");
   #endif
@@ -317,7 +323,8 @@ unmappages(pagetable_t pagetable, uint64 va, uint64 npages, int flag)
   for (a = va; a < end; a += PGSIZE) {
     if ((pte = walk(pagetable, a, 0)) == NULL || !(*pte & PTE_V)) {
 			if (allowhole) continue;  // it might be a lazy-allocated page which is not really allocated, but how could we verify that?
-			panic("unmappages: unmapped pte");
+			__debug_error("unmappages", "va=%p flag=%d\n", va, flag);
+      panic("unmappages: unmapped pte");
 		}
     if(PTE_FLAGS(*pte) == PTE_V)
       panic("unmappages: not a leaf");
@@ -511,7 +518,7 @@ uvmfree(pagetable_t pagetable)
  * @param     segt  segment type, the kernel won't panic 
  *                  where pte == NULL or pte invalid if segt is HEAP
  */
-int uvmcopy_cow(pagetable_t old, pagetable_t new, uint64 start, uint64 end,  enum segtype segt)
+int uvmcopy_cow(pagetable_t old, pagetable_t new, uint64 start, uint64 end, enum segtype segt)
 {
   pte_t *pte;
   uint64 pa, i;
@@ -544,7 +551,8 @@ int uvmcopy_cow(pagetable_t old, pagetable_t new, uint64 start, uint64 end,  enu
 	// 	}
 	// }
 	// Should we perform an sfence.vma?
-	sfence_vma();
+	// sfence_vma();
+  asm volatile(".word 0x10400073");
   return 0;
 
  err:
@@ -709,8 +717,7 @@ copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len)
 int
 copyout2(uint64 dstva, char *src, uint64 len)
 {
-  uint64 sz = myproc()->sz;
-  if (dstva + len > sz || dstva >= sz) {
+  if (partofseg(myproc()->segment, dstva, dstva + len) == NONE) {
     return -1;
   }
   return safememmove((void *)dstva, src, len);
@@ -744,8 +751,7 @@ copyin(pagetable_t pagetable, char *dst, uint64 srcva, uint64 len)
 int
 copyin2(char *dst, uint64 srcva, uint64 len)
 {
-  uint64 sz = myproc()->sz;
-  if (srcva + len > sz || srcva >= sz) {
+  if (partofseg(myproc()->segment, srcva, srcva + len) == NONE) {
     return -1;
   }
   return safememmove(dst, (void *)srcva, len);
@@ -797,12 +803,12 @@ copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max)
 int
 copyinstr2(char *dst, uint64 srcva, uint64 max)
 {
-	uint64 sz = myproc()->sz;
-	if (srcva >= sz)
+  struct seg *seg = locateseg(myproc()->segment, srcva);
+	if (seg == NULL)
 		return -1;
   
 	// max is given by kernel, we should also check the max of user
-	uint64 umax = sz - srcva;
+	uint64 umax = seg->addr + seg->sz - srcva;
 	max = (max <= umax) ? max : umax;
 	if (copyin2(dst, srcva, max) < 0) {
 		return -1;
@@ -855,6 +861,7 @@ static int handle_store_page_fault_cow(pte_t *ptep)
 	pte_t pte = *ptep;
 	uint64 pa = PTE2PA(pte);
 
+	__debug_info("handle_store_page_fault_cow", "dst=%p\n", pa);
 	if (monopolizepage(pa)) {    // Only this process holds this page.
 		pte |= PTE_W;
 	} else {
@@ -878,39 +885,44 @@ static int handle_store_page_fault_cow(pte_t *ptep)
 
 static int handle_page_fault_lazy(uint64 badaddr)
 {
-	// __debug_info("handle_page_fault_lazy", "badaddr=%p\n", badaddr);
+	__debug_info("handle_page_fault_lazy", "badaddr=%p\n", badaddr);
 	struct proc *p = myproc();
 
 	uint64 pa = PGROUNDDOWN(badaddr);  // in uvmalloc(), oldsz will round up
-	if (uvmalloc(p->pagetable, pa, pa + PGSIZE, PTE_W|PTE_R|PTE_X) == 0)
+	if (uvmalloc(p->pagetable, pa, pa + PGSIZE, PTE_W|PTE_R|PTE_X) == 0) {
+	  __debug_error("handle_page_fault_lazy", "fail\n");
   	return -1;
+  }
 
 	sfence_vma();
+  __debug_info("handle_page_fault_lazy", "success\n");
 	return 0;
 }
 
 /**
- * @param   type      load-0 | store-1 | access-2
+ * @param   kind      load-0 | store-1 | access-2 | 
  * @param   badaddr   the stval
  */
 int handle_page_fault(int kind, uint64 badaddr)
 {
 	struct proc *p = myproc();
 	// In later implement, we will handle badaddr at heap, mmap zoom and wherever a COW page
-	// int section; // Get from new module that is being written
-	enum segtype type = typeofseg(p->segment, badaddr);
-	if (type == NONE) {
+	struct seg *seg = locateseg(p->segment, badaddr);
+	if (seg == NULL) {
 		return -1;
-	}
-	else if (type == HEAP) {     // a lazy-alloction
-		return handle_page_fault_lazy(badaddr);
 	}
 
 	pte_t *pte = walk(p->pagetable, badaddr, 0);
-	// __debug_info("handle_store_page_fault", 
-	// 			"\nbadaddr=%p, pte=%p, *pte=%p\n", badaddr, pte, pte == NULL ? 0 : *pte);
-	if (kind == 1 && (*pte & PTE_COW)) { // mapped and store-type, might be a COW fault
+	__debug_info("handle_page_fault", 
+				"\nbadaddr=%p, pte=%p, *pte=%p, kind=%d, segtype=%d\n",
+        badaddr, pte, pte == NULL ? 0 : *pte, kind, seg->type);
+
+	if (kind == 1 && pte && (*pte & PTE_COW)) {
+    // mapped and store-type, might be a COW fault
 		return handle_store_page_fault_cow(pte);
+	}
+  if (seg->type == HEAP) {     // a lazy-alloction
+		return handle_page_fault_lazy(badaddr);
 	}
 
 	return -1;

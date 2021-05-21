@@ -87,11 +87,11 @@ int execve(char *path, char **argv, char **envp)
 {
   struct dirent *ep = NULL;
   pagetable_t pagetable = NULL;
-  uint64 sz = 0;
+  struct seg *seghead = NULL, *seg;
   struct proc *p = myproc();
-
+  __debug_info("execve", "in\n");
   if ((ep = ename(path)) == NULL) {
-    __debug_error("exec", "can't open %s\n", path);
+    __debug_error("execve", "can't open %s\n", path);
     goto bad;
   }
   elock(ep);
@@ -113,6 +113,7 @@ int execve(char *path, char **argv, char **envp)
 
   // Load program into memory.
   struct proghdr ph;
+  int flags;
   for (int i = 0, off = elf.phoff; i < elf.phnum; i++, off += sizeof(ph)) {
     if (eread(ep, 0, (uint64)&ph, off, sizeof(ph)) != sizeof(ph))
       goto bad;
@@ -121,37 +122,27 @@ int execve(char *path, char **argv, char **envp)
     if (ph.vaddr % PGSIZE != 0 || ph.memsz < ph.filesz || ph.vaddr + ph.memsz < ph.vaddr)
       goto bad;
     
-    /*---------------------------*/
-    /* TODO:
-    Call to usrmm to get a segment struct and allocate some pages
-    How to allocate the first struct seg? Do we need a sentry?
-    
-    Arguments that may be used:
-
-    pagetable
-    ph.vaddr
-    ph.memsz
-    ph.flags    // define in elf.h: R|W|E(X) ==(translate to)==> PTE_R|PTE_W|PTE_X
-    
-    
     // Original Code:
     // uint64 sz1;
     // if ((sz1 = uvmalloc(pagetable, sz, ph.vaddr + ph.memsz, PTE_W|PTE_X|PTE_R)) == 0)
     //   goto bad;
     // sz = sz1; 
-    */
-    /*---------------------------*/
-    
-    /*---------------------------*/
+
     // temporary refinement
     // turn ELF flags to PTE flags
-    long flags = 0;
+    flags = 0;
     flags |= (ph.flags & ELF_PROG_FLAG_EXEC) ? PTE_X : 0;
     flags |= (ph.flags & ELF_PROG_FLAG_WRITE) ? PTE_W : 0;
     flags |= (ph.flags & ELF_PROG_FLAG_READ) ? PTE_R : 0;
 
-    if(newseg(p->pagetable, p->segment, LOAD, ph.vaddr, sz, flags) == -1)
+    __debug_info("execve", "newseg in\n");
+    seg = newseg(pagetable, seghead, LOAD, ph.vaddr, ph.memsz, flags);
+    __debug_info("execve", "newseg out\n");
+    if(seg == NULL) {
+      __debug_error("execve", "newseg fail: vaddr=%p, memsz=%d\n", ph.vaddr, ph.memsz);
       goto bad;
+    }
+    seghead = seg;
     /*---------------------------*/
 
     if (loadseg(pagetable, ph.vaddr, ep, ph.off, ph.filesz) < 0)
@@ -163,39 +154,51 @@ int execve(char *path, char **argv, char **envp)
   eput(ep);
   ep = 0;
 
-
-
   /*---------------------------*/
   /* TODO:
   Call to usrmm to get a STACK segment struct and allocate pages
   The problem is how to locate the stack, may we can place it near MAXUVA
   */
-
-
-
   // Original Code:
   // Allocate two pages at the next page boundary.
   // Use the second as the user stack.
   // Clear the PTE_U mark of the first page under the stack as a protection.
-  sz = PGROUNDUP(sz);
-  uint64 sz1;
-  long flags = PTE_R | PTE_W;
   // if ((sz1 = uvmalloc(pagetable, sz, sz + 2 * PGSIZE, PTE_W|PTE_R|PTE_X)) == 0)
-  if(newseg(p->pagetable, p->segment, STACK, MAXUVA, sz, flags) == -1)
+  // Heap
+  flags = PTE_R | PTE_W;
+  for (seg = seghead; seg->next != NULL; seg = seg->next);
+    __debug_info("execve", "making heap, start=%p\n", PGROUNDUP(seg->addr + seg->sz));
+  seg = newseg(pagetable, seghead, HEAP, PGROUNDUP(seg->addr + seg->sz), 0, flags);
+  if(seg == NULL) {
+    __debug_error("execve", "new heap fail\n");
     goto bad;
-  sz = sz1;
-  uvmclear(pagetable, sz - 2 * PGSIZE);
+  }
+  seghead = seg;
 
+    __debug_info("execve", "making stack\n");
+  // Stack
+  seg = newseg(pagetable, seghead, STACK, VUSTACK - PGSIZE, PGSIZE, flags);
+  if(seg == NULL) {
+    __debug_error("execve", "new stack fail\n");
+    goto bad;
+  }
+  seghead = seg;
+  // uvmclear(pagetable, sz - 2 * PGSIZE);
+
+  __debug_info("execve", "pushing stack\n");
   /* If the stack is located, we can assign sp */
-  uint64 sp = sz;
-  uint64 stackbase = sp - PGSIZE;
+  uint64 sp = VUSTACK;
+  uint64 stackbase = VUSTACK - PGSIZE;
 
   sp -= sizeof(uint64);
   sp -= sp % 16;        // on risc-v, sp should be 16-byte aligned
   // Place a null at the bottom of user stack, ep is 0 now, borrow it.
-  if (copyout(pagetable, sp, (char *)&ep, sizeof(uint64)) < 0)
+  if (copyout(pagetable, sp, (char *)&ep, sizeof(uint64)) < 0) {
+    __debug_error("execve", "fail to push bottom NULL into user stack\n");
     goto bad;
+  }
 
+  __debug_info("execve", "pushing argv/envp\n");
   // arguments to user main(argc, argv, envp)
   // argc is returned via the system call return
   // value, which goes in a0.
@@ -203,7 +206,7 @@ int execve(char *path, char **argv, char **envp)
   uint64 uargv[MAXARG + 1], uenvp[MAXENV + 1];
   if ((envc = pushstack(pagetable, uenvp, envp, MAXENV, &sp)) < 0 ||
       (argc = pushstack(pagetable, uargv, argv, MAXARG, &sp)) < 0) {
-    // __debug_error("exec", "fail to push argv or envp into user stack\n");
+    __debug_error("execve", "fail to push argv or envp into user stack\n");
     goto bad;
   }
   sp -= (envc + 1) * sizeof(uint64);
@@ -211,10 +214,14 @@ int execve(char *path, char **argv, char **envp)
   uint64 a2 = sp;
   sp -= (argc + 1) * sizeof(uint64);
   sp -= sp % 16;
+  __debug_info("execve", "pushing argv/envp table\n");
   if (sp < stackbase || 
       copyout(pagetable, a2, (char *)uenvp, (envc + 1) * sizeof(uint64)) < 0 ||
       copyout(pagetable, sp, (char *)uargv, (argc + 1) * sizeof(uint64)) < 0)
+  {
+    __debug_error("execve", "fail to copy argv/envp table into user stack\n");
     goto bad;
+  }
   p->trapframe->a1 = sp;
   p->trapframe->a2 = a2;
 
@@ -223,9 +230,9 @@ int execve(char *path, char **argv, char **envp)
 
   // Commit to the user image.
   pagetable_t oldpagetable = p->pagetable;
-  uint64 oldsz = p->sz;
+  seg = p->segment;
   p->pagetable = pagetable;
-  p->sz = sz;
+  p->segment = seghead;
   p->trapframe->epc = elf.entry;  // initial program counter = main
   p->trapframe->sp = sp; // initial stack pointer
 
@@ -247,14 +254,19 @@ int execve(char *path, char **argv, char **envp)
   */
   /*---------------------------*/
   // temporary refinement
-  delsegs(p->pagetable, p->segment);
+  delsegs(oldpagetable, seg);
   /*---------------------------*/
 
+  uvmfree(oldpagetable);
   freepage(oldpagetable);
 
   return argc; // this ends up in a0, the first argument to main(argc, argv)
 
  bad:
+  __debug_error("execve", "reach bad: seg=%p, pt=%p, ep=%p\n", seghead, pagetable, ep);
+  if (seghead) {
+    delsegs(pagetable, seghead);
+  }
   if (pagetable) {
     uvmfree(pagetable);
     freepage(pagetable);

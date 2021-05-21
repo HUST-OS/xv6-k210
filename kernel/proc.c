@@ -16,6 +16,8 @@
 #include "include/file.h"
 #include "include/trap.h"
 #include "include/vm.h"
+#include "include/usrmm.h"
+#include "include/kmalloc.h"
 #include "include/debug.h"
 
 struct cpu cpus[NCPU];
@@ -129,6 +131,7 @@ found:
 
   p->chan = NULL;
   p->killed = 0;
+  p->segment = NULL;
 
   // Allocate a trapframe page.
   if((p->trapframe = (struct trapframe *)allocpage()) == NULL){
@@ -167,9 +170,9 @@ freeproc(struct proc *p)
     freepage((void*)p->trapframe);
   p->trapframe = 0;
   if(p->pagetable)
-    proc_freepagetable(p->pagetable, p->sz);
+    proc_freepagetable(p->pagetable, p->segment);
   p->pagetable = 0;
-  p->sz = 0;
+  p->segment = 0;
   p->pid = 0;
   p->parent = 0;
   p->name[0] = 0;
@@ -214,11 +217,12 @@ proc_pagetable(struct proc *p)
 // Free a process's page table, and free the
 // physical memory it refers to.
 void
-proc_freepagetable(pagetable_t pagetable, uint64 sz)
+proc_freepagetable(pagetable_t pagetable, struct seg *head)
 {
   // unmappages(pagetable, TRAMPOLINE, 1, 0, 0);
   unmappages(pagetable, TRAPFRAME, 1, 0);
-  uvmfree(pagetable, sz);
+  delsegs(pagetable, head);
+  uvmfree(pagetable);
   kvmfree(pagetable, 1);
 }
 
@@ -294,7 +298,12 @@ userinit(void)
   // allocate one user page and copy init's instructions
   // and data into it.
   uvminit(p->pagetable, initcode, sizeof(initcode));
-  p->sz = PGSIZE;
+  struct seg *s = kmalloc(sizeof(struct seg));
+  s->addr = 0;
+  s->sz = PGSIZE;
+  s->next = NULL;
+  s->type = LOAD;
+  p->segment = s;
 
   // prepare for the very first "return" from kernel to user.
   p->trapframe->epc = 0x0;      // user program counter
@@ -317,18 +326,27 @@ userinit(void)
 int
 growproc(int n)
 {
-  uint sz;
   struct proc *p = myproc();
 
-  sz = p->sz;
+  struct seg *heap = getseg(p->segment, HEAP);
+  struct seg *stack = heap->next;
+
+  uint64 oldva = heap->addr + heap->sz;
+  uint64 newva = oldva + n;
+
   if(n > 0){
-    if((sz = uvmalloc(p->pagetable, sz, sz + n, PTE_W|PTE_R|PTE_X)) == 0) {
+    if (newva > stack->addr - stack->sz ||
+        uvmalloc(p->pagetable, oldva, newva, PTE_W|PTE_R) == 0) {
       return -1;
     }
   } else if(n < 0){
-    sz = uvmdealloc(p->pagetable, sz, sz + n);
+    if (newva < heap->addr || newva > oldva) {
+      newva = heap->addr;
+    }
+
+    uvmdealloc(p->pagetable, newva, oldva, HEAP);
   }
-  p->sz = sz;
+  heap->sz += n;
   return 0;
 }
 
@@ -393,13 +411,24 @@ int fork_cow(void)
     return -1;
   }
 
-  // Copy user memory from parent to child.
-  if (uvmcopy_cow(p->pagetable, np->pagetable, 0, p->sz) < 0) {
-    freeproc(np);
-    release(&np->lock);
-    return -1;
+  struct seg *seg;
+  struct seg **s2 = &np->segment;
+  for (seg = p->segment; seg != NULL; seg = seg->next) {
+    struct seg *s = kmalloc(sizeof(struct seg));
+    if (s == NULL) {
+      goto fail;
+    }
+    // Copy user memory from parent to child.
+    // __debug_info("fork_cow", "type=%d start=%p end=%p\n", seg->type, start, end);
+    if (uvmcopy_cow(p->pagetable, np->pagetable, seg->addr, seg->addr + seg->sz, seg->type) < 0) {
+      kfree(s);
+      goto fail;
+    }
+    memmove(s, seg, sizeof(struct seg));
+    s->next = NULL;
+    *s2 = s;
+    s2 = &s->next;
   }
-  np->sz = p->sz;
 
   np->parent = p;
 
@@ -427,6 +456,11 @@ int fork_cow(void)
   release(&np->lock);
 
   return pid;
+
+fail:
+  freeproc(np);
+  release(&np->lock);
+  return -1;
 }
 
 // Pass p's abandoned children to init.
@@ -817,7 +851,7 @@ procdump(void)
   struct proc *p;
   char *state;
 
-  printf("\nPID\tSTATE\tNAME\tMEM\n");
+  printf("\nPID\tLOAD\tHEAP\tSTATE\tNAME\n");
   for(p = proc; p < &proc[NPROC]; p++){
     if(p->state == UNUSED)
       continue;
@@ -825,7 +859,17 @@ procdump(void)
       state = states[p->state];
     else
       state = "???";
-    printf("%d\t%s\t%s\t%d", p->pid, state, p->name, p->sz);
+
+    uint64 load = 0, heap = 0;
+    for (struct seg *s = p->segment; s != NULL; s = s->next) {
+      if (s->type == LOAD) {
+        load += s->sz;
+      } else if (s->type == HEAP) {
+        heap = s->sz;
+      }
+    }
+
+    printf("%d\t%d\t%d\t%s\t%s", p->pid, load, heap, state, p->name);
     printf("\n");
   }
 }

@@ -192,7 +192,12 @@ w_mtvec(uint64 x)
 // use riscv's sv39 page table scheme.
 #define SATP_SV39 (8L << 60)
 
+#ifdef QEMU
 #define MAKE_SATP(pagetable) (SATP_SV39 | (((uint64)pagetable) >> 12))
+#else
+#define MAKE_SATP(pagetable) (0x3fffffffff & (((uint64)pagetable) >> 12))
+#endif
+
 
 // supervisor address translation and protection;
 // holds the address of the page table.
@@ -335,7 +340,15 @@ sfence_vma()
 {
   // the zero, zero means flush all TLB entries.
   // asm volatile("sfence.vma zero, zero");
+  #ifdef QEMU
   asm volatile("sfence.vma");
+  #else
+  asm volatile("fence");
+  asm volatile("fence.i");
+  asm volatile(".word 0x10400073");
+  asm volatile("fence");
+  asm volatile("fence.i");
+  #endif
 }
 
 

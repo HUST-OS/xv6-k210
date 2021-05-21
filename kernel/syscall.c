@@ -9,6 +9,7 @@
 #include "include/sysinfo.h"
 #include "include/pm.h"
 #include "include/vm.h"
+#include "include/usrmm.h"
 #include "include/string.h"
 #include "include/printf.h"
 
@@ -17,7 +18,8 @@ int
 fetchaddr(uint64 addr, uint64 *ip)
 {
   struct proc *p = myproc();
-  if(addr >= p->sz || addr+sizeof(uint64) > p->sz)
+
+  if (partofseg(p->segment, addr, addr + sizeof(uint64)) == NONE)
     return -1;
   // if(copyin(p->pagetable, (char *)ip, addr, sizeof(*ip)) != 0)
   if(copyin2((char *)ip, addr, sizeof(*ip)) != 0)

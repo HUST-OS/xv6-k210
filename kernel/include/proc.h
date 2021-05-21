@@ -56,7 +56,7 @@ struct proc {
 
   // these are private to the process, so p->lock need not be held.
   uint64 kstack;               // Virtual address of kernel stack
-  uint64 sz;                   // Size of process memory (bytes)
+  // uint64 sz;                   // Size of process memory (bytes)
   pagetable_t pagetable;       // page table
   struct seg *segment;         // first seg list node
   struct trapframe *trapframe; // data page for trampoline.S
@@ -74,7 +74,7 @@ int             fork(void);
 int             growproc(int);
 pagetable_t     proc_pagetable(struct proc *);
 pagetable_t     proc_kpagetable(struct proc *p);
-void            proc_freepagetable(pagetable_t, uint64);
+void            proc_freepagetable(pagetable_t, struct seg *);
 int             kill(int);
 struct cpu*     mycpu(void);
 struct cpu*     getmycpu(void);

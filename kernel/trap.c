@@ -49,7 +49,6 @@ trapinithart(void)
   // enable supervisor-mode timer interrupts.
   w_sie(r_sie() | SIE_SEIE | SIE_SSIE | SIE_STIE);
   set_next_timeout();
-  __debug_info("trap", "safe_escape=%p\n", kern_pgfault_escape());
   #ifdef DEBUG
   printf("trapinithart\n");
   #endif

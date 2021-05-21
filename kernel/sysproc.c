@@ -8,6 +8,7 @@
 #include "include/syscall.h"
 #include "include/timer.h"
 #include "include/pm.h"
+#include "include/usrmm.h"
 #include "include/string.h"
 #include "include/printf.h"
 
@@ -95,16 +96,17 @@ sys_sbrk(void)
     return -1;
   
   struct proc *p = myproc();
-  uint64 addr = p->sz;
+  struct seg *heap = getseg(p->segment, HEAP);
+  uint64 addr = heap->addr + heap->sz;
   if (n < 0) {
     if (growproc(n) < 0)  // growproc takes care of p->sz
       return -1;
   } else {                // lazy page allocation
-    uint64 newsz = addr + n;
-    if (newsz > MAXUVA) {
+    struct seg *stack = heap->next;
+    if (addr + n > stack->addr - stack->sz) {
       return -1;
     }
-    p->sz = newsz;
+    heap->sz += n;
   }
   return addr;
 }

@@ -39,7 +39,8 @@ OBJS += \
   $K/disk.o \
   $K/fat32.o \
   $K/plic.o \
-  $K/console.o
+  $K/console.o \
+  $K/usrmm.o
 
 ifeq ($(platform), k210)
 OBJS += \
@@ -224,13 +225,7 @@ fs: $(UPROGS)
 		dd if=/dev/zero of=fs.img bs=512k count=512; \
 		mkfs.vfat -F 32 fs.img; fi
 	@sudo mount fs.img $(dst)
-	@if [ ! -d "$(dst)/bin" ]; then sudo mkdir $(dst)/bin; fi
-	@for file in $$( ls $U/_* ); do \
-		sudo cp $$file $(dst)/bin/$${file#$U/_}; done
-	@sudo cp $U/_init $(dst)/init
-	@sudo cp $U/_sh $(dst)/sh
-	@sudo cp $U/shrc $(dst)/shrc
-	@sudo cp README $(dst)/README
+	@make sdcard dst=$(dst)
 	@sudo umount $(dst)
 
 # Write sdcard mounted at $dst
@@ -241,6 +236,7 @@ sdcard: userprogs
 	@sudo cp $U/_init $(dst)/init
 	@sudo cp $U/_sh $(dst)/sh
 	@sudo cp $U/shrc $(dst)/shrc
+	@sudo cp $U/_echo $(dst)/echo
 	@sudo cp README $(dst)/README
 
 clean: 

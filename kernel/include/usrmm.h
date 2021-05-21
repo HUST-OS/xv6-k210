@@ -1,13 +1,14 @@
 #ifndef __USRMM_H
 #define __USRMM_H
 
-#include "riscv.h"
 #include "types.h"
+#include "riscv.h"
 
 enum segtype { NONE, LOAD, TEXT, DATA, BSS, HEAP, MMAP, STACK };
 
 struct seg{
   enum segtype type;
+  int flag;
   uint64 addr;
   uint64 sz;
   struct seg *next;
@@ -36,6 +37,37 @@ struct seg* newseg(pagetable_t pagetable, struct seg *head, enum segtype type, u
  * @return    the type
  */
 enum segtype typeofseg(struct seg *head, uint64 addr);
+
+/**
+ * @brief for the given range, check which seg it falls in.
+ * 
+ * @param[in] head      the segment list head
+ * @param[in] start     start of the range
+ * @param[in] end       end of the range (not included)
+ * 
+ * @return the segment type the range falls in.
+ */
+enum segtype partofseg(struct seg *head, uint64 start, uint64 end);
+
+/**
+ * @brief get the segment in a seglist specified by type
+ * 
+ * @param[in] head      the segment list head
+ * @param[in] type      segment type
+ * 
+ * @return the segment with type or NULL
+ */
+struct seg *getseg(struct seg *head, enum segtype type);
+
+/**
+ * @brief get the segment in a seglist specified by address
+ * 
+ * @param[in] head      the segment list head
+ * @param[in] addr      the address
+ * 
+ * @return the segment which the address located in, or NULL if not in any segment
+ */
+struct seg *locateseg(struct seg *head, uint64 addr);
 
 /**
  * @brief free the memory referenced by pre and set the sz to 0

@@ -54,18 +54,24 @@ struct {
 int
 consolewrite(int user_src, uint64 src, int n)
 {
-  int i;
+  int m, tot;
+  char outbuf[INPUT_BUF];
 
   acquire(&cons.lock);
-  for(i = 0; i < n; i++){
-    char c;
-    if(either_copyin(&c, user_src, src+i, 1) == -1)
+  for (tot = 0; tot < n; tot += m, src += m) {
+    m = n - tot;  // left count
+    if (m > INPUT_BUF) {
+      m = INPUT_BUF;
+    }
+    if(either_copyin(outbuf, user_src, src, m) == -1)
       break;
-    sbi_console_putchar(c);
+    for (int i = 0; i < m; i++) {
+      sbi_console_putchar(outbuf[i]);
+    }
   }
   release(&cons.lock);
 
-  return i;
+  return tot;
 }
 
 //

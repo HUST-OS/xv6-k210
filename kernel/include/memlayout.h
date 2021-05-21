@@ -112,6 +112,7 @@
 // each surrounded by invalid guard pages.
 // #define KSTACK(p)               (TRAMPOLINE - ((p) + 1) * 2 * PGSIZE)
 #define VKSTACK                 0x3EC0000000L
+#define VUSTACK                 (RUSTSBI_BASE - PGSIZE)
 
 // User memory layout.
 // Address zero first:
