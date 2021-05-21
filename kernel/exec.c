@@ -8,7 +8,7 @@
 #include "include/riscv.h"
 #include "include/proc.h"
 #include "include/elf.h"
-#include "include/fat32.h"
+#include "include/fs.h"
 #include "include/pm.h"
 #include "include/vm.h"
 #include "include/usrmm.h"
@@ -22,7 +22,7 @@
 // and the pages from va to va+sz must already be mapped.
 // Returns 0 on success, -1 on failure.
 static int
-loadseg(pagetable_t pagetable, uint64 va, struct dirent *ep, uint offset, uint sz)
+loadseg(pagetable_t pagetable, uint64 va, struct inode *ip, uint offset, uint sz)
 {
   uint i, n;
   uint64 pa;
@@ -37,7 +37,7 @@ loadseg(pagetable_t pagetable, uint64 va, struct dirent *ep, uint offset, uint s
       n = sz - i;
     else
       n = PGSIZE;
-    if(eread(ep, 0, (uint64)pa, offset+i, n) != n)
+    if(ip->fop->read(ip, 0, (uint64)pa, offset + i, n) != n)
       return -1;
   }
 
@@ -85,20 +85,20 @@ bad:
 // All argvs are pointers came from user space, and should be checked by sys_caller
 int execve(char *path, char **argv, char **envp)
 {
-  struct dirent *ep = NULL;
+  struct inode *ip = NULL;
   pagetable_t pagetable = NULL;
   struct seg *seghead = NULL, *seg;
   struct proc *p = myproc();
-  __debug_info("execve", "in\n");
-  if ((ep = ename(path)) == NULL) {
+
+  if ((ip = namei(path)) == NULL) {
     __debug_warn("execve", "can't open %s\n", path);
     goto bad;
   }
-  elock(ep);
+  ilock(ip);
 
   // Check ELF header
   struct elfhdr elf;
-  if (eread(ep, 0, (uint64) &elf, 0, sizeof(elf)) != sizeof(elf) || elf.magic != ELF_MAGIC)
+  if (ip->fop->read(ip, 0, (uint64) &elf, 0, sizeof(elf)) != sizeof(elf) || elf.magic != ELF_MAGIC)
     goto bad;
 
   // Make a copy of p->pagetable without old user space, 
@@ -115,7 +115,7 @@ int execve(char *path, char **argv, char **envp)
   struct proghdr ph;
   int flags;
   for (int i = 0, off = elf.phoff; i < elf.phnum; i++, off += sizeof(ph)) {
-    if (eread(ep, 0, (uint64)&ph, off, sizeof(ph)) != sizeof(ph)) {
+    if (ip->fop->read(ip, 0, (uint64)&ph, off, sizeof(ph)) != sizeof(ph)) {
       __debug_warn("execve", "fail to read ELF file\n");
       goto bad;
     }
@@ -139,18 +139,22 @@ int execve(char *path, char **argv, char **envp)
       __debug_warn("execve", "newseg fail: vaddr=%p, memsz=%d\n", ph.vaddr, ph.memsz);
       goto bad;
     }
+
     seghead = seg;
 
-    if (loadseg(pagetable, ph.vaddr, ep, ph.off, ph.filesz) < 0) {
+    if (loadseg(pagetable, ph.vaddr, ip, ph.off, ph.filesz) < 0) {
       __debug_warn("execve", "load segment\n");
       goto bad;
     }
   }
+
+  struct stat st;
+  ip->op->getattr(ip, &st);
   char pname[16];
-  safestrcpy(pname, ep->filename, sizeof(pname));
-  eunlock(ep);
-  eput(ep);
-  ep = 0;
+  safestrcpy(pname, st.name, sizeof(pname));
+  iunlock(ip);
+  iput(ip);
+  ip = 0;
 
   /*---------------------------*/
   /* TODO:
@@ -190,8 +194,8 @@ int execve(char *path, char **argv, char **envp)
 
   sp -= sizeof(uint64);
   sp -= sp % 16;        // on risc-v, sp should be 16-byte aligned
-  // Place a null at the bottom of user stack, ep is 0 now, borrow it.
-  if (copyout(pagetable, sp, (char *)&ep, sizeof(uint64)) < 0) {
+
+  if (copyout(pagetable, sp, (char *)&ip, sizeof(uint64)) < 0) {  // *ep is 0 now, borrow it
     __debug_warn("execve", "fail to push bottom NULL into user stack\n");
     goto bad;
   }
@@ -246,6 +250,7 @@ int execve(char *path, char **argv, char **envp)
 
  bad:
   __debug_warn("execve", "reach bad: seg=%p, pt=%p, ep=%p\n", seghead, pagetable, ep);
+  __debug_warn("execve", "reach bad: seg=%p, pt=%p, ep=%p\n", seghead, pagetable, ep);
   if (seghead) {
     delsegs(pagetable, seghead);
   }
@@ -253,9 +258,9 @@ int execve(char *path, char **argv, char **envp)
     uvmfree(pagetable);
     freepage(pagetable);
   }
-  if (ep) {
-    eunlock(ep);
-    eput(ep);
+  if (ip) {
+    iunlock(ip);
+    iput(ip);
   }
   return -1;
 }

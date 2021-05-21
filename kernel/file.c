@@ -8,7 +8,7 @@
 #include "include/param.h"
 #include "include/spinlock.h"
 #include "include/sleeplock.h"
-#include "include/fat32.h"
+#include "include/fs.h"
 #include "include/file.h"
 #include "include/pipe.h"
 #include "include/stat.h"
@@ -99,8 +99,8 @@ fileclose(struct file *f)
 
   if(f->type == FD_PIPE){
     pipeclose(f->pipe, f->writable);
-  } else if(f->type == FD_ENTRY){
-    eput(f->ep);
+  } else if (f->type == FD_INODE) {
+    iput(f->ip);
   } else if (f->type == FD_DEVICE) {
 
   }
@@ -115,10 +115,10 @@ filestat(struct file *f, uint64 addr)
   // struct proc *p = myproc();
   struct stat st;
   
-  if(f->type == FD_ENTRY){
-    elock(f->ep);
-    estat(f->ep, &st);
-    eunlock(f->ep);
+  if(f->type == FD_INODE){
+    ilock(f->ip);
+    f->ip->op->getattr(f->ip, &st);
+    iunlock(f->ip);
     // if(copyout(p->pagetable, addr, (char *)&st, sizeof(st)) < 0)
     if(copyout2(addr, (char *)&st, sizeof(st)) < 0)
       return -1;
@@ -133,6 +133,7 @@ int
 fileread(struct file *f, uint64 addr, int n)
 {
   int r = 0;
+  struct inode *ip;
 
   if(f->readable == 0)
     return -1;
@@ -146,11 +147,12 @@ fileread(struct file *f, uint64 addr, int n)
           return -1;
         r = devsw[f->major].read(1, addr, n);
         break;
-    case FD_ENTRY:
-        elock(f->ep);
-          if((r = eread(f->ep, 1, addr, f->off, n)) > 0)
+    case FD_INODE:
+        ip = f->ip;
+        ilock(ip);
+          if((r = ip->fop->read(ip, 1, addr, f->off, n)) > 0)
             f->off += r;
-        eunlock(f->ep);
+        iunlock(ip);
         break;
     default:
       panic("fileread");
@@ -175,15 +177,16 @@ filewrite(struct file *f, uint64 addr, int n)
     if(f->major < 0 || f->major >= NDEV || !devsw[f->major].write)
       return -1;
     ret = devsw[f->major].write(1, addr, n);
-  } else if(f->type == FD_ENTRY){
-    elock(f->ep);
-    if (ewrite(f->ep, 1, addr, f->off, n) == n) {
+  } else if(f->type == FD_INODE){
+    struct inode *ip = f->ip;
+    ilock(ip);
+    if (ip->fop->write(ip, 1, addr, f->off, n) == n) {
       ret = n;
       f->off += n;
     } else {
       ret = -1;
     }
-    eunlock(f->ep);
+    iunlock(ip);
   } else {
     panic("filewrite");
   }
@@ -194,27 +197,27 @@ filewrite(struct file *f, uint64 addr, int n)
 // Read from dir f.
 // addr is a user virtual address.
 int
-dirnext(struct file *f, uint64 addr)
+filereaddir(struct file *f, uint64 addr)
 {
   // struct proc *p = myproc();
-
-  if(f->readable == 0 || !(f->ep->attribute & ATTR_DIRECTORY))
+  if (f->type != FD_INODE || f->readable == 0)
     return -1;
 
-  struct dirent de;
   struct stat st;
-  int count = 0;
-  int ret;
-  elock(f->ep);
-  while ((ret = enext(f->ep, &de, f->off, &count)) == 0) {  // skip empty entry
-    f->off += count * 32;
-  }
-  eunlock(f->ep);
-  if (ret == -1)
-    return 0;
+  struct inode *ip = f->ip;
 
-  f->off += count * 32;
-  estat(&de, &st);
+  ip->op->getattr(ip, &st);
+  if(st.type != T_DIR)
+    return -1;
+
+  int ret;
+  ilock(ip);
+  ret = ip->fop->readdir(ip, &st, f->off);
+  iunlock(ip);
+  if (ret <= 0) // 0 is end, -1 is err
+    return ret;
+
+  f->off += ret;
   // if(copyout(p->pagetable, addr, (char *)&st, sizeof(st)) < 0)
   if(copyout2(addr, (char *)&st, sizeof(st)) < 0)
     return -1;

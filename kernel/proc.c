@@ -12,7 +12,7 @@
 #include "include/pm.h"
 #include "include/printf.h"
 #include "include/string.h"
-#include "include/fat32.h"
+#include "include/fs.h"
 #include "include/file.h"
 #include "include/trap.h"
 #include "include/vm.h"
@@ -445,7 +445,7 @@ int fork_cow(void)
   for(i = 0; i < NOFILE; i++)
     if(p->ofile[i])
       np->ofile[i] = filedup(p->ofile[i]);
-  np->cwd = edup(p->cwd);
+  np->cwd = idup(p->cwd);
 
   safestrcpy(np->name, p->name, sizeof(p->name));
 
@@ -509,7 +509,7 @@ exit(int status)
     }
   }
 
-  eput(p->cwd);
+  iput(p->cwd);
   p->cwd = 0;
 
   // we might re-parent a child to init. we can't be precise about
@@ -710,8 +710,8 @@ forkret(void)
     // be run from main().
     // printf("[forkret]first scheduling\n");
     first = 0;
-    fat32_init();
-    myproc()->cwd = ename("/");
+    rootfs_init();
+    myproc()->cwd = namei("/");
   }
 
   usertrapret();

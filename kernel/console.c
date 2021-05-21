@@ -146,11 +146,11 @@ consoleintr(int c)
     procdump();
     break;
   case C('E'):  // Print file-entry list.
-    eprint();
+    rootfs_print();
     break;
-  // case C('M'):  // Print mem-alloc list.
-  //   kmview();
-  //   break;
+  case C('K'):  // Print mem-alloc list.
+    kmview();
+    break;
   case C('U'):  // Kill line.
     while(cons.e != cons.w &&
           cons.buf[(cons.e-1) % INPUT_BUF] != '\n'){

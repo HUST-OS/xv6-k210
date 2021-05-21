@@ -2,12 +2,12 @@
 #define __FILE_H
 
 struct file {
-  enum { FD_NONE, FD_PIPE, FD_ENTRY, FD_DEVICE } type;
+  enum { FD_NONE, FD_PIPE, FD_INODE, FD_DEVICE } type;
   int ref; // reference count
   char readable;
   char writable;
   struct pipe *pipe; // FD_PIPE
-  struct dirent *ep;
+  struct inode *ip;
   uint off;          // FD_ENTRY
   short major;       // FD_DEVICE
 };
@@ -33,6 +33,6 @@ struct file*    filedup(struct file*);
 int             fileread(struct file*, uint64, int n);
 int             filestat(struct file*, uint64 addr);
 int             filewrite(struct file*, uint64, int n);
-int             dirnext(struct file *f, uint64 addr);
+int             filereaddir(struct file *f, uint64 addr);
 
 #endif
