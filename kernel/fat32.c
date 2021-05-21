@@ -960,12 +960,13 @@ int fat_read_dir(struct inode *ip, struct stat *st, uint off)
         return -1;
 
     int count = 0;
-    off = off - off % 32;
+    uint off2 = off - off % 32;
 
     struct fat32_entry entry;
     int ret;
-    while ((ret = fat_dir_next(ip, &entry, off, &count)) == 0) {
-        off += count << 5;
+    while ((ret = fat_dir_next(ip, &entry, off2, &count)) == 0) {
+        // Skip empty entries.
+        off2 += count << 5;
     } 
 
     // Meet end of dir
@@ -973,7 +974,8 @@ int fat_read_dir(struct inode *ip, struct stat *st, uint off)
         return 0;
     }
 
-    ret = count << 5;
+    off2 += count << 5;
+    ret = off2 - off;
     fat_stat_entry(&entry, st);
     st->dev = ip->sb->dev;
 
