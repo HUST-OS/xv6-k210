@@ -132,8 +132,8 @@ struct inode *fat32_root_init(struct superblock *sb)
     root->first_clus = root->cur_clus = fat->bpb.root_clus;
     root->clus_cnt = 0;
     root->file_size = 0;
-    root->filename[0] = '/';
-    root->filename[1] = '\0';
+    // root->filename[0] = '/';
+    // root->filename[1] = '\0';
 
     iroot->real_i = root;
     iroot->ref = 0;
@@ -563,7 +563,7 @@ static uint8 cal_checksum(uchar* shortname)
  * @param   ep          entry to write on disk
  * @param   off         offset int the dp, should be calculated via dirlookup before calling this
  */
-int fat_make_entry(struct inode *dir, struct fat32_entry *ep, uint off)
+static int fat_make_entry(struct inode *dir, struct fat32_entry *ep, char *filename, uint off, int islong)
 {
     struct fat32_entry *dp = i2fat(dir);
     if (!(dp->attribute & ATTR_DIRECTORY))
@@ -573,23 +573,19 @@ int fat_make_entry(struct inode *dir, struct fat32_entry *ep, uint off)
 
     union fat_disk_entry de;
     memset(&de, 0, sizeof(de));
-    if (off <= 32) {
-        if (off == 0) {
-            strncpy(de.sne.name, ".          ", sizeof(de.sne.name));
-        } else {
-            strncpy(de.sne.name, "..         ", sizeof(de.sne.name));
-        }
+    if (!islong) {
+        strncpy(de.sne.name, filename, sizeof(de.sne.name));
     } else {
         char shortname[CHAR_SHORT_NAME + 1];
         memset(shortname, 0, sizeof(shortname));
-        generate_shortname(shortname, ep->filename);
+        generate_shortname(shortname, filename);
         de.lne.checksum = cal_checksum((uchar *)shortname);
         de.lne.attr = ATTR_LONG_NAME;
         for (int i = ep->ent_cnt - 1; i > 0; i--) {
             if ((de.lne.order = i) == ep->ent_cnt - 1) {
                 de.lne.order |= LAST_LONG_ENTRY;
             }
-            char *p = ep->filename + (i - 1) * CHAR_LONG_NAME;
+            char *p = filename + (i - 1) * CHAR_LONG_NAME;
             uint8 *w = (uint8 *)de.lne.name1;
             int end = 0;
             for (int j = 1; j <= CHAR_LONG_NAME; j++) {
@@ -671,15 +667,15 @@ struct inode *fat_alloc_entry(struct inode *dir, char *name, int mode)
     ep->clus_cnt = 0;
     ep->cur_clus = 0;
     ep->ent_cnt = (strlen(name) + CHAR_LONG_NAME - 1) / CHAR_LONG_NAME + 1;
-    safestrcpy(ep->filename, name, sizeof(ep->filename));
+    // safestrcpy(ep->filename, name, sizeof(ep->filename));
     ip->real_i = ep;
     reloc_clus(dir, off, 0);
     ip->inum = ((uint64)dp->cur_clus << 32) | (off % sb2fat(sb)->byts_per_clus);
 
     if (mode == T_DIR) {    // generate "." and ".." for ep
         if ((ep->cur_clus = ep->first_clus = alloc_clus(sb)) < 0
-            || fat_make_entry(ip, ep, 0) < 0
-            || fat_make_entry(ip, dp, 32) < 0)
+            || fat_make_entry(ip, ep, ".          ", 0, 0) < 0
+            || fat_make_entry(ip, dp, "..         ", 32, 0) < 0)
         {
             if (ep->first_clus > 0)
                 free_clus(sb, ep->first_clus);
@@ -690,7 +686,7 @@ struct inode *fat_alloc_entry(struct inode *dir, char *name, int mode)
         ep->attribute |= ATTR_ARCHIVE;
     }
 
-    if (fat_make_entry(dir, ep, off) < 0)
+    if (fat_make_entry(dir, ep, name, off, 1) < 0)
         goto fail;
 
     return ip;
@@ -806,19 +802,20 @@ int fat_truncate_file(struct inode *ip)
     return 0;
 }
 
-int fat_stat_entry(struct fat32_entry *ep, struct stat *st)
+int fat_stat_file(struct inode *ip, struct kstat *st)
 {
-    safestrcpy(st->name, ep->filename, sizeof(st->name));
-    st->type = (ep->attribute & ATTR_DIRECTORY) ? T_DIR : T_FILE;
-    st->size = ep->file_size;
-    return 0;
-}
+    struct fat32_entry *ep = i2fat(ip);
+    struct fat32_sb *fat = sb2fat(ip->sb);
 
-int fat_stat_file(struct inode *ip, struct stat *st)
-{
-    int ret = fat_stat_entry(i2fat(ip), st);
+    memset(st, 0, sizeof(struct kstat));
+    st->blksize = fat->byts_per_clus;
+    st->size = ep->file_size;
+    st->blocks = (st->size + st->blksize - 1) / st->blksize;
     st->dev = ip->sb->devnum;
-    return ret;
+    st->ino = ep->first_clus;
+    st->mode = ip->mode;
+
+    return 0;
 }
 
 /**
@@ -878,7 +875,7 @@ static void read_entry_info(struct fat32_entry *entry, union fat_disk_entry *d)
  *          0       find empty slots
  *          1       find a file with all its entries
  */
-int fat_dir_next(struct inode *dir, struct fat32_entry *ep, uint off, int *count)
+int fat_dir_next(struct inode *dir, struct fat32_entry *ep, char *namebuf, uint off, int *count)
 {
     if (dir->state & I_STATE_FREE)
         return -1;
@@ -891,7 +888,7 @@ int fat_dir_next(struct inode *dir, struct fat32_entry *ep, uint off, int *count
 
     union fat_disk_entry de;
     int empty = 0, cnt = 0;
-    memset(ep->filename, 0, sizeof(ep->filename));
+    memset(namebuf, 0, FAT32_MAX_FILENAME + 1);
     for (int off2; (off2 = reloc_clus(dir, off, 0)) != -1; off += sizeof(de))
     {
         if (rw_clus(dir->sb, dp->cur_clus, 0, 0, (uint64)&de, off2, sizeof(de)) != sizeof(de)
@@ -915,11 +912,11 @@ int fat_dir_next(struct inode *dir, struct fat32_entry *ep, uint off, int *count
             } else if (cnt == 0) {    // Should not occur unless some inode is removing this entry
                 goto excep;
             }
-            read_entry_name(ep->filename + (--cnt - 1) * CHAR_LONG_NAME, &de);
+            read_entry_name(namebuf + (--cnt - 1) * CHAR_LONG_NAME, &de);
         } else {
             if (cnt == 0) {     // Without l-n-e
                 *count = 1;
-                read_entry_name(ep->filename, &de);
+                read_entry_name(namebuf, &de);
             }
             read_entry_info(ep, &de);
             return 1;
@@ -937,7 +934,7 @@ excep:
  * Read a directory from off, and stat the next file. Skip empty entries.
  * @return  bytes that the entries take up, or 0 if no entries 
  */
-int fat_read_dir(struct inode *ip, struct stat *st, uint off)
+int fat_read_dir(struct inode *ip, struct dirent *dent, uint off)
 {
     if (!(i2fat(ip)->attribute & ATTR_DIRECTORY))
         return -1;
@@ -947,20 +944,21 @@ int fat_read_dir(struct inode *ip, struct stat *st, uint off)
 
     struct fat32_entry entry;
     int ret;
-    while ((ret = fat_dir_next(ip, &entry, off2, &count)) == 0) {
+    while ((ret = fat_dir_next(ip, &entry, dent->name, off2, &count)) == 0) {
         // Skip empty entries.
         off2 += count << 5;
-    } 
+    }
 
     // Meet end of dir
     if (ret < 0) {
         return 0;
     }
+    ret = off2 + (count << 5) - off;
 
-    off2 += count << 5;
-    ret = off2 - off;
-    fat_stat_entry(&entry, st);
-    st->dev = ip->sb->devnum;
+    dent->ino = entry.first_clus;
+    dent->off = off2;
+    dent->reclen = strlen(dent->name);
+    dent->type = (entry.attribute & ATTR_DIRECTORY) ? T_DIR : T_FILE;
 
     return ret;
 }
@@ -993,14 +991,15 @@ static struct fat32_entry *fat_lookup_dir_ent(struct inode *dir, char *filename,
     int count = 0;
     int type;
     uint off = 0;
+    char namebuf[FAT32_MAX_FILENAME + 1];
     reloc_clus(dir, 0, 0);
-    while ((type = fat_dir_next(dir, ep, off, &count) != -1)) {
+    while ((type = fat_dir_next(dir, ep, namebuf, off, &count) != -1)) {
         if (type == 0) {
             if (poff && count >= entcnt) {
                 *poff = off;
                 poff = NULL;
             }
-        } else if (strncmp(filename, ep->filename, FAT32_MAX_FILENAME) == 0) {
+        } else if (strncmp(filename, namebuf, FAT32_MAX_FILENAME) == 0) {
             if (poff) {
                 *poff = off;
             }
@@ -1047,8 +1046,9 @@ struct inode *fat_lookup_dir(struct inode *dir, char *filename, uint *poff)
 
     struct fat32_entry *dp = i2fat(dir);
     uint32 coff = reloc_clus(dir, off, 0);
-    // __debug_info("fat_lookup_dir", "name:%s ipos: clus=%d coff=%d\n", filename, dp->cur_clus, coff);
     ip->inum = ((uint64)dp->cur_clus << 32) | coff;
+    __debug_info("fat_lookup_dir", "name:%s ipos: clus=%d coff=%d inum=%p sizeof(uint64)=%d\n",
+                filename, dp->cur_clus, coff, ip->inum, sizeof(uint64));
 
     if (poff) {
         *poff = off;

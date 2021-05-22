@@ -15,12 +15,9 @@ int main(int argc, char *argv[])
     char dst[MAXPATH];
     strcpy(src, argv[1]);
     strcpy(dst, argv[2]);
-    int fd = open(dst, O_RDONLY);
-    if (fd >= 0) {
-        struct stat st;
-        fstat(fd, &st);
-        close(fd);
-        if (st.type == T_DIR) {
+    struct kstat st;
+    if (stat(dst, &st) == 0) {
+        if (st.mode == T_DIR) {
             char *ps, *pd;
             for (ps = src + strlen(src) - 1; ps >= src; ps--) { // trim '/' in tail
                 if (*ps != '/') {

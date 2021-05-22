@@ -212,7 +212,7 @@ go(int which_child)
         printf("write c failed\n");
         exit(1);
       }
-      struct stat st;
+      struct kstat st;
       if(fstat(fd1, &st) != 0){
         printf("fstat failed\n");
         exit(1);

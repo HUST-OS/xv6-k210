@@ -8,7 +8,7 @@ static char path[512];
 void find(char *filename)
 {
     int fd;
-    struct stat st;
+    struct kstat st;
     if ((fd = open(path, O_RDONLY)) < 0) {
         fprintf(2, "find: cannot open %s\n", path);
         return;
@@ -18,7 +18,7 @@ void find(char *filename)
         close(fd);
         return;
     }
-    if (st.type != T_DIR) {
+    if (st.mode != T_DIR) {
         close(fd);
         return;
     }
@@ -32,8 +32,9 @@ void find(char *filename)
         *++p = '/';
     }
     p++;
-    while (readdir(fd, &st)) {
-        strcpy(p, st.name);
+    struct dirent entry;
+    while (getdents(fd, &entry, sizeof(entry)) > 0) {
+        strcpy(p, entry.name);
         if (strcmp(p, ".") == 0 || strcmp(p, "..") == 0) {
             continue;
         }

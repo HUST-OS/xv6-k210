@@ -2,6 +2,7 @@
 #define __BUF_H
 
 #define BSIZE 512
+#define BNUM  50
 
 #include "sleeplock.h"
 

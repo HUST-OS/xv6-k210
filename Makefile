@@ -218,6 +218,7 @@ UPROGS=\
 	$U/_cowtest\
 	$U/_lazytests\
 	$U/_mount\
+	$U/_umount\
 
 userprogs: $(UPROGS)
 

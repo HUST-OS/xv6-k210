@@ -108,7 +108,7 @@ struct superblock *image_fs_init(struct inode *img)
 	initsleeplock(&sb->sb_lock, "imgfs_sb");
 	initlock(&sb->cache_lock, "imgfs_dcache");
 	sb->next = NULL;
-	sb->devnum = img->inum >> 32; // first cluster	
+	sb->devnum = img->inum;
 	sb->real_sb = fat;
 	sb->ref = 0;
 	sb->blocksz = fat->bpb.byts_per_sec;
@@ -146,4 +146,24 @@ fail:
 	if (sb)
 		kfree(sb);
 	return NULL;
+}
+
+
+static void fs_clean(struct superblock *sb, struct dentry *de)
+{
+	sb->op.destroy_inode(de->inode);
+	for (struct dentry *child = de->child; child != NULL;) {
+		struct dentry *temp = child->next;
+		fs_clean(sb, child);
+		child = temp;
+	}
+	kfree(de);
+}
+
+void image_fs_uninstall(struct superblock *sb)
+{
+	iput(sb->dev);
+	fs_clean(sb, sb->root);
+	kfree(sb->real_sb);
+	kfree(sb);
 }

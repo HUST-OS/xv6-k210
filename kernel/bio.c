@@ -27,7 +27,7 @@
 
 struct {
   struct spinlock lock;
-  struct buf buf[NBUF];
+  struct buf buf[BNUM];
 
   // Linked list of all buffers, through prev/next.
   // Sorted by how recently the buffer was used.
@@ -45,7 +45,7 @@ binit(void)
   // Create linked list of buffers
   bcache.head.prev = &bcache.head;
   bcache.head.next = &bcache.head;
-  for(b = bcache.buf; b < bcache.buf+NBUF; b++){
+  for(b = bcache.buf; b < bcache.buf+BNUM; b++){
     b->refcnt = 0;
     b->sectorno = ~0;
     b->dev = ~0;

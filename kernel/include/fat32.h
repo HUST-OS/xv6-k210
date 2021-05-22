@@ -50,15 +50,15 @@ struct fat32_sb {
 
 /* Inode of FAT32 in-memory format */
 struct fat32_entry {
-    char  filename[FAT32_MAX_FILENAME + 1];
+    // char  filename[FAT32_MAX_FILENAME + 1];
     uint8   attribute;
-    // uint8   create_time_tenth;
-    // uint16  create_time;
-    // uint16  create_date;
-    // uint16  last_access_date;
+    uint8   create_time_tenth;
+    uint16  create_time;
+    uint16  create_date;
+    uint16  last_access_date;
     uint32  first_clus;
-    // uint16  last_write_time;
-    // uint16  last_write_date;
+    uint16  last_write_time;
+    uint16  last_write_date;
     uint32  file_size;
 
     uint    ent_cnt;
@@ -76,8 +76,8 @@ struct inode*       fat_alloc_entry(struct inode *dir, char *name, int mode);
 int                 fat_update_entry(struct inode *ip);
 int                 fat_remove_entry(struct inode *ip);
 int                 fat_truncate_file(struct inode *ip);
-int                 fat_stat_file(struct inode *ip, struct stat *st);
-int                 fat_read_dir(struct inode *dir, struct stat *st, uint off);
+int                 fat_stat_file(struct inode *ip, struct kstat *st);
+int                 fat_read_dir(struct inode *dir, struct dirent *dent, uint off);
 int                 fat_read_file(struct inode *ip, int user_dst, uint64 dst, uint off, uint n);
 int                 fat_write_file(struct inode *ip, int user_src, uint64 src, uint off, uint n);
 

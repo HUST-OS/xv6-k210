@@ -273,14 +273,14 @@ sys_dev(void)
 
 // To support ls command
 uint64
-sys_readdir(void)
+sys_getdents(void)
 {
   struct file *f;
-  uint64 p;
+  uint64 p, len;
 
-  if(argfd(0, 0, &f) < 0 || argaddr(1, &p) < 0)
+  if(argfd(0, 0, &f) < 0 || argaddr(1, &p) < 0 || argint(2, (int*)&len) < 0)
     return -1;
-  return filereaddir(f, p);
+  return filereaddir(f, p, len);
 }
 
 // get absolute cwd string
@@ -311,16 +311,16 @@ sys_getcwd(void)
 static int
 isdirempty(struct inode *dp)
 {
-  struct stat st;
+  struct dirent dent;
   int off = 0, ret;
   while (1) {
-    ret = dp->fop->readdir(dp, &st, off);
+    ret = dp->fop->readdir(dp, &dent, off);
     if (ret < 0)
       return -1;
     else if (ret == 0)
       return 1;
-    else if ((st.name[0] == '.' && st.name[1] == '\0') ||     // skip the "." and ".."
-             (st.name[0] == '.' && st.name[1] == '.' && st.name[2] == '\0'))
+    else if ((dent.name[0] == '.' && dent.name[1] == '\0') ||     // skip the "." and ".."
+             (dent.name[0] == '.' && dent.name[1] == '.' && dent.name[2] == '\0'))
     {
       off += ret;
     }
@@ -476,7 +476,7 @@ sys_mount(void)
     iunlock(dev);
     goto fail;
   }
-  iunlock(imnt);  // Don't put, umount will take care of that.
+  iunlockput(imnt);
   iunlockput(dev);
 
   return 0;
@@ -495,5 +495,28 @@ fail:
 uint64
 sys_umount(void)
 {
-  return -1;
+  char buf[MAXPATH];
+  struct inode *mnt = NULL;
+  uint64 flag;
+
+  if (argstr(0, buf, MAXPATH) < 0 || (mnt = namei(buf)) == NULL) {
+    return -1;
+  }
+  if (argint(1, (int*)&flag) < 0 ||
+      mnt->ref > 1) // Is there anyone else holding this inode?
+  {                 // If a syscall try to umount the same mntpoint, he won't pass this.
+    iput(mnt);
+    return -1;
+  }
+
+  ilock(mnt);
+  if (do_umount(mnt, flag) < 0) {
+    iunlockput(mnt);
+    return -1;
+  }
+
+  // If umount successfully, mnt is no longer available,
+  // we shouldn't unlock it, or put it.
+
+  return 0;
 }

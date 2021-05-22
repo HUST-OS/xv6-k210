@@ -148,24 +148,12 @@ int execve(char *path, char **argv, char **envp)
     }
   }
 
-  struct stat st;
-  ip->op->getattr(ip, &st);
   char pname[16];
-  safestrcpy(pname, st.name, sizeof(pname));
+  safestrcpy(pname, ip->entry->filename, sizeof(pname));
   iunlock(ip);
   iput(ip);
   ip = 0;
 
-  /*---------------------------*/
-  /* TODO:
-  Call to usrmm to get a STACK segment struct and allocate pages
-  The problem is how to locate the stack, may we can place it near MAXUVA
-  */
-  // Original Code:
-  // Allocate two pages at the next page boundary.
-  // Use the second as the user stack.
-  // Clear the PTE_U mark of the first page under the stack as a protection.
-  // if ((sz1 = uvmalloc(pagetable, sz, sz + 2 * PGSIZE, PTE_W|PTE_R|PTE_X)) == 0)
   // Heap
   flags = PTE_R | PTE_W;
   for (seg = seghead; seg->next != NULL; seg = seg->next);
@@ -249,7 +237,6 @@ int execve(char *path, char **argv, char **envp)
   return argc; // this ends up in a0, the first argument to main(argc, argv)
 
  bad:
-  __debug_warn("execve", "reach bad: seg=%p, pt=%p, ep=%p\n", seghead, pagetable, ep);
   __debug_warn("execve", "reach bad: seg=%p, pt=%p, ep=%p\n", seghead, pagetable, ep);
   if (seghead) {
     delsegs(pagetable, seghead);

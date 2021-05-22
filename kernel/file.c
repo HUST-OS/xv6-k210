@@ -113,7 +113,7 @@ int
 filestat(struct file *f, uint64 addr)
 {
   // struct proc *p = myproc();
-  struct stat st;
+  struct kstat st;
   
   if(f->type == FD_INODE){
     ilock(f->ip);
@@ -197,30 +197,29 @@ filewrite(struct file *f, uint64 addr, int n)
 // Read from dir f.
 // addr is a user virtual address.
 int
-filereaddir(struct file *f, uint64 addr)
+filereaddir(struct file *f, uint64 addr, uint64 len)
 {
   // struct proc *p = myproc();
   if (f->type != FD_INODE || f->readable == 0)
     return -1;
 
-  struct stat st;
+  struct dirent dent;
   struct inode *ip = f->ip;
 
-  ip->op->getattr(ip, &st);
-  if(st.type != T_DIR)
+  if(ip->mode != T_DIR)
     return -1;
 
   int ret;
   ilock(ip);
-  ret = ip->fop->readdir(ip, &st, f->off);
+  ret = ip->fop->readdir(ip, &dent, f->off);
   iunlock(ip);
   if (ret <= 0) // 0 is end, -1 is err
     return ret;
 
   f->off += ret;
   // if(copyout(p->pagetable, addr, (char *)&st, sizeof(st)) < 0)
-  if(copyout2(addr, (char *)&st, sizeof(st)) < 0)
+  if(copyout2(addr, (char *)&dent, sizeof(dent) > len ? len : sizeof(dent)) < 0)
     return -1;
 
-  return 1;
+  return ret;
 }

@@ -35,7 +35,7 @@ entry("sleep");
 entry("uptime");
 entry("test_proc");
 entry("dev");
-entry("readdir");
+entry("getdents");
 entry("getcwd");
 entry("remove");
 entry("trace");

@@ -3,7 +3,7 @@
 #include "kernel/include/fcntl.h"
 #include "kernel/include/sysinfo.h"
 
-struct stat;
+// struct stat;
 struct rtcdate;
 struct sysinfo;
 
@@ -19,7 +19,7 @@ int kill(int pid);
 int exec(char*, char**);
 int execve(char *name, char *argv[], char *envp[]);
 int open(const char *filename, int mode);
-int fstat(int fd, struct stat*);
+int fstat(int fd, struct kstat*);
 int mkdir(const char *dirname);
 int chdir(const char *dirname);
 int dup(int fd);
@@ -29,16 +29,17 @@ int sleep(int ticks);
 int uptime(void);
 int test_proc(int);
 int dev(int, short, short);
-int readdir(int fd, struct stat*);
 int getcwd(char *buf, uint size);
 int remove(char *filename);
 int trace(int mask);
 int sysinfo(struct sysinfo *);
 int rename(char *old, char *new);
-int mount(char *special, char *dir, char *fstype, uint64 flags, void *data);
+int mount(char *dev, char *dir, char *fstype, uint64 flag, void *data);
+int getdents(int fd, struct dirent *buf, unsigned long len);
+int umount(char *dir, uint64 flag);
 
 // ulib.c
-int stat(const char*, struct stat*);
+int stat(const char*, struct kstat*);
 char* strcpy(char*, const char*);
 char* strcat(char*, const char*);
 void *memmove(void*, const void*, int);
