@@ -41,7 +41,8 @@ OBJS += \
   $K/fat32.o \
   $K/plic.o \
   $K/console.o \
-  $K/usrmm.o
+  $K/usrmm.o \
+  $K/imgfs.o
 
 ifeq ($(platform), k210)
 OBJS += \
@@ -216,6 +217,7 @@ UPROGS=\
 	$U/_stressfs\
 	$U/_cowtest\
 	$U/_lazytests\
+	$U/_mount\
 
 userprogs: $(UPROGS)
 

@@ -29,9 +29,9 @@ struct dentry;
 struct fs_op {
 	struct inode *(*alloc_inode)(struct superblock *sb);
 	void (*destroy_inode)(struct inode *ip);
-	int (*write)(int usr, char *src, uint64 blockno, uint64 off, uint64 len);
-	int (*read)(int usr, char *dst, uint64 blockno, uint64 off, uint64 len);
-	int (*clear)(uint64 blockno, uint64 blockcnt);
+	int (*write)(struct superblock *sb, int usr, char *src, uint64 blockno, uint64 off, uint64 len);
+	int (*read)(struct superblock *sb, int usr, char *dst, uint64 blockno, uint64 off, uint64 len);
+	int (*clear)(struct superblock *sb, uint64 blockno, uint64 blockcnt);
 };
 
 struct inode_op {
@@ -50,23 +50,26 @@ struct dentry_op {
 };
 
 struct file_op {
-	int (*read)(struct inode *ip, int usr, uint64 src, uint off, uint n);
-	int (*write)(struct inode *ip, int usr, uint64 dst, uint off, uint n);
+	int (*read)(struct inode *ip, int usr, uint64 dst, uint off, uint n);
+	int (*write)(struct inode *ip, int usr, uint64 src, uint off, uint n);
 	int (*readdir)(struct inode *ip, struct stat *st, uint off);
 };
 
 
 struct superblock {
-	uint				dev;
+	uint				blocksz;
+	uint				devnum;
+	struct inode		*dev;
+
 	void				*real_sb;
 	struct superblock	*next;
+	int					ref;
 	
 	struct sleeplock	sb_lock;
 	struct fs_op		op;
 
 	struct spinlock		cache_lock;
 	struct dentry		*root;
-
 };
 
 
@@ -99,12 +102,13 @@ struct inode {
 
 struct dentry {
 	char				filename[MAXNAME + 1];
-	int					ref;
+	// int					ref;
 	struct inode		*inode;
 	struct dentry		*parent;
 	struct dentry		*next;
 	struct dentry		*child;
 	struct dentry_op	*op;
+	struct superblock	*mount;
 };
 
 
@@ -128,6 +132,7 @@ struct inode *namei(char *path);
 struct inode *nameiparent(char *path, char *name);
 int namepath(struct inode *ip, char *path, int max);
 
+int do_mount(struct inode *dev, struct inode *mntpoint, char *type, int flag, void *data);
 
 static inline void iunlockput(struct inode *ip)
 {

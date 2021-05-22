@@ -35,6 +35,7 @@ int remove(char *filename);
 int trace(int mask);
 int sysinfo(struct sysinfo *);
 int rename(char *old, char *new);
+int mount(char *special, char *dir, char *fstype, uint64 flags, void *data);
 
 // ulib.c
 int stat(const char*, struct stat*);

@@ -134,11 +134,13 @@ extern uint64 sys_test_proc(void);
 extern uint64 sys_dev(void);
 extern uint64 sys_readdir(void);
 extern uint64 sys_getcwd(void);
-extern uint64 sys_remove(void);
+extern uint64 sys_unlink(void);
 extern uint64 sys_trace(void);
 extern uint64 sys_sysinfo(void);
 extern uint64 sys_rename(void);
 extern uint64 sys_execve(void);
+extern uint64 sys_mount(void);
+extern uint64 sys_umount(void);
 
 static uint64 (*syscalls[])(void) = {
   [SYS_fork]        sys_fork,
@@ -163,11 +165,13 @@ static uint64 (*syscalls[])(void) = {
   [SYS_dev]         sys_dev,
   [SYS_readdir]     sys_readdir,
   [SYS_getcwd]      sys_getcwd,
-  [SYS_remove]      sys_remove,
+  [SYS_unlink]      sys_unlink,
   [SYS_trace]       sys_trace,
   [SYS_sysinfo]     sys_sysinfo,
   [SYS_rename]      sys_rename,
   [SYS_execve]      sys_execve,
+  [SYS_mount]      sys_mount,
+  [SYS_umount]      sys_umount,
 };
 
 static char *sysnames[] = {
@@ -193,11 +197,13 @@ static char *sysnames[] = {
   [SYS_dev]         "dev",
   [SYS_readdir]     "readdir",
   [SYS_getcwd]      "getcwd",
-  [SYS_remove]      "remove",
+  [SYS_unlink]      "unlink",
   [SYS_trace]       "trace",
   [SYS_sysinfo]     "sysinfo",
   [SYS_rename]      "rename",
   [SYS_execve]      "execve",
+  [SYS_mount]       "mount",
+  [SYS_umount]      "umount",
 };
 
 void

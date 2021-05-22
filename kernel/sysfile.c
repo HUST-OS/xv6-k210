@@ -330,7 +330,7 @@ isdirempty(struct inode *dp)
 }
 
 uint64
-sys_remove(void)
+sys_unlink(void)
 {
   char path[MAXPATH];
   struct inode *ip;
@@ -443,4 +443,57 @@ sys_rename(void)
 //   if (src)
 //     eput(src);
 //  return -1;
+}
+
+uint64
+sys_mount(void)
+{
+  char buf[MAXPATH];
+  struct inode *dev = NULL, *imnt = NULL;
+  uint64 flag;
+
+  if (argstr(0, buf, MAXPATH) < 0 || (dev = namei(buf)) == NULL) {
+    return -1;
+  }
+  if (argstr(1, buf, MAXPATH) < 0 || (imnt = namei(buf)) == NULL) {
+    goto fail;
+  }
+  // Type of fs to mount and flag.
+  if (argstr(2, buf, MAXPATH) < 0 || argint(3, (int*)&flag) < 0) {
+    goto fail;
+  }
+
+  // We don't plan to support this
+  // char data[512];
+  // if (argstr(4, data, sizeof(data)) < 0) {
+  //   goto fail;
+  // }
+
+  ilock(dev);
+  ilock(imnt);
+  if (do_mount(dev, imnt, buf, flag, NULL) < 0) {
+    iunlock(imnt);
+    iunlock(dev);
+    goto fail;
+  }
+  iunlock(imnt);  // Don't put, umount will take care of that.
+  iunlockput(dev);
+
+  return 0;
+
+fail:
+  if (dev) {
+    iput(dev);
+  }
+  if (imnt) {
+    iput(imnt);
+  }
+
+  return -1;
+}
+
+uint64
+sys_umount(void)
+{
+  return -1;
 }

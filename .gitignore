@@ -1,6 +1,6 @@
 tags
 .vscode/*
-fs.img
+*.img
 xv6-user/_*
 xv6-user/*.d
 xv6-user/*.o

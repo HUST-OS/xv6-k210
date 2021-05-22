@@ -18,6 +18,7 @@
 #define SYS_uptime      14
 #define SYS_open        15
 #define SYS_write       16
+#define SYS_unlink      17
 #define SYS_remove      17
 #define SYS_trace       18
 #define SYS_sysinfo     19
@@ -29,5 +30,7 @@
 #define SYS_getcwd      25
 #define SYS_rename      26
 #define SYS_execve      27
+#define SYS_mount       28
+#define SYS_umount      29
 
 #endif

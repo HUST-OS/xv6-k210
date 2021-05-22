@@ -182,7 +182,7 @@ kerneltrap() {
     struct proc *p = myproc();
     // This case may happen when kernel is accessing user's lazy-allocated page.
     // The handler should allocate a real one, but failed for lack of memory.
-    if (p != NULL && is_page_fault(scause)) {
+    if (p != NULL && is_page_fault(scause) && r_stval() != NULL) {
       p->killed = 1;
       sepc = kern_pgfault_escape();
       __debug_error("kerneltrap", "sepc=%p stval=%p escape=%p pid=%d\n", r_sepc(), r_stval(), sepc, p->pid);

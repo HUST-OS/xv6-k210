@@ -30,11 +30,25 @@
 #define FAT32_MAX_PATH      260
 
 
-/**
- * Inode of FAT32 in-memory format
- * 
- * 
- */
+/* FAT32 superblock */
+struct fat32_sb {
+    uint32  first_data_sec;
+    uint32  data_sec_cnt;
+    uint32  data_clus_cnt;
+    uint32  byts_per_clus;
+    struct {
+        uint16  byts_per_sec;
+        uint8   sec_per_clus;
+        uint16  rsvd_sec_cnt;
+        uint8   fat_cnt;            /* count of FAT regions */
+        uint32  hidd_sec;           /* count of hidden sectors */
+        uint32  tot_sec;            /* total count of sectors including all regions */
+        uint32  fat_sz;             /* count of sectors for a FAT region */
+        uint32  root_clus;
+    } bpb;
+};
+
+/* Inode of FAT32 in-memory format */
 struct fat32_entry {
     char  filename[FAT32_MAX_FILENAME + 1];
     uint8   attribute;
@@ -54,7 +68,7 @@ struct fat32_entry {
 
 
 struct fat32_sb*    fat32_init(char *boot_sector);
-struct fat32_entry* fat32_root_init(struct superblock *sb);
+struct inode*       fat32_root_init(struct superblock *sb);
 struct inode*       fat_lookup_dir(struct inode *dir, char *filename, uint *poff);
 struct inode*       fat_alloc_inode(struct superblock *sb);
 void                fat_destroy_inode(struct inode *ip);

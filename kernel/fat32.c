@@ -50,25 +50,6 @@ union fat_disk_entry {
     long_name_entry_t   lne;
 };
 
-/* FAT32 superblock */
-struct fat32_sb {
-    uint32  first_data_sec;
-    uint32  data_sec_cnt;
-    uint32  data_clus_cnt;
-    uint32  byts_per_clus;
-    struct {
-        uint16  byts_per_sec;
-        uint8   sec_per_clus;
-        uint16  rsvd_sec_cnt;
-        uint8   fat_cnt;            /* count of FAT regions */
-        uint32  hidd_sec;           /* count of hidden sectors */
-        uint32  tot_sec;            /* total count of sectors including all regions */
-        uint32  fat_sz;             /* count of sectors for a FAT region */
-        uint32  root_clus;
-    } bpb;
-};
-
-
 // FAT32 inode operation collection
 struct inode_op fat32_inode_op = {
     .create = fat_alloc_entry,
@@ -127,13 +108,6 @@ struct fat32_sb *fat32_init(char *boot_sector)
     __debug_info("FAT32 init", "fat_sz: %d\n", fat->bpb.fat_sz);
     __debug_info("FAT32 init", "first_data_sec: %d\n", fat->first_data_sec);
 
-    // make sure that byts_per_sec has the same value with BSIZE 
-    if (BSIZE != fat->bpb.byts_per_sec) {
-        __debug_error("fat32_init", "byts_per_sec: %d != BSIZE: %d\n", fat->bpb.byts_per_sec, BSIZE);
-        kfree(fat);
-        return NULL;
-    }
-
     return fat;
 }
 
@@ -143,11 +117,14 @@ static inline struct fat32_sb *sb2fat(struct superblock *sb)
     return (struct fat32_sb *)sb->real_sb;
 }
 
-struct fat32_entry *fat32_root_init(struct superblock *sb)
+struct inode *fat32_root_init(struct superblock *sb)
 {
     struct fat32_sb *fat = sb2fat(sb);
     struct fat32_entry *root = kmalloc(sizeof(struct fat32_entry));
-    if (root == NULL) {
+    struct inode *iroot = sb->op.alloc_inode(sb);
+    if (root == NULL || iroot == NULL) {
+        if (root)
+            kfree(root);
         return NULL;
     }
 
@@ -158,9 +135,17 @@ struct fat32_entry *fat32_root_init(struct superblock *sb)
     root->filename[0] = '/';
     root->filename[1] = '\0';
 
+    iroot->real_i = root;
+    iroot->ref = 0;
+	iroot->inum = 0;
+	iroot->mode = T_DIR;
+	iroot->state |= I_STATE_VALID;
+	iroot->op = &fat32_inode_op;
+	iroot->fop = &fat32_file_op;
+
     __debug_info("fat32_root_init", "root cluster: %d\n", root->first_clus);
 
-    return root;
+    return iroot;
 }
 
 static inline void __alert_fs_err(const char *func)
@@ -221,7 +206,7 @@ static uint32 read_fat(struct superblock *sb, uint32 cluster)
     // here should be a cache layer for FAT table, but not implemented yet.
     uint32 next_clus;
     acquiresleep(&sb->sb_lock);
-    sb->op.read(0, (char *)&next_clus, fat_sec, sec_off, sizeof(next_clus));
+    sb->op.read(sb, 0, (char *)&next_clus, fat_sec, sec_off, sizeof(next_clus));
     releasesleep(&sb->sb_lock);
 
     // __debug_info("read_fat", "cur:%d next:%d\n", cluster, next_clus);
@@ -245,7 +230,7 @@ static int write_fat(struct superblock *sb, uint32 cluster, uint32 content)
     uint32 fat_sec = fat_sec_of_clus(fat, cluster, 1);
     uint32 sec_off = fat_offset_of_clus(fat, cluster);
     acquiresleep(&sb->sb_lock);
-    sb->op.write(0, (char *)&content, fat_sec, sec_off, sizeof(content));
+    sb->op.write(sb, 0, (char *)&content, fat_sec, sec_off, sizeof(content));
     releasesleep(&sb->sb_lock);
     return 0;
 }
@@ -264,15 +249,15 @@ static uint32 alloc_clus(struct superblock *sb)
     uint32 clus = 0;
     acquiresleep(&sb->sb_lock);
     for (uint32 i = 0; i < fat->bpb.fat_sz; i++, fat_sec++) {
-        sb->op.read(0, buf, fat_sec, 0, fat->bpb.byts_per_sec);
+        sb->op.read(sb, 0, buf, fat_sec, 0, fat->bpb.byts_per_sec);
         for (uint32 j = 0; j < ent_per_sec; j++) {
             if (((uint32 *)buf)[j] == 0) {
                 uint32 flag = FAT32_EOC + 7;
-                sb->op.write(0, (char*)&flag, fat_sec, j * sizeof(uint32), sizeof(uint32));
+                sb->op.write(sb, 0, (char*)&flag, fat_sec, j * sizeof(uint32), sizeof(uint32));
 
                 clus = i * ent_per_sec + j;
                 uint32 sec = first_sec_of_clus(fat, clus);
-                sb->op.clear(sec, fat->bpb.sec_per_clus);
+                sb->op.clear(sb, sec, fat->bpb.sec_per_clus);
                 goto end;
             }
         }
@@ -309,10 +294,10 @@ static uint rw_clus(struct superblock *sb, uint32 cluster, int write, int user, 
             m = n - tot;
         }
         if (write) {
-            if (sb->op.write(user, (char*)data, sec, off % bps, m) < 0) {
+            if (sb->op.write(sb, user, (char*)data, sec, off % bps, m) < 0) {
                 break;
             }
-        } else if (sb->op.read(user, (char*)data, sec, off % bps, m) < 0) {
+        } else if (sb->op.read(sb, user, (char*)data, sec, off % bps, m) < 0) {
             break;
         }
     }
@@ -661,25 +646,21 @@ struct inode *fat_alloc_entry(struct inode *dir, char *name, int mode)
     if (!(dp->attribute & ATTR_DIRECTORY))
         panic("ealloc not dir");
 
-    struct fat32_sb *fat = sb2fat(dir->sb);
+    struct superblock *sb = dir->sb;
     struct inode *ip;
-    if ((ip = fat_alloc_inode(dir->sb)) == NULL) {
+    uint off = 0;
+    /* If the file exists on disk. */
+    if ((ip = fat_lookup_dir(dir, name, &off)) != NULL) {      // entry exists
+        return ip;
+    }
+    if ((ip = fat_alloc_inode(sb)) == NULL) {
         return NULL;
     }
     ip->op = dir->op;
     ip->fop = dir->fop;
     ip->mode = mode;
 
-    /* If the file exists on disk. */
     struct fat32_entry *ep;
-    uint off = 0;
-    if ((ep = fat_lookup_dir_ent(dir, name, &off)) != NULL) {      // entry exists
-        ip->real_i = ep;
-        reloc_clus(dir, off, 0);
-        ip->inum = ((uint64)dp->cur_clus << 32) | (off % fat->byts_per_clus);
-        return ip;
-    }
-
     if ((ep = kmalloc(sizeof(struct fat32_entry))) == NULL) {
         kfree(ip);
         return NULL;
@@ -693,13 +674,15 @@ struct inode *fat_alloc_entry(struct inode *dir, char *name, int mode)
     safestrcpy(ep->filename, name, sizeof(ep->filename));
     ip->real_i = ep;
     reloc_clus(dir, off, 0);
-    ip->inum = ((uint64)dp->cur_clus << 32) | (off % fat->byts_per_clus);
+    ip->inum = ((uint64)dp->cur_clus << 32) | (off % sb2fat(sb)->byts_per_clus);
 
     if (mode == T_DIR) {    // generate "." and ".." for ep
-        if ((ep->cur_clus = ep->first_clus = alloc_clus(dir->sb)) < 0
+        if ((ep->cur_clus = ep->first_clus = alloc_clus(sb)) < 0
             || fat_make_entry(ip, ep, 0) < 0
             || fat_make_entry(ip, dp, 32) < 0)
         {
+            if (ep->first_clus > 0)
+                free_clus(sb, ep->first_clus);
             goto fail;
         }
     }
@@ -834,7 +817,7 @@ int fat_stat_entry(struct fat32_entry *ep, struct stat *st)
 int fat_stat_file(struct inode *ip, struct stat *st)
 {
     int ret = fat_stat_entry(i2fat(ip), st);
-    st->dev = ip->sb->dev;
+    st->dev = ip->sb->devnum;
     return ret;
 }
 
@@ -977,7 +960,7 @@ int fat_read_dir(struct inode *ip, struct stat *st, uint off)
     off2 += count << 5;
     ret = off2 - off;
     fat_stat_entry(&entry, st);
-    st->dev = ip->sb->dev;
+    st->dev = ip->sb->devnum;
 
     return ret;
 }
@@ -1050,6 +1033,9 @@ struct inode *fat_lookup_dir(struct inode *dir, char *filename, uint *poff)
     struct fat32_entry *ep = fat_lookup_dir_ent(dir, filename, &off);
     if (ep == NULL) {
         kfree(ip);
+        if (poff) {
+            *poff = off;
+        }
         return NULL;
     }
 

@@ -42,3 +42,5 @@ entry("trace");
 entry("sysinfo");
 entry("rename");
 entry("execve");
+entry("mount");
+entry("umount");

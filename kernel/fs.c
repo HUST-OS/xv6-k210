@@ -15,9 +15,9 @@
 #include "include/debug.h"
 
 
-static int rootfs_write(int usr, char *src, uint64 sectorno, uint64 off, uint64 len);
-static int rootfs_read(int usr, char *dst, uint64 sectorno, uint64 off, uint64 len);
-static int rootfs_clear(uint64 sectorno, uint64 sectorcnt);
+static int rootfs_write(struct superblock *sb, int usr, char *src, uint64 sectorno, uint64 off, uint64 len);
+static int rootfs_read(struct superblock *sb, int usr, char *dst, uint64 sectorno, uint64 off, uint64 len);
+static int rootfs_clear(struct superblock *sb, uint64 sectorno, uint64 sectorcnt);
 static struct dentry *de_check_cache(struct dentry *parent, char *name);
 int de_delete(struct dentry *de);
 
@@ -30,7 +30,8 @@ extern struct inode_op fat32_inode_op;
 extern struct file_op fat32_file_op;
 
 static struct superblock rootfs = {
-	.dev = ROOTDEV,
+	.devnum = ROOTDEV,
+	.dev = NULL,
 	.op.alloc_inode = fat_alloc_inode,
 	.op.destroy_inode = fat_destroy_inode,
 	.op.write = rootfs_write,
@@ -47,40 +48,41 @@ void rootfs_init()
 {
 	__debug_info("rootfs_init", "enter\n");
 	rootfs.next = NULL;
+	rootfs.ref = 0;
 	initsleeplock(&rootfs.sb_lock, "rootfs_sb");
+	initlock(&rootfs.cache_lock, "rootfs_dcache");
 
 	// Read superblock from sector 0.
 	struct buf *b = bread(ROOTDEV, 0);
-	rootfs.real_sb = fat32_init((char*)b->data);
+	struct fat32_sb *fat = fat32_init((char*)b->data);
 	brelse(b);
-	if (rootfs.real_sb == NULL)
-		panic("rootfs_init fail to get superblock");
+	
+    // make sure that byts_per_sec has the same value with BSIZE 
+    if (fat == NULL || BSIZE != fat->bpb.byts_per_sec) {
+        __debug_error("fat32_init", "byts_per_sec: %d != BSIZE: %d\n", fat->bpb.byts_per_sec, BSIZE);
+		panic("rootfs_init: superblock");
+    }
+	rootfs.real_sb = fat;
+	rootfs.blocksz = fat->bpb.byts_per_sec;
 
 	// Initialize in-mem root.
-	struct fat32_entry *fat_root = fat32_root_init(&rootfs);
-	struct inode *iroot = rootfs.op.alloc_inode(&rootfs);
+	struct inode *iroot = fat32_root_init(&rootfs);
 	rootfs.root = kmalloc(sizeof(struct dentry));
-	if (iroot == NULL || fat_root == NULL || rootfs.root == NULL)
+	if (iroot == NULL || rootfs.root == NULL)
 		panic("rootfs_init fail to get root");
 
-	iroot->real_i = fat_root;
-	iroot->inum = 0;
-	iroot->mode = T_DIR;
-	iroot->state |= I_STATE_VALID;
 	iroot->entry = rootfs.root;
-	iroot->op = &fat32_inode_op;
-	iroot->fop = &fat32_file_op;
 
 	// Initialize in-mem dentry struct for root.
 	memset(rootfs.root, 0, sizeof(struct dentry));
 	rootfs.root->inode = iroot;
 	rootfs.root->op = &rootfs_dentry_op;
-	safestrcpy(rootfs.root->filename, fat_root->filename, MAXNAME + 1);
+	rootfs.root->filename[0] = '/';
 	__debug_info("rootfs_init", "done\n");
 }
 
 
-static int rootfs_write(int usr, char *src, uint64 sectorno, uint64 off, uint64 len)
+static int rootfs_write(struct superblock *sb, int usr, char *src, uint64 sectorno, uint64 off, uint64 len)
 {
 	if (off + len > BSIZE)
 		panic("rootfs_write");
@@ -101,7 +103,7 @@ static int rootfs_write(int usr, char *src, uint64 sectorno, uint64 off, uint64 
 }
 
 
-static int rootfs_read(int usr, char *dst, uint64 sectorno, uint64 off, uint64 len)
+static int rootfs_read(struct superblock *sb, int usr, char *dst, uint64 sectorno, uint64 off, uint64 len)
 {
 	if (off + len > BSIZE)
 		panic("rootfs_read");
@@ -115,11 +117,11 @@ static int rootfs_read(int usr, char *dst, uint64 sectorno, uint64 off, uint64 l
 }
 
 
-static int rootfs_clear(uint64 sectorno, uint64 sectorcnt)
+static int rootfs_clear(struct superblock *sb, uint64 sectorno, uint64 sectorcnt)
 {
 	struct buf *b;
 	while (sectorcnt--) {
-		b = bread(ROOTDEV, sectorno);
+		b = bread(ROOTDEV, sectorno++);
 		memset(b->data, 0, BSIZE);
 		bwrite(b);
 		brelse(b);
@@ -175,12 +177,13 @@ struct inode *create(char *path, int type)
 		return NULL;
 	}
 
-	ip->ref = 1;
+	idup(ip);
 	ip->state = I_STATE_VALID;
 	ip->entry = de;
 
 	safestrcpy(de->filename, name, MAXNAME + 1);
 	de->child = NULL;
+	de->mount = NULL;
 	de->inode = ip;
 	de->op = &rootfs_dentry_op;
 
@@ -211,12 +214,20 @@ int unlink(struct inode *ip)
 	struct dentry *de = ip->entry;
 
 	__debug_info("unlink", "unlink %s\n", de->filename);
+	for (sb = &rootfs; sb != NULL; sb = sb->next) {
+		if (sb->dev == ip) {
+			__debug_warn("unlink", "%s is busy\n", de->filename);
+			return -1;
+		}
+	}
+
+	sb = ip->sb;
 	if (de == sb->root) {
-		__debug_error("unlink", "try to unlink root\n");
+		__debug_warn("unlink", "try to unlink root\n");
 		return -1;
 	}
 	if (ip->op->unlink(ip) < 0) {
-		__debug_error("unlink", "fail\n");
+		__debug_warn("unlink", "fail\n");
 		return -1;
 	}
 
@@ -236,6 +247,7 @@ int unlink(struct inode *ip)
 struct inode *idup(struct inode *ip)
 {
 	acquire(&ip->sb->cache_lock);
+	ip->sb->ref++;
 	ip->ref++;
 	release(&ip->sb->cache_lock);
 	return ip;
@@ -247,6 +259,7 @@ void iput(struct inode *ip)
 	// Lock the cache so that no one can get ip.
 	struct superblock *sb = ip->sb;
 	acquire(&sb->cache_lock);
+	sb->ref--;
 	if (ip->ref == 1) {
 		// ref == 1 means no other process can have ip locked,
 		// so this acquiresleep() won't block (or deadlock).
@@ -294,6 +307,18 @@ void iunlock(struct inode *ip)
  * 
  */
 
+
+/**
+ * If de is a moint point, return the mounted root.
+ */
+static inline struct dentry *de_mnt_in(struct dentry *de)
+{
+	while (de->mount != NULL) {
+		de = de->mount->root;
+	}
+	return de;
+}
+
 // Returns a dentry struct. If name is given, check ecache. It is difficult to cache entries
 // by their whole path. But when parsing a path, we open all the directories through it, 
 // which forms a linked list from the final file to the root. Thus, we use the "parent" pointer 
@@ -311,7 +336,7 @@ static struct dentry *de_check_cache(struct dentry *parent, char *name)
 				de->next = parent->child;
 				parent->child = de;
 			}
-			return de;
+			return de_mnt_in(de);
 		}
 	}
 	return NULL;
@@ -351,32 +376,50 @@ int de_delete(struct dentry *de)
 	return -1;
 }
 
+void de_print(struct superblock *sb, int level);
 
 static void do_de_print(struct dentry *de, int level)
 {
+	struct dentry *child;
+	for (child = de->child; child != NULL; child = child->next) {
+		for (int i = 0; i < level; i++) {
+			printf("\t");
+		}
+		printf(__INFO("%d")" %s\n", child->inode->ref, child->filename);
+		do_de_print(child, level + 1);
+		if (child->mount) {
+			release(&child->inode->sb->cache_lock);
+			de_print(child->mount, level);
+			acquire(&child->inode->sb->cache_lock);
+		}
+	}
+}
+
+void de_print(struct superblock *sb, int level)
+{
+	acquire(&sb->cache_lock);
+
+	struct dentry *root = sb->root;
 	for (int i = 0; i < level; i++) {
 		printf("\t");
 	}
-	struct stat st;
-	de->inode->op->getattr(de->inode, &st);
-	printf("[%d] %s\n", de->inode->ref, st.name);
-	struct dentry *child;
-	for (child = de->child; child != NULL; child = child->next) {
-		do_de_print(child, level + 1);
-	}
-}
+	if (sb->dev) {
+		printf(__INFO("%d/%d")" %s mounted at %s\n",
+			sb->ref, root->inode->ref, sb->dev->entry->filename, root->parent->filename);
 
-void de_print(struct superblock *sb)
-{
-	printf("\nfile tree:\n");
-	acquire(&sb->cache_lock);
-	do_de_print(sb->root, 0);
+	} else {
+		printf(__INFO("%d/%d")" %s\n", sb->ref, root->inode->ref, root->filename);
+	}
+	do_de_print(root, level + 1);
+
 	release(&sb->cache_lock);
 }
 
+
 void rootfs_print()
 {
-	de_print(&rootfs);
+	printf("\n"__INFO("file tree")":\n");
+	de_print(&rootfs, 0);
 }
 
 
@@ -399,19 +442,26 @@ struct inode *dirlookup(struct inode *dir, char *filename, uint *poff)
 	if (dir->mode != T_DIR)
 		panic("dirlookup");
 
+	struct superblock *sb = dir->sb;
 	struct dentry *de, *parent;
-	if (strncmp(filename, ".", FAT32_MAX_FILENAME) == 0) {
-		return idup(dir);
-	} else if (strncmp(filename, "..", FAT32_MAX_FILENAME) == 0) {
+	if (strncmp(filename, ".", MAXNAME) == 0) {
+		de = de_mnt_in(dir->entry);
+		return idup(de->inode);
+	}
+	else if (strncmp(filename, "..", MAXNAME) == 0) {
 		de = dir->entry;
-		if (de == dir->sb->root) {
-			// Here we should be able to look up its father if it is a mount point.
-			return idup(dir);
+		while (de == sb->root) { // It indicates that de is a root and may be a mount point.
+			de = de->parent;
+			if (de == NULL) { // Meet root of rootfs.
+				de = sb->root;
+				break;
+			}
+			sb = de->inode->sb;
 		}
-		return idup(de->parent->inode);
+		de = de_mnt_in(de->parent == NULL ? de : de->parent); // Now we found the real parent.
+		return idup(de->inode);
 	}
 
-	struct superblock *sb = dir->sb;
 	acquire(&sb->cache_lock);
 	de = de_check_cache(dir->entry, filename);
 	release(&sb->cache_lock);
@@ -425,16 +475,17 @@ struct inode *dirlookup(struct inode *dir, char *filename, uint *poff)
 		if (ip) {
 			sb->op.destroy_inode(ip);
 		}
-		__debug_error("dirlookup", "file not found: %s\n", filename);
+		__debug_warn("dirlookup", "file not found: %s\n", filename);
 		return NULL;
 	}
 
-	ip->ref = 1;
+	idup(ip);
 	ip->entry = de;
 	ip->state = I_STATE_VALID;
 
 	safestrcpy(de->filename, filename, MAXNAME + 1);
 	de->child = NULL;
+	de->mount = NULL;
 	de->inode = ip;
 	de->op = &rootfs_dentry_op;
 
@@ -481,7 +532,7 @@ static struct inode *lookup_path(char *path, int parent, char *name)
 	} else if (*path != '\0') {
 		ip = idup(myproc()->cwd);
 	} else {
-		__debug_error("lookup_path", "path invalid\n");
+		__debug_warn("lookup_path", "path invalid\n");
 		return NULL;
 	}
 
@@ -497,7 +548,7 @@ static struct inode *lookup_path(char *path, int parent, char *name)
 		}
 		if ((next = dirlookup(ip, name, 0)) == NULL) {
 			iunlockput(ip);
-			__debug_error("lookup_path", "dirlookup returns a NULL\n");
+			__debug_warn("lookup_path", "dirlookup returns a NULL\n");
 			return NULL;
 		}
 		__debug_info("lookup_path", "found: %s\n", next->entry->filename);
@@ -544,7 +595,17 @@ int namepath(struct inode *ip, char *path, int max)
 	*p = '\0';
 
 	acquire(&sb->cache_lock);
-	for (; de != rootfs.root; de = de->parent) {
+	for (;;) {
+		while (de == sb->root) { // It indicates that de is a root and may be a mount point.
+			if ((de = de->parent) == NULL) { // Meet root of rootfs.
+				break;
+			}
+			release(&sb->cache_lock);
+			sb = de->inode->sb;
+			acquire(&sb->cache_lock);
+		}
+		if (de == NULL)
+			break;
 		len = strlen(de->filename);
 		if ((p -= len) <= path) {
 			release(&sb->cache_lock);
@@ -552,6 +613,7 @@ int namepath(struct inode *ip, char *path, int max)
 		}
 		memmove(p, de->filename, len);
 		*--p = '/';
+		de = de->parent;
 	}
 	release(&sb->cache_lock);
 
@@ -560,3 +622,74 @@ int namepath(struct inode *ip, char *path, int max)
 
 	return 0;
 }
+
+
+/**
+ * Other file system operations.
+ * 
+ * 
+ */
+
+extern struct superblock *image_fs_init(struct inode *img);
+
+
+// Ignore flag and data in our implement.
+// Caller must hold all inodes' locks.
+int do_mount(struct inode *dev, struct inode *mntpoint, char *type, int flag, void *data)
+{
+	if (strncmp("vfat", type, 5) != 0 &&
+		strncmp("fat32", type, 6) != 0)
+	{
+		__debug_warn("do_mount", "Unsupported fs type: %s\n", type);
+		return -1;
+	}
+	if (dev->state & I_STATE_LOCKED) {
+		__debug_warn("do_mount", "%s is already mounted at %s\n", dev);
+		return -1;
+	}
+
+	__debug_info("do_mount", "dev:%s mntpnt:%s\n", dev->entry->filename, mntpoint->entry->filename);
+
+	if (dev->mode == T_DIR || mntpoint->mode != T_DIR) {
+		__debug_warn("do_mount", "Error file type: dev:%d mntpoint:%d\n",
+			dev->mode, mntpoint->mode);
+		return -1;
+	}
+
+	struct dentry *dmnt = mntpoint->entry;
+	// We only support one mount at a time.
+	// In fact, if mntpoint is mounted, namei will get its mounting dev,
+	// so this could be a root of a fs, at which can be mounted.
+	if (dmnt->mount != NULL) {
+		__debug_error("do_mount", "%s is already be mounted\n", dmnt->filename);
+		panic("do_mount");
+	}
+
+	if (dev->mode == T_DEVICE) {
+		// On FAT32 volume, there is no file with device type.
+		__debug_warn("do_mount", "How do you put a device on FAT32???\n");
+		return -1;
+	}
+	else if (dev->mode == T_FILE) {
+		struct superblock *imgsb = image_fs_init(dev);
+		if (imgsb == NULL)
+			return -1;
+
+		acquire(&rootfs.cache_lock); // borrow this lock
+
+		struct superblock *psb = &rootfs;
+		while (psb->next != NULL)
+			psb = psb->next;
+		psb->next = imgsb;
+		imgsb->root->parent = dmnt;
+		dmnt->mount = imgsb;
+
+		release(&rootfs.cache_lock);
+
+	}
+
+	return 0;
+}
+
+
+
